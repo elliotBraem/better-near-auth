@@ -108,7 +108,7 @@ export default function UserProfile() {
                 className="h-8 px-3"
               >
                 <a
-                  href={`/${nearAccountId}`}
+                  href={`/profile/${nearAccountId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1"

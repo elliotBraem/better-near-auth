@@ -1,12 +1,12 @@
 {
   "version": "7",
-  "dialect": "postgresql",
+  "dialect": "sqlite",
   "entries": [
     {
       "idx": 0,
-      "version": "7",
-      "when": 1755626453403,
-      "tag": "0000_great_captain_marvel",
+      "version": "6",
+      "when": 1760709137392,
+      "tag": "0000_volatile_ultimatum",
       "breakpoints": true
     }
   ]

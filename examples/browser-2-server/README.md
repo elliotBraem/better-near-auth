@@ -1,10 +1,13 @@
-# Better NEAR Auth - Browser to Server Example
+# Better NEAR Auth - Complete Authentication Example
 
-This example demonstrates how to implement Sign in with NEAR (SIWN) authentication between a browser application and server using the `better-near-auth` plugin for Better Auth.
+This example demonstrates a complete authentication system that combines Sign in with NEAR (SIWN) with social OAuth providers (Google, GitHub, Discord, etc.) using the `better-near-auth` plugin for Better Auth.
 
 ## Features
 
 - **NEAR Wallet Authentication** - Sign in with NEAR using NEP-413 standard
+- **Social OAuth Login** - Sign in with Google, GitHub, Discord, and other providers
+- **Account Linking** - Link social accounts with NEAR accounts following better-auth best practices
+- **Profile Browser** - Public NEAR account profiles at `/profile/${accountId}` routes
 - **Better Auth Integration** - Full-featured authentication with session management
 - **FastinTEAR Integration** - Browser wallet connectivity via FastinTEAR
 - **Profile Integration** - Automatic fetching of user profiles from NEAR Social
@@ -26,8 +29,25 @@ Copy the example environment files and configure them:
 ```bash
 # Server environment
 cp apps/server/.env.example apps/server/.env
-# Web environment  
+# Web environment
 cp apps/web/.env.example apps/web/.env
+```
+
+Configure your OAuth provider credentials in `apps/server/.env`:
+
+```env
+# Social OAuth Providers
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+
+# Database
+DATABASE_URL=postgresql://postgres:password@localhost:5432/better-near-auth
+
+# Better Auth
+BETTER_AUTH_SECRET=your_secret_key
+BETTER_AUTH_URL=http://localhost:3000
 ```
 
 ### 3. Database Setup
@@ -49,15 +69,34 @@ bun run dev
 
 ## How It Works
 
-### Authentication Flow
+This demo showcases two primary authentication flows with account linking capabilities:
 
-1. **User clicks "Sign in with NEAR"** in the browser application
-2. **FastinTEAR wallet connection** - The browser loads FastinTEAR to connect NEAR wallets
-3. **Nonce generation** - Client requests a cryptographic nonce from the server
-4. **Message signing** - User signs a NEP-413 compliant message with their NEAR wallet
-5. **Signature verification** - Server verifies the signature using `near-sign-verify`
-6. **Session creation** - Server creates a session and links the NEAR account to the user
-7. **Profile fetching** - Client automatically fetches user profile from NEAR Social
+### Flow A: Social Login → Link NEAR Account
+
+1. **User signs in** with a social provider (Google, GitHub, etc.)
+2. **Redirected to dashboard** with authenticated session
+3. **Click "Link NEAR Account"** button on dashboard
+4. **FastinTEAR wallet connection** opens for NEAR authentication
+5. **User signs NEP-413 message** with their NEAR wallet
+6. **Accounts linked** - NEAR account is now connected to social login
+7. **Profile accessible** at `/profile/${near_account_id}` route
+
+### Flow B: NEAR Login → Link Social Account
+
+1. **User signs in** with NEAR wallet (NEP-413)
+2. **Redirected to dashboard** with authenticated session
+3. **Click "Link [Provider]"** button (e.g., "Link Google")
+4. **OAuth flow initiated** - redirects to provider
+5. **User authorizes** the OAuth application
+6. **Accounts linked** - social account connected to NEAR account
+7. **Profile accessible** at `/profile/${near_account_id}` route
+
+### Profile Browser
+
+- **Public Profiles**: NEAR accounts have public profile pages at `/profile/${accountId}`
+- **Profile Data**: Automatically fetched from NEAR Social
+- **Social-Only Accounts**: Users who only signed in with social providers (and haven't linked NEAR) do not have public profile pages
+- **Profile Information**: Displays NEAR Social profile data including name, bio, avatar, and social links
 
 ### Key Components
 
@@ -67,42 +106,49 @@ bun run dev
 - **NEAR Profile Component** (`apps/web/src/components/near-profile.tsx`) - Displays NEAR Social profiles
 - **FastinTEAR Integration** (`apps/web/index.html`) - Browser wallet connectivity
 
-## Project Structure
-
-```cmd
-browser-2-server/
-├── apps/
-│   ├── web/                          # React frontend
-│   │   ├── src/components/
-│   │   │   ├── sign-in-form.tsx      # Enhanced with NEAR sign-in
-│   │   │   ├── user-menu.tsx         # Shows NEAR profile info
-│   │   │   └── near-profile.tsx      # NEAR Social profile component
-│   │   └── src/lib/auth-client.ts    # Better Auth client with siwnClient
-│   └── server/                       # Hono backend
-│       ├── src/db/schema/auth.ts     # Database schema with nearAccount table
-│       └── src/lib/auth.ts           # Better Auth server with siwn plugin
-```
-
 ## Configuration Options
 
 ### Server Configuration
 
-The `siwn` plugin supports various configuration options:
-
 ```typescript
-siwn({
-  recipient: "localhost:3001",        // NEP-413 recipient domain
-  anonymous: true,                    // Allow sign-in without email
-  emailDomainName: "example.com",    // Email domain for user accounts
-  requireFullAccessKey: false,        // Allow function call keys
+// Better Auth with account linking
+betterAuth({
+  account: {
+    accountLinking: {
+      enabled: true,
+      // Only link accounts with matching emails
+      allowDifferentEmails: false,
+      // Auto-link these trusted providers
+      trustedProviders: ["google", "github"],
+      // Update user info when linking
+      updateUserInfoOnLink: true
+    }
+  },
+  // Social providers
+  socialProviders: {
+    google: { /* ... */ },
+    github: { /* ... */ }
+  },
+  // NEAR authentication plugin
+  plugins: [
+    siwn({
+      recipient: "better-near-auth.near",
+      anonymous: true,
+    })
+  ]
 })
 ```
 
 ### Client Configuration
 
 ```typescript
-siwnClient({
-  domain: "localhost:3001",          // Must match server recipient
+// Better Auth client with NEAR support
+createAuthClient({
+  plugins: [
+    siwnClient({
+      domain: "better-near-auth.near",
+    })
+  ]
 })
 ```
 
@@ -117,7 +163,15 @@ siwnClient({
 
 ## Learn More
 
+### Better Auth
+
 - [Better Auth Documentation](https://better-auth.com)
+- [Account Linking Guide](https://better-auth.com/docs/concepts/users-accounts#account-linking)
+- [Social Providers](https://better-auth.com/docs/concepts/oauth)
+
+### NEAR Protocol
+
 - [NEAR Protocol](https://near.org)
 - [NEP-413: NEAR Sign In](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
-- [FastinTEAR Wallet](https://github.com/fastnear/fastintear)
+- [NEAR Social](https://near.social)
+- [Fastintear Wallet](https://github.com/fastnear/fastintear)

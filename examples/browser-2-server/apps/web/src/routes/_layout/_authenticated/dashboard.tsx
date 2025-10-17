@@ -1,4 +1,5 @@
-import { NearProfile } from "@/components/near-profile";
+import UserProfile from "@/components/user-profile";
+import AccountLinking from "@/components/account-linking";
 import { Guestbook } from "@/components/guestbook";
 import { useTRPC } from "@/utils/trpc";
 import { useQuery } from "@tanstack/react-query";
@@ -29,8 +30,9 @@ function RouteComponent() {
       {/* Main Content Grid - Stack on mobile, side-by-side on larger screens */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Profile Card - Full width on mobile, 1 column on desktop */}
-        <div className="lg:col-span-1 order-1 lg:order-1">
-          <NearProfile variant="card" showAvatar={true} showName={true} />
+        <div className="lg:col-span-1 order-1 lg:order-1 space-y-4 sm:space-y-6">
+          <UserProfile />
+          <AccountLinking />
         </div>
 
         {/* Main Content Area - Full width on mobile, 2 columns on desktop */}

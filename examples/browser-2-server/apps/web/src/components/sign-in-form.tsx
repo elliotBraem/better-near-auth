@@ -15,6 +15,8 @@ export default function SignInForm() {
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningInWithNear, setIsSigningInWithNear] = useState(false);
   const [isDisconnectingWallet, setIsDisconnectingWallet] = useState(false);
+  const [isSigningInWithGoogle, setIsSigningInWithGoogle] = useState(false);
+  const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
   
   // Get account ID directly from the SIWN client
   const accountId = authClient.near.getAccountId();
@@ -104,6 +106,34 @@ export default function SignInForm() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setIsSigningInWithGoogle(true);
+    try {
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: search.redirect || `${window.location.origin}/dashboard`
+      });
+    } catch (error) {
+      setIsSigningInWithGoogle(false);
+      console.error("Google sign in error:", error);
+      toast.error("Failed to sign in with Google");
+    }
+  };
+
+  const handleGitHubSignIn = async () => {
+    setIsSigningInWithGitHub(true);
+    try {
+      await authClient.signIn.social({
+        provider: "github",
+        callbackURL: search.redirect || `${window.location.origin}/dashboard`
+      });
+    } catch (error) {
+      setIsSigningInWithGitHub(false);
+      console.error("GitHub sign in error:", error);
+      toast.error("Failed to sign in with GitHub");
+    }
+  };
+
   if (isPending) {
     return <Loader />;
   }
@@ -113,14 +143,43 @@ export default function SignInForm() {
       <div className="bg-card border rounded-lg shadow-sm p-6 sm:p-8">
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-semibold mb-3 sm:mb-4">
-            Sign in with NEAR
+            Sign in to Continue
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground">
-            Connect your NEAR wallet to authenticate securely
+            Connect your account securely
           </p>
         </div>
 
         <div className="space-y-3 sm:space-y-4">
+          {/* Social OAuth Providers */}
+          <Button
+            type="button"
+            className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={handleGoogleSignIn}
+            disabled={isSigningInWithGoogle || isSigningInWithNear || isConnectingWallet}
+          >
+            {isSigningInWithGoogle ? "Signing in..." : "Sign in with Google"}
+          </Button>
+
+          <Button
+            type="button"
+            className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
+            onClick={handleGitHubSignIn}
+            disabled={isSigningInWithGitHub || isSigningInWithNear || isConnectingWallet}
+          >
+            {isSigningInWithGitHub ? "Signing in..." : "Sign in with GitHub"}
+          </Button>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
           {!accountId ? (
             <Button
               type="button"

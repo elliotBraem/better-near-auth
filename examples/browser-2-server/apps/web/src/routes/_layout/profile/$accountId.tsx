@@ -3,7 +3,7 @@ import { authClient } from "@/lib/auth-client";
 import { NearProfile } from "@/components/near-profile";
 import { Loader } from "lucide-react";
 
-export const Route = createFileRoute("/_layout/$accountId")({
+export const Route = createFileRoute("/_layout/profile/$accountId")({
   loader: async ({ params }) => {
     try {
       const profile = await authClient.near.getProfile(params.accountId);
