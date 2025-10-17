@@ -17,7 +17,7 @@
     "@libsql/client": "^0.15.15",
     "@orpc/server": "^1.9.4",
     "better-auth": "catalog:",
-    "better-near-auth": "link:better-near-auth",
+    "better-near-auth": "0.2.0",
     "dotenv": "^17.2.1",
     "drizzle-orm": "^0.44.4",
     "hono": "^4.9.2",

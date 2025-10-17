@@ -24,7 +24,7 @@
     "@trpc/client": "^11.4.4",
     "@trpc/tanstack-react-query": "^11.4.4",
     "better-auth": "catalog:",
-    "better-near-auth": "link:better-near-auth",
+    "better-near-auth": "0.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.546.0",
