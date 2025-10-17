@@ -11,9 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LayoutRouteImport } from './routes/_layout'
-import { Route as AccountIdRouteImport } from './routes/$accountId'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutAuthenticatedRouteImport } from './routes/_layout/_authenticated'
+import { Route as LayoutAccountIdRouteImport } from './routes/_layout/$accountId'
 import { Route as LayoutAuthenticatedDashboardRouteImport } from './routes/_layout/_authenticated/dashboard'
 
 const LoginRoute = LoginRouteImport.update({
@@ -25,11 +25,6 @@ const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountIdRoute = AccountIdRouteImport.update({
-  id: '/$accountId',
-  path: '/$accountId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LayoutIndexRoute = LayoutIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,6 +32,11 @@ const LayoutIndexRoute = LayoutIndexRouteImport.update({
 } as any)
 const LayoutAuthenticatedRoute = LayoutAuthenticatedRouteImport.update({
   id: '/_authenticated',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutAccountIdRoute = LayoutAccountIdRouteImport.update({
+  id: '/$accountId',
+  path: '/$accountId',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutAuthenticatedDashboardRoute =
@@ -47,43 +47,42 @@ const LayoutAuthenticatedDashboardRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/$accountId': typeof AccountIdRoute
   '/login': typeof LoginRoute
+  '/$accountId': typeof LayoutAccountIdRoute
   '/': typeof LayoutIndexRoute
   '/dashboard': typeof LayoutAuthenticatedDashboardRoute
 }
 export interface FileRoutesByTo {
-  '/$accountId': typeof AccountIdRoute
   '/login': typeof LoginRoute
+  '/$accountId': typeof LayoutAccountIdRoute
   '/': typeof LayoutIndexRoute
   '/dashboard': typeof LayoutAuthenticatedDashboardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/$accountId': typeof AccountIdRoute
   '/_layout': typeof LayoutRouteWithChildren
   '/login': typeof LoginRoute
+  '/_layout/$accountId': typeof LayoutAccountIdRoute
   '/_layout/_authenticated': typeof LayoutAuthenticatedRouteWithChildren
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/_authenticated/dashboard': typeof LayoutAuthenticatedDashboardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/$accountId' | '/login' | '/' | '/dashboard'
+  fullPaths: '/login' | '/$accountId' | '/' | '/dashboard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/$accountId' | '/login' | '/' | '/dashboard'
+  to: '/login' | '/$accountId' | '/' | '/dashboard'
   id:
     | '__root__'
-    | '/$accountId'
     | '/_layout'
     | '/login'
+    | '/_layout/$accountId'
     | '/_layout/_authenticated'
     | '/_layout/'
     | '/_layout/_authenticated/dashboard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AccountIdRoute: typeof AccountIdRoute
   LayoutRoute: typeof LayoutRouteWithChildren
   LoginRoute: typeof LoginRoute
 }
@@ -104,13 +103,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/$accountId': {
-      id: '/$accountId'
-      path: '/$accountId'
-      fullPath: '/$accountId'
-      preLoaderRoute: typeof AccountIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_layout/': {
       id: '/_layout/'
       path: '/'
@@ -123,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: ''
       preLoaderRoute: typeof LayoutAuthenticatedRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/$accountId': {
+      id: '/_layout/$accountId'
+      path: '/$accountId'
+      fullPath: '/$accountId'
+      preLoaderRoute: typeof LayoutAccountIdRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/_authenticated/dashboard': {
@@ -147,11 +146,13 @@ const LayoutAuthenticatedRouteWithChildren =
   LayoutAuthenticatedRoute._addFileChildren(LayoutAuthenticatedRouteChildren)
 
 interface LayoutRouteChildren {
+  LayoutAccountIdRoute: typeof LayoutAccountIdRoute
   LayoutAuthenticatedRoute: typeof LayoutAuthenticatedRouteWithChildren
   LayoutIndexRoute: typeof LayoutIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
+  LayoutAccountIdRoute: LayoutAccountIdRoute,
   LayoutAuthenticatedRoute: LayoutAuthenticatedRouteWithChildren,
   LayoutIndexRoute: LayoutIndexRoute,
 }
@@ -160,7 +161,6 @@ const LayoutRouteWithChildren =
   LayoutRoute._addFileChildren(LayoutRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  AccountIdRoute: AccountIdRoute,
   LayoutRoute: LayoutRouteWithChildren,
   LoginRoute: LoginRoute,
 }

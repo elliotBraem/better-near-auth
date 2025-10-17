@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "@b2s/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,8 +19,8 @@
     "@tanstack/react-router": "^1.131.27",
     "@trpc/client": "^11.4.4",
     "@trpc/tanstack-react-query": "^11.4.4",
-    "better-auth": "^1.3.7",
-    "better-near-auth": "^0.1.7",
+    "better-auth": "catalog:",
+    "better-near-auth": "link:better-near-auth",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.540.0",

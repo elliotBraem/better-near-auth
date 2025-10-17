@@ -11,13 +11,16 @@ export default function AccountLinking() {
   const { data: session, isPending } = authClient.useSession();
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
-  const [isLinkingNear, setIsLinkingNear] = useState(false);
+  const [isProcessingNear, setIsProcessingNear] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState<string | null>(null);
   const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [nearAccountId, setNearAccountId] = useState<string | null>(null);
 
-  // Initial fetch and handle OAuth callbacks
+  const fetchNearAccountId = () => setNearAccountId(authClient.near.getAccountId());
+
+  // Initial fetch and handle OAuth callbacks and wallet state
   useEffect(() => {
     if (session) {
       // Handle potential OAuth callback redirects
@@ -26,9 +29,12 @@ export default function AccountLinking() {
         setLinkedAccounts,
         refreshAccounts
       );
+      // Update wallet connection state
+      fetchNearAccountId();
     } else {
       setLinkedAccounts([]);
       setError(null);
+      fetchNearAccountId(); // Still useful to have wallet state
     }
   }, [session]);
 
@@ -77,17 +83,77 @@ export default function AccountLinking() {
     }
   };
 
-  const handleLinkNear = async () => {
-    setIsLinkingNear(true);
+  const handleNearAction = async () => {
+    setIsProcessingNear(true);
     try {
-      await authClient.linkSocial({
-        provider: "near",
-        callbackURL: window.location.href,
-      });
+      if (!nearAccountId) {
+        // Phase 1: Connect wallet
+        await authClient.requestSignIn.near(
+          { recipient: "better-near-auth.near" },
+          {
+            onSuccess: () => {
+              setIsProcessingNear(false);
+              fetchNearAccountId();
+            },
+            onError: async (error: any) => {
+              setIsProcessingNear(false);
+              console.error("Wallet connection failed:", error);
+              const errorMessage = error.code === "SIGNER_NOT_AVAILABLE"
+                ? "NEAR wallet not available"
+                : error.message || "Failed to connect wallet";
+              toast.error(errorMessage);
+              // No auto-disconnect needed here since wallet wasn't connected
+            }
+          }
+        );
+      } else {
+        // Phase 2: Link account
+        await authClient.near.link(
+          { recipient: "better-near-auth.near" },
+          {
+            onSuccess: () => {
+              toast.success("NEAR account linked successfully");
+              refreshAccounts();
+              setIsProcessingNear(false);
+            },
+            onError: async (error: any) => {
+              console.error("NEAR link error:", error);
+              toast.error(error.message || "Failed to link NEAR account");
+              setIsProcessingNear(false);
+              // Auto-disconnect wallet on link failure to reset state
+              await authClient.near.disconnect();
+              fetchNearAccountId();
+            }
+          }
+        );
+      }
     } catch (error) {
-      console.error("Failed to link NEAR account:", error);
-      toast.error("Failed to link NEAR account");
-      setIsLinkingNear(false);
+      console.error("Failed to process NEAR action:", error);
+      setIsProcessingNear(false);
+      toast.error("Failed to process NEAR action");
+    }
+  };
+
+  const handleUnlinkNearAccount = async (account: any) => {
+    setIsUnlinking(account.accountId);
+    try {
+      const [accountId, network] = account.accountId.split(":");
+      const response = await authClient.near.unlink({
+        accountId,
+        network: (network as "mainnet" | "testnet") || "mainnet"
+      });
+
+      if (response.data?.success) {
+        toast.success("NEAR account unlinked successfully");
+        refreshAccounts();
+      } else {
+        toast.error("Failed to unlink NEAR account");
+      }
+    } catch (error) {
+      console.error("Failed to unlink NEAR account:", error);
+      toast.error("Failed to unlink NEAR account");
+    } finally {
+      setIsUnlinking(null);
     }
   };
 
@@ -221,9 +287,13 @@ export default function AccountLinking() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    handleUnlinkAccount(account.providerId || account.accountId)
-                  }
+                  onClick={() => {
+                    if (account.providerId === "siwn") {
+                      handleUnlinkNearAccount(account);
+                    } else {
+                      handleUnlinkAccount(account.providerId);
+                    }
+                  }}
                   disabled={
                     isUnlinking === (account.providerId || account.accountId) ||
                     !canUnlinkAccount(account)
@@ -277,11 +347,13 @@ export default function AccountLinking() {
               type="button"
               variant="outline"
               className="w-full justify-start"
-              onClick={handleLinkNear}
-              disabled={isLinkingNear}
+              onClick={handleNearAction}
+              disabled={isProcessingNear}
             >
               <span className="mr-2">🔗</span>
-              {isLinkingNear ? "Linking NEAR..." : "Link NEAR Account"}
+              {isProcessingNear
+                ? (nearAccountId ? "Linking NEAR..." : "Connecting Wallet...")
+                : `Link NEAR Account${nearAccountId ? ` (${nearAccountId})` : ""}`}
             </Button>
           )}
         </div>

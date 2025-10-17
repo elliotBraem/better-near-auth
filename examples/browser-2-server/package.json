@@ -17,6 +17,9 @@
     "db:generate": "turbo -F server db:generate",
     "db:migrate": "turbo -F server db:migrate"
   },
+  "catalog": {
+    "better-auth": "^1.3.27"
+  },
   "dependencies": {},
   "devDependencies": {
     "turbo": "^2.5.4"

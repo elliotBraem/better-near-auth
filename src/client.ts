@@ -34,6 +34,9 @@ export interface SIWNClientActions {
 		getAccountId: () => string | null;
 		getState: () => { accountId: string | null; publicKey: string | null; networkId: string } | null;
 		disconnect: () => Promise<void>;
+		link: (params: { recipient: string }, callbacks?: AuthCallbacks) => Promise<void>;
+		unlink: (params: { accountId: string; network?: "mainnet" | "testnet" }) => Promise<BetterFetchResponse<{ success: boolean; message: string }>>;
+		listAccounts: () => Promise<BetterFetchResponse<{ accounts: any[] }>>;
 	};
 	requestSignIn: {
 		near: (params: { recipient: string }, callbacks?: AuthCallbacks) => Promise<void>;
@@ -127,6 +130,95 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 						await nearClient.signOut();
 						clearNonce();
 						nearState.set(null);
+					},
+					link: async (
+						params: { recipient: string },
+						callbacks?: AuthCallbacks
+					): Promise<void> => {
+						try {
+							const { recipient } = params;
+
+							if (!nearClient) {
+								const error = new Error("NEAR client not available") as Error & { code?: string };
+								error.code = "SIGNER_NOT_AVAILABLE";
+								throw error;
+							}
+
+							const accountId = nearClient.accountId();
+							if (!accountId) {
+								const error = new Error("Wallet not connected. Please connect your wallet first.") as Error & { code?: string };
+								error.code = "WALLET_NOT_CONNECTED";
+								throw error;
+							}
+
+							// Get nonce first
+							const state = nearState.get();
+							const nonceRequest: NonceRequestT = {
+								accountId,
+								publicKey: state?.publicKey || "",
+								networkId: (state?.networkId || "mainnet") as "mainnet" | "testnet"
+							};
+
+							const nonceResponse: BetterFetchResponse<NonceResponseT> = await $fetch("/near/nonce", {
+								method: "POST",
+								body: nonceRequest
+							});
+
+							if (nonceResponse.error) {
+								throw new Error(nonceResponse.error.message || "Failed to get nonce");
+							}
+
+							const nonce = nonceResponse?.data?.nonce;
+							if (!nonce) {
+								throw new Error("No nonce received from server");
+							}
+
+							// Create the sign-in message
+							const message = `Sign in to ${recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
+							const nonceBytes = base64ToBytes(nonce);
+
+							// Sign the message
+							const authToken = await sign(message, {
+								signer: nearClient,
+								recipient,
+								nonce: nonceBytes,
+							});
+
+							// Link the account (instead of verify)
+							const linkResponse: BetterFetchResponse<any> = await $fetch("/near/link-account", {
+								method: "POST",
+								body: {
+									authToken,
+									accountId,
+								}
+							});
+
+							if (linkResponse.error) {
+								throw new Error(linkResponse.error.message || "Failed to link NEAR account");
+							}
+
+							if (!linkResponse?.data?.success) {
+								throw new Error("Account linking failed");
+							}
+
+							callbacks?.onSuccess?.();
+						} catch (error) {
+							const err = error instanceof Error ? error : new Error(String(error));
+							callbacks?.onError?.(err);
+						}
+					},
+					unlink: async (
+						params: { accountId: string; network?: "mainnet" | "testnet" },
+						fetchOptions?: BetterFetchOption
+					): Promise<BetterFetchResponse<{ success: boolean; message: string }>> => {
+						return await $fetch("/near/unlink-account", {
+							method: "POST",
+							body: params,
+							...fetchOptions
+						});
+					},
+					listAccounts: async (): Promise<BetterFetchResponse<{ accounts: any[] }>> => {
+						return await $fetch("/near/list-accounts", { method: "GET" });
 					},
 				},
 				requestSignIn: {
