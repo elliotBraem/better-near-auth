@@ -1,16 +1,16 @@
 import {
-  protectedProcedure, publicProcedure,
-  router,
-} from "../lib/trpc";
+  protectedProcedure,
+  publicProcedure,
+} from "../lib/orpc";
 
-export const appRouter = router({
-  healthCheck: publicProcedure.query(() => {
+export const appRouter = publicProcedure.router({
+  healthCheck: publicProcedure.handler(() => {
     return "OK";
   }),
-  privateData: protectedProcedure.query(({ ctx }) => {
+  privateData: protectedProcedure.handler(({ context }) => {
     return {
       message: "hello world! this is data coming from a protected procedure on your server",
-      user: ctx.session.user,
+      user: context.session.user,
     };
   }),
 });

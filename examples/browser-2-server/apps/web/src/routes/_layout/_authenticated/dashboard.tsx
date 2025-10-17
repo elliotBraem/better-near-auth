@@ -1,23 +1,30 @@
 import UserProfile from "@/components/user-profile";
 import AccountLinking from "@/components/account-linking";
 import { Guestbook } from "@/components/guestbook";
-import { useTRPC } from "@/utils/trpc";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_layout/_authenticated/dashboard")({
-  loader: ({ context }) => {
-    return {
-      session: context.session,
-    };
+  loader: async ({ context }) => {
+    const queryOptions = context.orpc.privateData.queryOptions();
+    return context.queryClient.ensureQueryData(queryOptions);
   },
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { session } = Route.useLoaderData();
-  const trpc = useTRPC();
-  const privateData = useQuery(trpc.privateData.queryOptions());
+  const { orpc, queryClient } = Route.useRouteContext();
+  const initialData = Route.useLoaderData();
+  const queryOptions = orpc.privateData.queryOptions();
+
+  const privateData = useQuery({
+    ...queryOptions,
+    initialData: initialData,
+  });
+
+  const { data: session } = authClient.useSession();
 
   return (
     <div className="container mx-auto p-4 sm:p-6 max-w-7xl">

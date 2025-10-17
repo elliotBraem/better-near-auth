@@ -9,10 +9,10 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import "../index.css";
-import type { trpc, queryClient } from "@/utils/trpc";
+import type { queryClient, orpc } from "@/utils/orpc";
 
 export interface RouterAppContext {
-  trpc: typeof trpc;
+  orpc: typeof orpc;
   queryClient: typeof queryClient;
 }
 
@@ -39,9 +39,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 
 
 function RootComponent() {
-  const isFetching = useRouterState({
-    select: (s) => s.isLoading,
-  });
+  // If we want some sort of loading...
+  // const isFetching = useRouterState({
+  //   select: (s) => s.isLoading,
+  // });
 
   return (
     <>
@@ -53,7 +54,8 @@ function RootComponent() {
         storageKey="vite-ui-theme"
       >
         <div className="grid grid-rows-[auto_1fr] h-svh touch-manipulation">
-          {isFetching ? <Loader /> : <Outlet />}
+          {/* {isFetching && <Loader />} */}
+          <Outlet />
         </div>
         <Toaster richColors />
       </ThemeProvider>

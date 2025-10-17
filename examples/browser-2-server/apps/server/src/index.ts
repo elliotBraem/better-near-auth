@@ -1,4 +1,3 @@
-import { trpcServer } from "@hono/trpc-server";
 import "dotenv/config";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -6,8 +5,9 @@ import { logger } from "hono/logger";
 import { auth } from "./lib/auth";
 import { createContext } from "./lib/context";
 import { appRouter } from "./routers";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { migrate } from "drizzle-orm/libsql/migrator";
 import { db } from "./db";
+import { RPCHandler } from "@orpc/server/fetch";
 
 const app = new Hono();
 
@@ -23,16 +23,20 @@ app.use(
 );
 
 app.on(["POST", "GET"], "/api/auth/**", (c) => auth.handler(c.req.raw));
+const handler = new RPCHandler(appRouter);
 
-app.use(
-  "/trpc/*",
-  trpcServer({
-    router: appRouter,
-    createContext: (_opts, context) => {
-      return createContext({ context });
-    },
-  })
-);
+app.use('/rpc/*', async (c, next) => {
+  const { matched, response } = await handler.handle(c.req.raw, {
+    prefix: '/rpc',
+    context: await createContext({ context: c })
+  });
+
+  if (matched) {
+    return c.newResponse(response.body, response);
+  }
+
+  await next();
+});
 
 try {
   console.log("Migrating database...");

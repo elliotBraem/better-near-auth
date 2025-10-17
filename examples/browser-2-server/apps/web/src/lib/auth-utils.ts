@@ -2,8 +2,8 @@
  * Extract NEAR accountId from linked accounts
  */
 export function getNearAccountId(linkedAccounts: any[]): string | null {
-  const nearAccount = linkedAccounts.find(account => account.provider === 'near');
-  return nearAccount?.accountId || nearAccount?.providerId || null;
+  const nearAccount = linkedAccounts.find(account => account.providerId === 'siwn');
+  return (nearAccount?.accountId)?.split(":")[0] || nearAccount?.providerId || null;
 }
 
 /**
