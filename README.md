@@ -13,7 +13,7 @@
 
 </div>
 
-This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify) and [fastintear](https://github.com/elliotBraem/fastintear), and provides a complete drop-in solution with session management, secure defaults, and automatic profile integration.
+This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify) and [fastintear](https://github.com/elliotBraem/fastintear) to provide a complete drop-in solution with session management, secure defaults, and automatic profile integration.
 
 ## Installation
 
