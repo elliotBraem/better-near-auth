@@ -13,7 +13,7 @@
         "@libsql/client": "^0.15.15",
         "@orpc/server": "^1.9.4",
         "better-auth": "^1.3.34",
-        "better-near-auth": "0.2.2",
+        "better-near-auth": "0.2.3",
         "dotenv": "^17.2.1",
         "drizzle-orm": "^0.44.4",
         "hono": "^4.9.2",
@@ -43,7 +43,7 @@
         "@trpc/client": "^11.4.4",
         "@trpc/tanstack-react-query": "^11.4.4",
         "better-auth": "^1.3.34",
-        "better-near-auth": "0.2.2",
+        "better-near-auth": "0.2.3",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^0.546.0",
@@ -523,7 +523,7 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.52.5", "", { "os": "win32", "cpu": "x64" }, "sha512-TAcgQh2sSkykPRWLrdyy2AiceMckNf5loITqXxFI5VuQjS5tSuw3WlwdN8qv8vzjLAUTvYaH/mVjSFpbkFbpTg=="],
 
-    "@scure/base": ["@scure/base@1.2.6", "", {}, "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg=="],
+    "@scure/base": ["@scure/base@2.0.0", "", {}, "sha512-3E1kpuZginKkek01ovG8krQ0Z44E3DHPjc5S2rjJw9lZn3KSQOs8S7wqikF/AH7iRanHypj85uGyxk0XAyC37w=="],
 
     "@simplewebauthn/browser": ["@simplewebauthn/browser@13.2.2", "", {}, "sha512-FNW1oLQpTJyqG5kkDg5ZsotvWgmBaC6jCHR7Ej0qUNep36Wl9tj2eZu7J5rP+uhXgHaLk+QQ3lqcw2vS5MX1IA=="],
 
@@ -673,7 +673,7 @@
 
     "better-call": ["better-call@1.0.19", "", { "dependencies": { "@better-auth/utils": "^0.3.0", "@better-fetch/fetch": "^1.1.4", "rou3": "^0.5.1", "set-cookie-parser": "^2.7.1", "uncrypto": "^0.1.3" } }, "sha512-sI3GcA1SCVa3H+CDHl8W8qzhlrckwXOTKhqq3OOPXjgn5aTOMIqGY34zLY/pHA6tRRMjTUC3lz5Mi7EbDA24Kw=="],
 
-    "better-near-auth": ["better-near-auth@0.2.2", "", { "dependencies": { "fastintear": "^0.3.8", "nanostores": "^1.0.1", "near-sign-verify": "^0.4.4", "zod": "^4.1.12" }, "peerDependencies": { "better-auth": "^1.0.0", "typescript": "^5.7.0" } }, "sha512-dF4aEMvvDTQd37SsUQLEgEwMvvpMS4ZFLW99NcR9sSWcoWt+bomY8jjm42GeQ8SbO4sn8ZPN5Hp3tZsrQ+19HQ=="],
+    "better-near-auth": ["better-near-auth@0.2.3", "", { "dependencies": { "fastintear": "^0.3.8", "nanostores": "^1.0.1", "near-sign-verify": "^0.4.5", "zod": "^4.1.12" }, "peerDependencies": { "better-auth": "^1.0.0", "typescript": "^5.7.0" } }, "sha512-f+YGv5KNWNmYiOo7lIdBxOlNT1kVgKH3nIvBcCggZXuYA6zIPVATMPltV0RE+af9q5igfBI9hXCtna3B1BIehA=="],
 
     "big.js": ["big.js@7.0.1", "", {}, "sha512-iFgV784tD8kq4ccF1xtNMZnXeZzVuXWWM+ERFzKQjv+A5G9HC8CY3DuV45vgzFFcW+u2tIvmF95+AzWgs6BjCg=="],
 
@@ -977,7 +977,7 @@
 
     "nanostores": ["nanostores@1.0.1", "", {}, "sha512-kNZ9xnoJYKg/AfxjrVL4SS0fKX++4awQReGqWnwTRHxeHGZ1FJFVgTqr/eMrNQdp0Tz7M7tG/TDaX8QfHDwVCw=="],
 
-    "near-sign-verify": ["near-sign-verify@0.4.4", "", { "dependencies": { "@noble/curves": "^1.9.7", "@noble/hashes": "^1.8.0", "@scure/base": "^1.2.6", "@zorsh/zorsh": "^0.3.3" } }, "sha512-ZKCU1m6XzwaYuSHRLXj1aCjtYySmc8oZcakkDL7JCg8ajExwbTrVs/n2nwKCSNytyAvrggJTv0uuJ3iPHh3YxQ=="],
+    "near-sign-verify": ["near-sign-verify@0.4.5", "", { "dependencies": { "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "@scure/base": "^2.0.0", "@zorsh/zorsh": "^0.3.3" } }, "sha512-AOcPcKywejmKgCdQN4j77EyanK8AsIoZQzZnpKSk9wQMmxEi/97+GbDMb4p0TSAJEOuumfJRtJ5V5VYp+2qbKg=="],
 
     "next-themes": ["next-themes@0.4.6", "", { "peerDependencies": { "react": "^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc", "react-dom": "^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc" } }, "sha512-pZvgD5L0IEvX5/9GWyHMf3m8BKiVQwsCMHfoFosXtXBMnaS0ZnIJ9ST4b4NqLVKDEm8QBxoNNGNaBv2JNF6XNA=="],
 
@@ -1224,10 +1224,6 @@
     "anymatch/picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
 
     "lightningcss/detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
-
-    "near-sign-verify/@noble/curves": ["@noble/curves@1.9.7", "", { "dependencies": { "@noble/hashes": "1.8.0" } }, "sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw=="],
-
-    "near-sign-verify/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
 
     "parse-entities/@types/unist": ["@types/unist@2.0.11", "", {}, "sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA=="],
 
