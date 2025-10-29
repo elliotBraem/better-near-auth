@@ -340,8 +340,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								nonce: nonceBytes,
 							});
 
-							console.log("authToken: ", parseAuthToken(authToken));
-
 							// Verify the signature with the server
 							const verifyResponse: BetterFetchResponse<VerifyResponseT> = await $fetch("/near/verify", {
 								method: "POST",
@@ -354,8 +352,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							if (verifyResponse.error) {
 								throw new Error(verifyResponse.error.message || "Failed to verify signature");
 							}
-
-							console.log("hello", verifyResponse)
 
 							if (!verifyResponse?.data?.success) {
 								throw new Error("Authentication verification failed");
