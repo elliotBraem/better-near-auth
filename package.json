@@ -1,6 +1,6 @@
 {
   "name": "better-near-auth",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Sign in with NEAR (SIWN) plugin for Better Auth",
   "main": "src/index.ts",
   "module": "src/index.ts",
@@ -49,12 +49,12 @@
   "dependencies": {
     "fastintear": "^0.3.8",
     "nanostores": "^1.0.1",
-    "near-sign-verify": "^0.4.4",
+    "near-sign-verify": "^0.4.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^24.8.1",
+    "@types/node": "^24.9.2",
     "better-auth": "^1.3.34",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
