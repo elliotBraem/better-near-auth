@@ -1,6 +1,6 @@
-import { base64ToBytes } from "fastintear/utils";
 import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetchResponse } from "better-auth/client";
 import { createNearClient } from "fastintear";
+import { base64ToBytes } from "fastintear/utils";
 import { atom } from "nanostores";
 import { parseAuthToken, sign } from "near-sign-verify";
 import type { siwn } from ".";
@@ -74,12 +74,12 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	return {
 		id: "siwn",
 		$InferServerPlugin: {} as ReturnType<typeof siwn>,
-		
+
 		getAtoms: ($fetch) => ({
 			nearState,
 			cachedNonce,
 		}),
-		
+
 		getActions: ($fetch): SIWNClientActions => {
 			const nearClient = createNearClient({
 				networkId: config.networkId || "mainnet",

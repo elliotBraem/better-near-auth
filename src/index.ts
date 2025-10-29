@@ -1,8 +1,9 @@
-import { bytesToBase64 } from "fastintear/utils";
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
-import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
+import { bytesToBase64 } from "fastintear/utils";
+import { generateNonce, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
+import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile";
 import { schema } from "./schema";
 import type {
@@ -18,7 +19,6 @@ import {
 	VerifyRequest,
 	VerifyResponse
 } from "./types";
-import z from "zod";
 export * from "./types";
 
 function getOrigin(baseURL: string): string {
@@ -84,7 +84,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 									{ field: "isPrimary", operator: "eq", value: true },
 								],
 							});
-							
+
 							if (nearAccount) {
 								// Add NEAR account to session response
 								ctx.context.session = {
@@ -96,7 +96,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 								};
 							}
 						}
-						
+
 						return { context: ctx };
 					}),
 				},
@@ -373,7 +373,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 				async (ctx) => {
 					const { accountId, publicKey, networkId } = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
-					
+
 					if (networkId !== network) {
 						throw new APIError("BAD_REQUEST", {
 							message: "Network ID mismatch with account ID",
