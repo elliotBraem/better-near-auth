@@ -54,11 +54,13 @@ export default function AccountLinking() {
     setIsRefreshing(true);
     try {
       const accountsResponse = await authClient.listAccounts();
-      setLinkedAccounts(accountsResponse.data || []);
+      const accounts = accountsResponse?.data;
+      setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
       setError(null);
     } catch (err) {
       console.error("Failed to fetch linked accounts:", err);
       setError("Failed to load linked accounts");
+      setLinkedAccounts([]);
     } finally {
       setIsRefreshing(false);
     }
@@ -166,7 +168,8 @@ export default function AccountLinking() {
       toast.success("Account unlinked successfully");
       // Refresh accounts list
       const accountsResponse = await authClient.listAccounts();
-      setLinkedAccounts(accountsResponse.data || []);
+      const accounts = accountsResponse?.data;
+      setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
     } catch (error) {
       console.error("Failed to unlink account:", error);
       toast.error("Failed to unlink account");

@@ -47,8 +47,9 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "fastintear": "^0.3.8",
+    "@hot-labs/near-connect": "^latest",
     "nanostores": "^1.0.1",
+    "near-kit": "^latest",
     "near-sign-verify": "^0.4.5",
     "zod": "^4.1.12"
   },

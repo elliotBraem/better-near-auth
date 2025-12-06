@@ -60,7 +60,7 @@ The better-near-auth plugin implements NEP-413 (Sign in with NEAR) standard, pro
 - Secure wallet-based authentication using a two-step process
 - NEAR account linking to user profiles
 - Profile integration with NEAR Social
-- Embedded fastintear client for wallet connectivity
+- near-kit client with Hot Connect wallet connector for wallet connectivity
 - Support for both mainnet and testnet networks
 
 ### Server Plugin Implementation
@@ -214,14 +214,19 @@ verifySiwnMessage: createAuthEndpoint("/near/verify", {
 
 ### Client Plugin Implementation
 
-The client plugin uses an embedded fastintear client and implements a **two-step authentication flow**:
+The client plugin uses near-kit with Hot Connect connector and implements a **two-step authentication flow**:
 
 ```typescript
+import { NearConnector } from "@hot-labs/near-connect";
+import { Near, fromHotConnect } from "near-kit";
+
 export const siwnClient = (config: SIWNClientConfig) => {
-    // Create embedded NEAR client
-    const nearClient = fastintear.createNearClient({
-        networkId: config.networkId || "mainnet"
-    });
+    // Initialize Hot Connect connector
+    const network = config.networkId || "mainnet";
+    const connector = new NearConnector({ network });
+    
+    // Near instance will be created after wallet connection
+    let nearInstance: Near | null = null;
 
     // Create atoms for caching nonce data
     const cachedNonce = atom<CachedNonceData | null>(null);
@@ -378,9 +383,9 @@ export const VerifyResponse = z.object({
 
 ## Integration Patterns
 
-### Browser Wallet Integration with Fastintear
+### Browser Wallet Integration with near-kit and Hot Connect
 
-The plugin uses an embedded fastintear client for wallet connectivity:
+The plugin uses near-kit with Hot Connect connector for wallet connectivity:
 
 ```typescript
 // Client configuration
@@ -521,7 +526,7 @@ export const auth = betterAuth({
 
 1. **Step 1 - Wallet Connection & Nonce Request**:
    - User calls `authClient.requestSignIn.near()`
-   - Client connects to NEAR wallet via fastintear
+   - Client connects to NEAR wallet via Hot Connect connector
    - Client requests nonce from server with `{ accountId, publicKey, networkId }`
    - Server generates and stores nonce with unique identifier
    - Client caches nonce data locally
@@ -795,7 +800,7 @@ console.log("Alice's profile:", aliceProfile);
 1. Cache profile data when appropriate
 2. Use connection pooling for database operations
 3. Implement rate limiting for authentication endpoints
-4. Leverage the embedded fastintear client for efficiency
+4. Leverage near-kit's efficient client for blockchain interactions
 
 ### User Experience
 1. Provide clear error messages for authentication failures
@@ -810,7 +815,7 @@ console.log("Alice's profile:", aliceProfile);
 
 1. **"Wallet not connected"**
    - User must call `requestSignIn.near()` before `signIn.near()`
-   - Check that the embedded fastintear client is properly initialized
+   - Check that the near-kit client is properly initialized
 
 2. **"No valid nonce found"**
    - Ensure `requestSignIn.near()` completed successfully before calling `signIn.near()`
@@ -851,4 +856,4 @@ siwn({
 
 The better-near-auth plugin demonstrates the power and flexibility of Better Auth's plugin architecture. By following the established patterns for server and client plugins, it provides a complete authentication solution that integrates seamlessly with the NEAR ecosystem while maintaining type safety and security best practices.
 
-The plugin's two-step authentication flow ensures proper wallet connectivity while the embedded fastintear client provides a seamless user experience. The modular design allows for extensive customization while providing sensible defaults for common use cases. Whether you're building a simple dApp or a complex federated service, better-near-auth provides the foundation for secure NEAR-based authentication.
+The plugin's two-step authentication flow ensures proper wallet connectivity while near-kit with Hot Connect provides a seamless user experience. The modular design allows for extensive customization while providing sensible defaults for common use cases. Whether you're building a simple dApp or a complex federated service, better-near-auth provides the foundation for secure NEAR-based authentication.

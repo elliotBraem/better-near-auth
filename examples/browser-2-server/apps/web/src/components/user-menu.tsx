@@ -26,14 +26,18 @@ export default function UserMenu() {
       try {
         const accountsResponse = await authClient.listAccounts();
         console.log("accountsResponse", accountsResponse);
-        setLinkedAccounts(accountsResponse.data || []);
+        const accounts = accountsResponse?.data;
+        setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
       } catch (error) {
         console.error("Failed to fetch linked accounts:", error);
+        setLinkedAccounts([]);
       }
     };
 
     if (session) {
       fetchAccounts();
+    } else {
+      setLinkedAccounts([]);
     }
   }, [session]);
 
@@ -43,7 +47,7 @@ export default function UserMenu() {
     return <Skeleton className="h-9 w-24" />;
   }
 
-  if (!session) {
+  if (!session || !session.user) {
     return (
       <Button variant="outline" asChild className="min-h-9 min-w-[80px]">
         <Link to="/login">Sign In</Link>
@@ -60,7 +64,7 @@ export default function UserMenu() {
       <DropdownMenuContent className="bg-card w-56 mr-4">
         <DropdownMenuLabel className="py-3">My Account</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="py-3 text-sm">{session.user.name}</DropdownMenuItem>
+        <DropdownMenuItem className="py-3 text-sm">{session?.user?.name ?? "User"}</DropdownMenuItem>
         {nearAccountId && (
           <DropdownMenuItem asChild>
             <Link to="/profile/$accountId" params={{ accountId: nearAccountId }} className="flex items-center gap-2 py-3">
