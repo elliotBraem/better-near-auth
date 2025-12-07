@@ -7,7 +7,7 @@ const getServerUrl = () => {
     return envUrl;
   }
   // Default to localhost:3000 for development
-  return import.meta.env.DEV ? "http://localhost:3000" : "";
+  return import.meta.env.DEV ? "http://localhost:3000" : undefined;
 };
 
 const serverUrl = getServerUrl();

@@ -1,10 +1,12 @@
-import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetchResponse } from "better-auth/client";
 import { NearConnector } from "@hot-labs/near-connect";
-import { Near, fromHotConnect, generateNonce } from "near-kit";
+import type { Account, NearWalletBase } from "@hot-labs/near-connect/build/types/wallet";
+import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetchResponse } from "better-auth/client";
 import { atom } from "nanostores";
+import { Near, fromHotConnect } from "near-kit";
+import { sign } from "near-sign-verify";
 import type { siwn } from ".";
-import { base64ToBytes } from "./utils";
 import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT } from "./types";
+import { base64ToBytes } from "./utils";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -30,7 +32,7 @@ export interface SIWNClientActions {
 		nonce: (params: NonceRequestT) => Promise<BetterFetchResponse<NonceResponseT>>;
 		verify: (params: VerifyRequestT) => Promise<BetterFetchResponse<VerifyResponseT>>;
 		getProfile: (accountId?: AccountId) => Promise<BetterFetchResponse<ProfileResponseT>>;
-		getNearClient: () => Near | null;
+		getNearClient: () => Near;
 		getAccountId: () => string | null;
 		getState: () => { accountId: string | null; publicKey: string | null; networkId: string } | null;
 		disconnect: () => Promise<void>;
@@ -65,6 +67,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	const network = config.networkId || "mainnet";
 	const connector = new NearConnector({ network });
 
+	// Public Near instance for read-only access
+	const publicNear = new Near({ network });
+
 	// Near instance will be created after wallet connection
 	let nearInstance: Near | null = null;
 	let connectionPromise: Promise<void> | null = null;
@@ -82,16 +87,10 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		return (now - nonceData.timestamp) < fiveMinutes;
 	};
 
-	// Set up event listeners for Hot Connect
-	// Per documentation: connector.on("wallet:signIn", async (t) => { const address = t.accounts[0].accountId; })
-	connector.on("wallet:signIn", async (data: any) => {
+	const handleAccountConnection = async (accounts: Account[]) => {
 		try {
-			// Per Hot Connect docs: t.accounts[0].accountId
-			const accountId = data?.accounts?.[0]?.accountId;
-			
-			if (!accountId) {
-				throw new Error(`Failed to get account ID from wallet connection. Event data.accounts: ${data?.accounts ? 'exists' : 'missing'}`);
-			}
+			const accountId = accounts?.[0]?.accountId;
+			if (!accountId) return;
 
 			// Create Near instance with Hot Connect wallet adapter
 			nearInstance = new Near({
@@ -100,14 +99,13 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 			});
 
 			// Update state with account info
-			// publicKey will be set from first signed message if not in event data
 			nearState.set({
 				accountId,
-				publicKey: data?.accounts?.[0]?.publicKey || null,
+				publicKey: accounts?.[0]?.publicKey || null,
 				networkId: network
 			});
 
-			// Resolve connection promise
+			// Resolve connection promise if it exists
 			if (connectionResolve) {
 				connectionResolve();
 				connectionResolve = null;
@@ -120,6 +118,26 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				connectionResolve = null;
 				connectionReject = null;
 			}
+		}
+	};
+
+	// Check for existing connection immediately
+	connector.getConnectedWallet().then((result: {
+		wallet: NearWalletBase;
+		accounts: Account[];
+	}) => {
+		if (result && result.accounts && result.accounts.length > 0) {
+			handleAccountConnection(result.accounts);
+		}
+	}).catch(() => {
+		// Ignore errors on initial check
+	});
+
+	// Set up event listeners for Hot Connect
+	// Per documentation: connector.on("wallet:signIn", async (t) => { const address = t.accounts[0].accountId; })
+	connector.on("wallet:signIn", async (data) => {
+		if (data?.accounts) {
+			await handleAccountConnection(data.accounts);
 		}
 	});
 
@@ -162,7 +180,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							...fetchOptions
 						});
 					},
-					getNearClient: () => nearInstance,
+					getNearClient: () => {
+						return nearInstance || publicNear;
+					},
 					getAccountId: () => {
 						const state = nearState.get();
 						return state?.accountId || null;
@@ -222,31 +242,27 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							const message = `Sign in to ${recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
 							const nonceBytes = base64ToBytes(nonce);
 
-							// Use near-kit's signMessage for NEP-413 signing
-							const signedMessage = await nearInstance.signMessage({
-								message,
+							// Sign the message using near-sign-verify
+							const authToken = await sign(message, {
+								signer: nearInstance,
 								recipient,
 								nonce: nonceBytes,
 							});
 
 							// Update state with publicKey from signed message if not already set
-							if (!state.publicKey && signedMessage.publicKey) {
-								nearState.set({
-									...state,
-									publicKey: signedMessage.publicKey,
-								});
+							if (!state.publicKey) {
+								try {
+									const parsedToken = JSON.parse(authToken);
+									if (parsedToken.publicKey) {
+										nearState.set({
+											...state,
+											publicKey: parsedToken.publicKey,
+										});
+									}
+								} catch (e) {
+									// Ignore
+								}
 							}
-
-							// Convert SignedMessage to authToken format expected by server
-							// The server uses near-sign-verify which expects a serialized format
-							const authToken = JSON.stringify({
-								accountId: signedMessage.accountId,
-								publicKey: signedMessage.publicKey,
-								signature: signedMessage.signature,
-								message,
-								recipient,
-								nonce: Array.from(nonceBytes),
-							});
 
 							// Link the account (instead of verify)
 							const linkResponse: BetterFetchResponse<any> = await $fetch("/near/link-account", {
@@ -314,37 +330,19 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							}
 
 							const { accountId, networkId, publicKey } = state;
-							
-							//I am not sure if we really need this but I will leave it for now
-							// If we don't have publicKey yet, we need to get it by signing a test message
-							// or it should be available from the connector event data
-							let finalPublicKey = publicKey;
-							
-							if (!finalPublicKey && nearInstance) {
-								// Get publicKey by doing a test sign with a dummy nonce
-								// This will trigger the wallet and give us the publicKey
-								const testNonce = generateNonce();
-								const testSignedMessage = await nearInstance.signMessage({
-									message: "test",
-									recipient: recipient,
-									nonce: testNonce,
-								});
-								finalPublicKey = testSignedMessage.publicKey;
-								
-								// Update state with the publicKey
-								nearState.set({
-									...state,
-									publicKey: finalPublicKey,
-								});
-							}
-							
-							if (!finalPublicKey) {
+
+							if (!publicKey) {
 								throw new Error("Failed to get public key from wallet");
 							}
-							
+
+							nearState.set({
+								...state,
+								publicKey,
+							});
+
 							const nonceRequest: NonceRequestT = {
 								accountId,
-								publicKey: finalPublicKey,
+								publicKey: publicKey,
 								networkId: networkId as "mainnet" | "testnet"
 							};
 
@@ -366,7 +364,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							const cachedData: CachedNonceData = {
 								nonce,
 								accountId,
-								publicKey: finalPublicKey, // Use finalPublicKey which is guaranteed to be a string
+								publicKey,
 								networkId,
 								timestamp: Date.now()
 							};
@@ -424,33 +422,13 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							const message = `Sign in to ${recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
 							const nonceBytes = base64ToBytes(nonce);
 
-							// Use near-kit's signMessage for NEP-413 signing
-							const signedMessage = await nearInstance.signMessage({
-								message,
+							// Sign the message
+							const authToken = await sign(message, {
+								signer: nearInstance,
 								recipient,
 								nonce: nonceBytes,
 							});
 
-							// Update state with publicKey from signed message if not already set
-							if (!state.publicKey && signedMessage.publicKey) {
-								nearState.set({
-									...state,
-									publicKey: signedMessage.publicKey,
-								});
-							}
-
-							// Convert SignedMessage to authToken format expected by server
-							// The server uses near-sign-verify which expects a serialized format
-							const authToken = JSON.stringify({
-								accountId: signedMessage.accountId,
-								publicKey: signedMessage.publicKey,
-								signature: signedMessage.signature,
-								message,
-								recipient,
-								nonce: Array.from(nonceBytes),
-							});
-
-							// Verify the signature with the server
 							const verifyResponse: BetterFetchResponse<VerifyResponseT> = await $fetch("/near/verify", {
 								method: "POST",
 								body: {

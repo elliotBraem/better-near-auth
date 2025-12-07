@@ -1,7 +1,7 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
-import { generateNonce, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
+import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
 import { bytesToBase64 } from "./utils";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile";
@@ -464,6 +464,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 					}
 
 					try {
+						console.log("in server authToken", parseAuthToken(authToken));
 						const verification =
 							await ctx.context.internalAdapter.findVerificationValue(
 								`siwn:${accountId}:${network}`,
@@ -622,8 +623,8 @@ export const siwn = (options: SIWNPluginOptions) =>
 						}
 
 						const session = await ctx.context.internalAdapter.createSession(
-							user.id,
-							ctx,
+							user.id
+							// ctx,
 						);
 
 						if (!session) {
@@ -645,6 +646,8 @@ export const siwn = (options: SIWNPluginOptions) =>
 							},
 						}));
 					} catch (error: unknown) {
+						console.log("server authToken", authToken);
+						console.log("server parsed authToken", parseAuthToken(authToken));
 						if (error instanceof APIError) throw error;
 						throw new APIError("UNAUTHORIZED", {
 							message: "Something went wrong. Please try again later.",

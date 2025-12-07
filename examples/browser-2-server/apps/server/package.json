@@ -16,7 +16,7 @@
   "dependencies": {
     "@libsql/client": "^0.15.15",
     "@orpc/server": "^1.9.4",
-    "better-auth": "^1.3.34",
+    "better-auth": "^1.4.4",
     "better-near-auth": "file:../../../../",
     "dotenv": "^17.2.1",
     "drizzle-orm": "^0.44.4",

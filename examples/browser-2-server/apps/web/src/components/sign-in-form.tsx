@@ -54,12 +54,10 @@ export default function SignInForm() {
       await authClient.signIn.near(
         { recipient: "better-near-auth.near" },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            await authClient.getSession();
             setIsSigningInWithNear(false);
-            navigate({
-              to: search.redirect || "/dashboard",
-              replace: true,
-            });
+            window.location.href = search.redirect || "/dashboard";
             toast.success(`Signed in as: ${accountId}`);
           },
           onError: (error) => {
