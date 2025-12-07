@@ -464,7 +464,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 					}
 
 					try {
-						console.log("in server authToken", parseAuthToken(authToken));
 						const verification =
 							await ctx.context.internalAdapter.findVerificationValue(
 								`siwn:${accountId}:${network}`,
@@ -646,8 +645,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 							},
 						}));
 					} catch (error: unknown) {
-						console.log("server authToken", authToken);
-						console.log("server parsed authToken", parseAuthToken(authToken));
 						if (error instanceof APIError) throw error;
 						throw new APIError("UNAUTHORIZED", {
 							message: "Something went wrong. Please try again later.",
