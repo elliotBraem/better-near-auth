@@ -24,14 +24,16 @@ function RouteComponent() {
     initialData: initialData,
   });
 
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
 
   return (
     <div className="container mx-auto p-4 sm:p-6 max-w-7xl">
       {/* Header Section */}
       <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">Dashboard</h1>
-        <p className="text-base sm:text-lg text-muted-foreground">Welcome back, {session?.user.name}</p>
+        <p className="text-base sm:text-lg text-muted-foreground">
+          {isSessionPending ? "Loading..." : `Welcome back, ${session?.user?.name ?? "User"}`}
+        </p>
       </div>
 
       {/* Main Content Grid - Stack on mobile, side-by-side on larger screens */}

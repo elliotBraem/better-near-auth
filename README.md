@@ -13,7 +13,7 @@
 
 </div>
 
-This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify) and [fastintear](https://github.com/elliotBraem/fastintear) to provide a complete drop-in solution with session management, secure defaults, and automatic profile integration.
+This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify), [near-kit](https://kit.near.tools/), and [Hot Connect](https://github.com/azbang/hot-connector) to provide a complete drop-in solution with session management, secure defaults, and automatic profile integration.
 
 ## Installation
 
@@ -112,7 +112,7 @@ export function LoginButton() {
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   
-  // Get account ID from embedded fastintear client
+  // Get account ID from near-kit client
   const accountId = authClient.near.getAccountId();
 
   if (session) {
@@ -277,7 +277,7 @@ The client plugin provides the following actions:
 - `nonce(params)` - Request a nonce from the server
 - `verify(params)` - Verify an auth token with the server
 - `getProfile(accountId?)` - Get user profile from NEAR Social
-- `getNearClient()` - Get the embedded fastintear client
+- `getNearClient()` - Get the near-kit client instance
 - `getAccountId()` - Get the currently connected account ID
 - `disconnect()` - Disconnect wallet and clear cached data
 
@@ -427,7 +427,7 @@ export const authClient = createAuthClient({
 
 1. **"Wallet not connected"**
    - You must call `requestSignIn.near()` before `signIn.near()`
-   - Check that the embedded fastintear client is properly initialized
+   - Check that the near-kit client is properly initialized
 
 2. **"No valid nonce found"**
    - Ensure `requestSignIn.near()` completed successfully before calling `signIn.near()`
@@ -452,5 +452,6 @@ export const authClient = createAuthClient({
 * [NEAR Protocol](https://near.org)
 * [NEP-413 Specification](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
 * [near-sign-verify](https://github.com/elliotBraem/near-sign-verify)
-* [fastintear](https://github.com/elliotBraem/fastintear)
+* [near-kit](https://kit.near.tools/)
+* [Hot Connect](https://github.com/azbang/hot-connector)
 * [Example Implementation](https://better-near-auth.near.page)

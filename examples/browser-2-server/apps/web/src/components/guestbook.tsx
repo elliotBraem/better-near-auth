@@ -1,5 +1,7 @@
 import { authClient } from "@/lib/auth-client";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -7,45 +9,49 @@ import { Input } from "./ui/input";
 const GUESTBOOK_CONTRACT = "hello.near-examples.near";
 
 export function Guestbook() {
-  const [greeting, setGreeting] = useState("loading...");
   const [newGreeting, setNewGreeting] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: session } = authClient.useSession();
   const nearClient = authClient.near.getNearClient();
 
-  useEffect(() => {
-    nearClient
-      .view({ contractId: GUESTBOOK_CONTRACT, methodName: "get_greeting" })
-      .then((greeting) => setGreeting(greeting));
-  }, []);
+  const { data: greeting } = useQuery({
+    queryKey: ["greeting"],
+    queryFn: () => nearClient.view<string>(GUESTBOOK_CONTRACT, "get_greeting"),
+  });
 
-  const onSubmit = async (e: React.FormEvent) => {
+  const { mutate: addMessage, isPending: isSubmitting } = useMutation({
+    mutationFn: async (text: string) => {
+      const accountId = authClient.near.getAccountId();
+      if (!accountId) throw new Error("Not authenticated");
+
+      return await nearClient
+        .transaction(accountId)
+        .functionCall(
+          GUESTBOOK_CONTRACT,
+          "set_greeting",
+          { greeting: text },
+          { gas: "30 Tgas", attachedDeposit: "0 NEAR" }
+        )
+        .send({ waitUntil: "FINAL" });
+    },
+    onSuccess: (outcome, newGreeting) => {
+      // Manually update the cache with the new value
+      queryClient.setQueryData(["greeting"], newGreeting);
+      setNewGreeting("");
+      toast.success("Message added successfully!");
+      console.log("Transaction successful:", outcome.transaction.hash);
+    },
+    onError: (error) => {
+      console.error("Error adding message:", error);
+      toast.error("Failed to add message. Please try again.");
+    },
+  });
+
+  const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGreeting.trim()) return;
-
-    setIsSubmitting(true);
-
-    try {
-      await nearClient.sendTx({
-        receiverId: GUESTBOOK_CONTRACT,
-        actions: [
-          nearClient.actions.functionCall({
-            methodName: "set_greeting",
-            args: { greeting: newGreeting },
-            gas: "30000000000000",
-            deposit: "0",
-          }),
-        ],
-      });
-
-      setGreeting(newGreeting);
-
-      setNewGreeting("");
-    } catch (error) {
-      console.error("Error adding message:", error);
-      alert("Failed to add message. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    addMessage(newGreeting);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -54,6 +60,8 @@ export function Guestbook() {
       onSubmit(e as any);
     }
   };
+
+  const isLoggedIn = !!session;
 
   return (
     <Card>
@@ -64,14 +72,19 @@ export function Guestbook() {
         {/* Input Section */}
         <form onSubmit={onSubmit} className="flex gap-2">
           <Input
-            placeholder="Leave a message..."
+            placeholder={
+              isLoggedIn ? "Leave a message..." : "Sign in to leave a message"
+            }
             value={newGreeting}
             onChange={(e) => setNewGreeting(e.target.value)}
             onKeyPress={handleKeyPress}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isLoggedIn}
             className="flex-1"
           />
-          <Button type="submit" disabled={isSubmitting || !newGreeting.trim()}>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !newGreeting.trim() || !isLoggedIn}
+          >
             {isSubmitting ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />

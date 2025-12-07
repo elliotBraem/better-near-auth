@@ -22,8 +22,24 @@ export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60 * 1000 } },
 });
 
+const getServerUrl = () => {
+  const envUrl = import.meta.env.VITE_SERVER_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  // Default to localhost:3000 for development
+  return import.meta.env.DEV ? "http://localhost:3000" : "";
+};
+
+const serverUrl = getServerUrl();
+if (!serverUrl) {
+  throw new Error(
+    "VITE_SERVER_URL is not set. Please set it in your .env file or environment variables."
+  );
+}
+
 const link = new RPCLink({
-  url: `${import.meta.env.VITE_SERVER_URL}/rpc`,
+  url: `${serverUrl}/rpc`,
   fetch(url, options) {
     return fetch(url, {
       ...options,

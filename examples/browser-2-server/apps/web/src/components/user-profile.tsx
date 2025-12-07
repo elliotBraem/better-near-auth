@@ -16,14 +16,18 @@ export default function UserProfile() {
     const fetchAccounts = async () => {
       try {
         const accountsResponse = await authClient.listAccounts();
-        setLinkedAccounts(accountsResponse.data || []);
+        const accounts = accountsResponse?.data;
+        setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
       } catch (error) {
         console.error("Failed to fetch linked accounts:", error);
+        setLinkedAccounts([]);
       }
     };
 
     if (session) {
       fetchAccounts();
+    } else {
+      setLinkedAccounts([]);
     }
   }, [session]);
 

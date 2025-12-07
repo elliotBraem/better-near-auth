@@ -54,12 +54,10 @@ export default function SignInForm() {
       await authClient.signIn.near(
         { recipient: "better-near-auth.near" },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            await authClient.getSession();
             setIsSigningInWithNear(false);
-            navigate({
-              to: search.redirect || "/dashboard",
-              replace: true,
-            });
+            window.location.href = search.redirect || "/dashboard";
             toast.success(`Signed in as: ${accountId}`);
           },
           onError: (error) => {
@@ -220,7 +218,7 @@ export default function SignInForm() {
 
         <div className="mt-6 sm:mt-8 text-center">
           <p className="text-xs sm:text-sm text-muted-foreground">
-            This demo uses fastintear for wallet connectivity.
+            This demo uses near-kit with Hot Connect for wallet connectivity.
           </p>
         </div>
       </div>
