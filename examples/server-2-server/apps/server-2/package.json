@@ -1,0 +1,33 @@
+{
+  "name": "@s2s/server-2",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "check-types": "tsc -b",
+    "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run dist/index.js",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.15",
+    "@orpc/server": "^1.9.4",
+    "better-auth": "^1.4.4",
+    "better-near-auth": "file:../../../..",
+    "dotenv": "^17.2.1",
+    "drizzle-orm": "^0.44.4",
+    "every-plugin": "^0.6.2",
+    "hono": "^4.9.2",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.20",
+    "drizzle-kit": "^0.31.4",
+    "tsdown": "^0.14.1",
+    "typescript": "^5.9.2"
+  }
+}
