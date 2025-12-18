@@ -151,7 +151,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		id: "siwn",
 		$InferServerPlugin: {} as ReturnType<typeof siwn>,
 
-		getAtoms: ($fetch) => ({
+		getAtoms: (_$fetch) => ({
 			nearState,
 			cachedNonce,
 		}),
@@ -303,11 +303,10 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				},
 				requestSignIn: {
 					near: async (
-						params: { recipient: string },
+						_params: { recipient: string },
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-							const { recipient } = params;
 
 							clearNonce();
 

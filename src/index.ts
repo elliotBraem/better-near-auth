@@ -1,7 +1,7 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
-import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
+import { generateNonce, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
 import { bytesToBase64 } from "./utils";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile";
@@ -115,7 +115,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 					requireRequest: true,
 				},
 				async (ctx) => {
-					const { authToken, accountId, email } = ctx.body;
+					const { authToken, accountId } = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
 					const session = ctx.context.session;
 
@@ -371,7 +371,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 					body: NonceRequest,
 				},
 				async (ctx) => {
-					const { accountId, publicKey, networkId } = ctx.body;
+					const { accountId, networkId } = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
 
 					if (networkId !== network) {
