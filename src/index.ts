@@ -126,33 +126,34 @@ export const siwn = (options: SIWNPluginOptions) =>
 						});
 					}
 
-					try {
-						const verification = await ctx.context.internalAdapter.findVerificationValue(
-							`siwn:${accountId}:${network}`,
-						);
+				try {
+					// First, verify the signature to get the publicKey
+					const requireFullAccessKey = options.requireFullAccessKey ?? true;
+					const verifyOptions: VerifyOptions = {
+						requireFullAccessKey: requireFullAccessKey,
+						...(options.validateNonce
+							? { validateNonce: options.validateNonce }
+							: { nonceMaxAge: 15 * 60 * 1000 }),
+						...(options.validateRecipient
+							? { validateRecipient: options.validateRecipient }
+							: { expectedRecipient: options.recipient }),
+						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
+					} as VerifyOptions;
 
-						if (!verification || new Date() > verification.expiresAt) {
-							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Invalid or expired nonce",
-								status: 401,
-							});
-						}
+					// Verify the signature using near-sign-verify to extract publicKey
+					const result: VerificationResult = await verify(authToken, verifyOptions);
 
-						// Build verify options using plugin configuration
-						const requireFullAccessKey = options.requireFullAccessKey ?? true;
-						const verifyOptions: VerifyOptions = {
-							requireFullAccessKey: requireFullAccessKey,
-							...(options.validateNonce
-								? { validateNonce: options.validateNonce }
-								: { nonceMaxAge: 15 * 60 * 1000 }),
-							...(options.validateRecipient
-								? { validateRecipient: options.validateRecipient }
-								: { expectedRecipient: options.recipient }),
-							...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
-						} as VerifyOptions;
+					// Now retrieve the nonce using accountId, network, AND publicKey
+					const verification = await ctx.context.internalAdapter.findVerificationValue(
+						`siwn:${accountId}:${network}:${result.publicKey}`,
+					);
 
-						// Verify the signature using near-sign-verify
-						const result: VerificationResult = await verify(authToken, verifyOptions);
+					if (!verification || new Date() > verification.expiresAt) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Unauthorized: Invalid or expired nonce",
+							status: 401,
+						});
+					}
 
 						if (result.accountId !== accountId) {
 							throw new APIError("UNAUTHORIZED", {
@@ -370,30 +371,31 @@ export const siwn = (options: SIWNPluginOptions) =>
 					method: "POST",
 					body: NonceRequest,
 				},
-				async (ctx) => {
-					const { accountId, networkId } = ctx.body;
-					const network = getNetworkFromAccountId(accountId);
+			async (ctx) => {
+				const { accountId, networkId, publicKey } = ctx.body;
+				const network = getNetworkFromAccountId(accountId);
 
-					if (networkId !== network) {
-						throw new APIError("BAD_REQUEST", {
-							message: "Network ID mismatch with account ID",
-							status: 400,
-						});
-					}
-
-					const nonce = options.getNonce ? await options.getNonce() : generateNonce();
-
-					// Store nonce as base64 string for database compatibility
-					const nonceString = bytesToBase64(nonce);
-
-					await ctx.context.internalAdapter.createVerificationValue({
-						identifier: `siwn:${accountId}:${network}`,
-						value: nonceString!,
-						expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+				if (networkId !== network) {
+					throw new APIError("BAD_REQUEST", {
+						message: "Network ID mismatch with account ID",
+						status: 400,
 					});
+				}
 
-					return ctx.json(NonceResponse.parse({ nonce: nonceString }));
-				},
+				const nonce = options.getNonce ? await options.getNonce() : generateNonce();
+
+				// Store nonce as base64 string for database compatibility
+				const nonceString = bytesToBase64(nonce);
+
+				// Store nonce with accountId, network, and publicKey for unique identification
+				await ctx.context.internalAdapter.createVerificationValue({
+					identifier: `siwn:${accountId}:${network}:${publicKey}`,
+					value: nonceString!,
+					expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+				});
+
+				return ctx.json(NonceResponse.parse({ nonce: nonceString }));
+			},
 			),
 			getSiwnProfile: createAuthEndpoint(
 				"/near/profile",
@@ -463,35 +465,36 @@ export const siwn = (options: SIWNPluginOptions) =>
 						});
 					}
 
-					try {
-						const verification =
-							await ctx.context.internalAdapter.findVerificationValue(
-								`siwn:${accountId}:${network}`,
-							);
+				try {
+					// First, verify the signature to get the publicKey
+					const requireFullAccessKey = options.requireFullAccessKey ?? true;
+					const verifyOptions: VerifyOptions = {
+						requireFullAccessKey: requireFullAccessKey,
+						...(options.validateNonce
+							? { validateNonce: options.validateNonce }
+							: { nonceMaxAge: 15 * 60 * 1000 }),
+						...(options.validateRecipient
+							? { validateRecipient: options.validateRecipient }
+							: { expectedRecipient: options.recipient }),
+						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
+					} as VerifyOptions;
 
-						if (!verification || new Date() > verification.expiresAt) {
-							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Invalid or expired nonce",
-								status: 401,
-								code: "UNAUTHORIZED_INVALID_OR_EXPIRED_NONCE",
-							});
-						}
+					// Verify the signature using near-sign-verify to extract publicKey
+					const result: VerificationResult = await verify(authToken, verifyOptions);
 
-						// Build verify options using plugin configuration
-						const requireFullAccessKey = options.requireFullAccessKey ?? true;
-						const verifyOptions: VerifyOptions = {
-							requireFullAccessKey: requireFullAccessKey,
-							...(options.validateNonce
-								? { validateNonce: options.validateNonce }
-								: { nonceMaxAge: 15 * 60 * 1000 }),
-							...(options.validateRecipient
-								? { validateRecipient: options.validateRecipient }
-								: { expectedRecipient: options.recipient }),
-							...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
-						} as VerifyOptions;
+					// Now retrieve the nonce using accountId, network, AND publicKey
+					const verification =
+						await ctx.context.internalAdapter.findVerificationValue(
+							`siwn:${accountId}:${network}:${result.publicKey}`,
+						);
 
-						// Verify the signature using near-sign-verify
-						const result: VerificationResult = await verify(authToken, verifyOptions);
+					if (!verification || new Date() > verification.expiresAt) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Unauthorized: Invalid or expired nonce",
+							status: 401,
+							code: "UNAUTHORIZED_INVALID_OR_EXPIRED_NONCE",
+						});
+					}
 
 						if (result.accountId !== accountId) {
 							throw new APIError("UNAUTHORIZED", {
