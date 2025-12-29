@@ -12,9 +12,9 @@
     "deploy": "bunx web4-deploy dist web4.better-near-auth.near --nearfs"
   },
   "dependencies": {
-    "@orpc/client": "^1.9.4",
-    "@orpc/server": "^1.9.4",
-    "@orpc/tanstack-query": "^1.9.4",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/tanstack-query": "^1.13.2",
     "@radix-ui/react-slot": "^1.2.3",
     "@tailwindcss/vite": "^4.1.12",
     "@tanstack/react-query": "^5.85.5",

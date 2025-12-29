@@ -51,24 +51,26 @@
     "better-auth": "^1.4.4",
     "typescript": "^5.9.3",
     "zod": "^4.1.12",
-    "@types/node": "^22.17.2"
+    "@types/node": "^22.17.2",
+    "@orpc/server": "^1.13.2",
+    "@orpc/client": "^1.13.2"
   },
   "peerDependencies": {
     "better-auth": "catalog:",
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@hot-labs/near-connect": "^latest",
-    "nanostores": "^1.0.1",
-    "near-kit": "^latest",
+    "@hot-labs/near-connect": "^0.8.1",
+    "nanostores": "^1.1.0",
+    "near-kit": "^0.7.0",
     "near-sign-verify": "^0.4.5",
-    "zod": "catalog:"
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "catalog:",
-    "better-auth": "catalog:",
-    "typescript": "catalog:",
+    "@types/node": "^22.19.3",
+    "better-auth": "^1.4.9",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "files": [

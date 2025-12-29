@@ -13,20 +13,13 @@ const app = new Hono();
 
 app.use(logger());
 
-// CORS configuration
-const getCorsOrigins = () => {
-  if (process.env.CORS_ORIGIN) {
-    return process.env.CORS_ORIGIN.split(",").map(origin => origin.trim());
-  }
-  // Default to allowing localhost:3001 (web app) in development
-  // Note: Cannot use ["*"] when credentials: true, must specify explicit origins
-  return ["http://localhost:3001", "http://localhost:3000"];
-};
-
 app.use(
   "/*",
   cors({
-    origin: getCorsOrigins(),
+    origin: process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()) ?? [
+        "http://localhost:3001",
+        "http://localhost:3000"
+      ],
     allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
     allowHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     credentials: true,

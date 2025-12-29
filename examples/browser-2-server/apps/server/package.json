@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
-    "@orpc/server": "^1.9.4",
+    "@orpc/server": "catalog:",
     "better-auth": "catalog:",
     "better-near-auth": "*",
     "dotenv": "^17.2.1",
