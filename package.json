@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "workspaces": [
+    "examples/browser-2-server",
     "examples/browser-2-server/apps/*"
   ],
   "keywords": [
