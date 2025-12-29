@@ -1,6 +1,6 @@
 {
   "name": "better-near-auth",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Sign in with NEAR (SIWN) plugin for Better Auth",
   "main": "src/index.ts",
   "module": "src/index.ts",
@@ -20,9 +20,12 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "lint": "tsc --noEmit",
-    "dev": "bun run src/index.ts",
+    "start:b2s": "cd examples/browser-2-server && bun run dev",
     "typecheck": "tsc --noEmit"
   },
+  "workspaces": [
+    "examples/browser-2-server/apps/*"
+  ],
   "keywords": [
     "better-auth",
     "near",
@@ -43,22 +46,28 @@
     "url": "https://github.com/elliotBraem/better-near-auth/issues"
   },
   "homepage": "https://github.com/elliotBraem/better-near-auth#readme",
+  "catalog": {
+    "better-auth": "^1.4.4",
+    "typescript": "^5.9.3",
+    "zod": "^4.1.12",
+    "@types/node": "^22.17.2"
+  },
   "peerDependencies": {
-    "better-auth": "^1.0.0",
-    "typescript": "^5.7.0"
+    "better-auth": "catalog:",
+    "typescript": "catalog:"
   },
   "dependencies": {
     "@hot-labs/near-connect": "^latest",
     "nanostores": "^1.0.1",
     "near-kit": "^latest",
     "near-sign-verify": "^0.4.5",
-    "zod": "^4.1.12"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^24.9.2",
-    "better-auth": "^1.4.4",
-    "typescript": "^5.9.3",
+    "@types/node": "catalog:",
+    "better-auth": "catalog:",
+    "typescript": "catalog:",
     "vitest": "^3.2.4"
   },
   "files": [
