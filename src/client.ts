@@ -1,5 +1,7 @@
 import { NearConnector } from "@hot-labs/near-connect";
-import type { Account, NearWalletBase } from "@hot-labs/near-connect/build/types/wallet";
+import type { NearWalletBase } from "@hot-labs/near-connect";
+
+type Account = Awaited<ReturnType<NearWalletBase["getAccounts"]>>[number];
 import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetchResponse } from "better-auth/client";
 import { atom } from "nanostores";
 import { Near, fromHotConnect } from "near-kit";
@@ -22,7 +24,7 @@ export interface SIWNClientConfig {
 export interface CachedNonceData {
 	nonce: string;
 	accountId: string;
-	publicKey: string;
+	publicKey?: string | null;
 	networkId: string;
 	timestamp: number;
 }
@@ -92,10 +94,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 			const accountId = accounts?.[0]?.accountId;
 			if (!accountId) return;
 
-			// Create Near instance with Hot Connect wallet adapter
 			nearInstance = new Near({
 				network,
-				wallet: fromHotConnect(connector),
+				wallet: fromHotConnect(connector as Parameters<typeof fromHotConnect>[0]),
 			});
 
 			// Update state with account info
@@ -217,10 +218,8 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw error;
 							}
 
-							// Get nonce first
 							const nonceRequest: NonceRequestT = {
 								accountId,
-								publicKey: state.publicKey || "",
 								networkId: (state.networkId || network) as "mainnet" | "testnet"
 							};
 
@@ -330,18 +329,8 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 							const { accountId, networkId, publicKey } = state;
 
-							if (!publicKey) {
-								throw new Error("Failed to get public key from wallet");
-							}
-
-							nearState.set({
-								...state,
-								publicKey,
-							});
-
 							const nonceRequest: NonceRequestT = {
 								accountId,
-								publicKey: publicKey,
 								networkId: networkId as "mainnet" | "testnet"
 							};
 

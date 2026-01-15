@@ -140,12 +140,10 @@ export const siwn = (options: SIWNPluginOptions) =>
 						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
 					} as VerifyOptions;
 
-					// Verify the signature using near-sign-verify to extract publicKey
 					const result: VerificationResult = await verify(authToken, verifyOptions);
 
-					// Now retrieve the nonce using accountId, network, AND publicKey
 					const verification = await ctx.context.internalAdapter.findVerificationValue(
-						`siwn:${accountId}:${network}:${result.publicKey}`,
+						`siwn:${accountId}:${network}`,
 					);
 
 					if (!verification || new Date() > verification.expiresAt) {
@@ -372,7 +370,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 					body: NonceRequest,
 				},
 			async (ctx) => {
-				const { accountId, networkId, publicKey } = ctx.body;
+				const { accountId, networkId } = ctx.body;
 				const network = getNetworkFromAccountId(accountId);
 
 				if (networkId !== network) {
@@ -384,12 +382,10 @@ export const siwn = (options: SIWNPluginOptions) =>
 
 				const nonce = options.getNonce ? await options.getNonce() : generateNonce();
 
-				// Store nonce as base64 string for database compatibility
 				const nonceString = bytesToBase64(nonce);
 
-				// Store nonce with accountId, network, and publicKey for unique identification
 				await ctx.context.internalAdapter.createVerificationValue({
-					identifier: `siwn:${accountId}:${network}:${publicKey}`,
+					identifier: `siwn:${accountId}:${network}`,
 					value: nonceString!,
 					expiresAt: new Date(Date.now() + 15 * 60 * 1000),
 				});
@@ -479,13 +475,11 @@ export const siwn = (options: SIWNPluginOptions) =>
 						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
 					} as VerifyOptions;
 
-					// Verify the signature using near-sign-verify to extract publicKey
 					const result: VerificationResult = await verify(authToken, verifyOptions);
 
-					// Now retrieve the nonce using accountId, network, AND publicKey
 					const verification =
 						await ctx.context.internalAdapter.findVerificationValue(
-							`siwn:${accountId}:${network}:${result.publicKey}`,
+							`siwn:${accountId}:${network}`,
 						);
 
 					if (!verification || new Date() > verification.expiresAt) {
