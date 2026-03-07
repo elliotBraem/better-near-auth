@@ -1,5 +1,6 @@
 import { NearConnector } from "@hot-labs/near-connect";
-import type { NearWalletBase } from "@hot-labs/near-connect";
+import type { NearWalletBase, WalletManifest } from "@hot-labs/near-connect";
+import { generateNonce } from "near-kit";
 
 type Account = Awaited<ReturnType<NearWalletBase["getAccounts"]>>[number];
 import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetchResponse } from "better-auth/client";
@@ -7,8 +8,8 @@ import { atom } from "nanostores";
 import { Near, fromHotConnect } from "near-kit";
 import { sign } from "near-sign-verify";
 import type { siwn } from ".";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT } from "./types";
-import { base64ToBytes } from "./utils";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type SignedMessage, type VerifyRequestT, type VerifyResponseT } from "./types";
+import { base64ToBytes, bytesToBase64 } from "./utils";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -16,9 +17,8 @@ export interface AuthCallbacks {
 }
 
 export interface SIWNClientConfig {
-	domain: string; // TODO: this could potentially be shade agent proxy or something, doesn't really have any purpose rn
+	recipient: string;
 	networkId?: "mainnet" | "testnet";
-	// TODO: should include browser vs keypair
 }
 
 export interface CachedNonceData {
@@ -38,15 +38,15 @@ export interface SIWNClientActions {
 		getAccountId: () => string | null;
 		getState: () => { accountId: string | null; publicKey: string | null; networkId: string } | null;
 		disconnect: () => Promise<void>;
-		link: (params: { recipient: string }, callbacks?: AuthCallbacks) => Promise<void>;
+		link: (callbacks?: AuthCallbacks) => Promise<void>;
 		unlink: (params: { accountId: string; network?: "mainnet" | "testnet" }) => Promise<BetterFetchResponse<{ success: boolean; message: string }>>;
 		listAccounts: () => Promise<BetterFetchResponse<{ accounts: any[] }>>;
 	};
 	requestSignIn: {
-		near: (params: { recipient: string }, callbacks?: AuthCallbacks) => Promise<void>;
+		near: (callbacks?: AuthCallbacks) => Promise<void>;
 	};
 	signIn: {
-		near: (params: { recipient: string }, callbacks?: AuthCallbacks) => Promise<void>;
+		near: (callbacks?: AuthCallbacks) => Promise<void>;
 	};
 }
 
@@ -60,23 +60,22 @@ export interface SIWNClientPlugin extends BetterAuthClientPlugin {
 	getActions: ($fetch: BetterFetch) => SIWNClientActions;
 }
 
-
 export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	const cachedNonce = atom<CachedNonceData | null>(null);
 	const nearState = atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>(null);
 
-	// Initialize Hot Connect connector
 	const network = config.networkId || "mainnet";
 	const connector = new NearConnector({ network });
 
-	// Public Near instance for read-only access
 	const publicNear = new Near({ network });
 
-	// Near instance will be created after wallet connection
 	let nearInstance: Near | null = null;
 	let connectionPromise: Promise<void> | null = null;
 	let connectionResolve: (() => void) | null = null;
 	let connectionReject: ((error: Error) => void) | null = null;
+	let pendingSignInCallbacks: AuthCallbacks | null = null;
+	let pendingSignInNonce: Uint8Array | null = null;
+	let fetcher: BetterFetch | null = null;
 
 	const clearNonce = () => {
 		cachedNonce.set(null);
@@ -96,17 +95,15 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 			nearInstance = new Near({
 				network,
-				wallet: fromHotConnect(connector as Parameters<typeof fromHotConnect>[0]),
+				wallet: fromHotConnect(connector as unknown as Parameters<typeof fromHotConnect>[0]),
 			});
 
-			// Update state with account info
 			nearState.set({
 				accountId,
 				publicKey: accounts?.[0]?.publicKey || null,
 				networkId: network
 			});
 
-			// Resolve connection promise if it exists
 			if (connectionResolve) {
 				connectionResolve();
 				connectionResolve = null;
@@ -122,7 +119,43 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		}
 	};
 
-	// Check for existing connection immediately
+	const handleSignInAndSignMessage = async (data: { accounts: Account[] }) => {
+		if (data?.accounts && data.accounts[0] && fetcher && pendingSignInNonce) {
+			const account = data.accounts[0] as Account & { signedMessage?: SignedMessage };
+			const signedMessage = account.signedMessage;
+			
+			if (signedMessage && pendingSignInCallbacks) {
+				const callbacks = pendingSignInCallbacks;
+				pendingSignInCallbacks = null;
+				const nonce = pendingSignInNonce;
+				pendingSignInNonce = null;
+				
+				await handleAccountConnection(data.accounts);
+				
+				const message = `Sign in to ${config.recipient}`;
+
+				const verifyResponse = await fetcher("/near/verify", {
+					method: "POST",
+					body: {
+						signedMessage,
+						message,
+						recipient: config.recipient,
+						nonce: bytesToBase64(nonce),
+						accountId: signedMessage.accountId,
+					}
+				}) as BetterFetchResponse<VerifyResponseT>;
+
+				if (verifyResponse.error) {
+					callbacks.onError?.(new Error(verifyResponse.error.message || "Failed to verify signature"));
+				} else if (!verifyResponse?.data?.success) {
+					callbacks.onError?.(new Error("Authentication verification failed"));
+				} else {
+					callbacks.onSuccess?.();
+				}
+			}
+		}
+	};
+
 	connector.getConnectedWallet().then((result: {
 		wallet: NearWalletBase;
 		accounts: Account[];
@@ -130,16 +163,16 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		if (result && result.accounts && result.accounts.length > 0) {
 			handleAccountConnection(result.accounts);
 		}
-	}).catch(() => {
-		// Ignore errors on initial check
-	});
+	}).catch(() => {});
 
-	// Set up event listeners for Hot Connect
-	// Per documentation: connector.on("wallet:signIn", async (t) => { const address = t.accounts[0].accountId; })
 	connector.on("wallet:signIn", async (data) => {
 		if (data?.accounts) {
 			await handleAccountConnection(data.accounts);
 		}
+	});
+
+	connector.on("wallet:signInAndSignMessage", async (data) => {
+		await handleSignInAndSignMessage(data);
 	});
 
 	connector.on("wallet:signOut", () => {
@@ -158,6 +191,8 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		}),
 
 		getActions: ($fetch): SIWNClientActions => {
+			fetcher = $fetch;
+			
 			return {
 				near: {
 					nonce: async (params: NonceRequestT, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<NonceResponseT>> => {
@@ -198,12 +233,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 						nearState.set(null);
 					},
 					link: async (
-						params: { recipient: string },
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-							const { recipient } = params;
-
 							if (!nearInstance) {
 								const error = new Error("NEAR client not available") as Error & { code?: string };
 								error.code = "SIGNER_NOT_AVAILABLE";
@@ -237,18 +269,15 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw new Error("No nonce received from server");
 							}
 
-							// Create the sign-in message
-							const message = `Sign in to ${recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
+							const message = `Sign in to ${config.recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
 							const nonceBytes = base64ToBytes(nonce);
 
-							// Sign the message using near-sign-verify
 							const authToken = await sign(message, {
 								signer: nearInstance,
-								recipient,
+								recipient: config.recipient,
 								nonce: nonceBytes,
 							});
 
-							// Update state with publicKey from signed message if not already set
 							if (!state.publicKey) {
 								try {
 									const parsedToken = JSON.parse(authToken);
@@ -258,12 +287,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 											publicKey: parsedToken.publicKey,
 										});
 									}
-								} catch (e) {
-									// Ignore
-								}
+								} catch (e) {}
 							}
 
-							// Link the account (instead of verify)
 							const linkResponse: BetterFetchResponse<any> = await $fetch("/near/link-account", {
 								method: "POST",
 								body: {
@@ -302,26 +328,20 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				},
 				requestSignIn: {
 					near: async (
-						_params: { recipient: string },
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-
 							clearNonce();
 
-							// Create a promise to wait for wallet connection
 							connectionPromise = new Promise<void>((resolve, reject) => {
 								connectionResolve = resolve;
 								connectionReject = reject;
 							});
 
-							// Trigger Hot Connect modal
 							await connector.connect();
 
-							// Wait for wallet:signIn event
 							await connectionPromise;
 
-							// After connection, get account info and request nonce
 							const state = nearState.get();
 							if (!state || !state.accountId) {
 								throw new Error("Failed to get account information after wallet connection");
@@ -348,7 +368,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw new Error("No nonce received from server");
 							}
 
-							// Cache nonce with all wallet data
 							const cachedData: CachedNonceData = {
 								nonce,
 								accountId,
@@ -368,11 +387,29 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				},
 				signIn: {
 					near: async (
-						params: { recipient: string },
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-							const { recipient } = params;
+							const wallet = await connector.wallet();
+							const manifest: WalletManifest = wallet.manifest;
+							const supportsSignMessage = manifest.features?.signMessage === true;
+
+							if (supportsSignMessage) {
+								pendingSignInCallbacks = callbacks || null;
+								
+								const nonce = generateNonce();
+								pendingSignInNonce = nonce;
+								
+								await connector.connect({
+									signMessageParams: {
+										message: `Sign in to ${config.recipient}`,
+										recipient: config.recipient,
+										nonce
+									}
+								});
+								
+								return;
+							}
 
 							if (!nearInstance) {
 								const error = new Error("NEAR client not available") as Error & { code?: string };
@@ -388,7 +425,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw error;
 							}
 
-							// Retrieve nonce from cache
 							const nonceData = cachedNonce.get();
 
 							if (!isNonceValid(nonceData)) {
@@ -397,7 +433,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw error;
 							}
 
-							// Validate that the cached nonce matches the current account
 							if (nonceData!.accountId !== accountId) {
 								const error = new Error("Account ID mismatch. Please call requestSignIn again.") as Error & { code?: string };
 								error.code = "ACCOUNT_MISMATCH";
@@ -406,14 +441,12 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 							const { nonce } = nonceData!;
 
-							// Create the sign-in message
-							const message = `Sign in to ${recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
+							const message = `Sign in to ${config.recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
 							const nonceBytes = base64ToBytes(nonce);
 
-							// Sign the message
 							const authToken = await sign(message, {
 								signer: nearInstance,
-								recipient,
+								recipient: config.recipient,
 								nonce: nonceBytes,
 							});
 
@@ -433,12 +466,10 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw new Error("Authentication verification failed");
 							}
 
-							// Clear the nonce after successful authentication
 							clearNonce();
 							callbacks?.onSuccess?.();
 						} catch (error) {
 							const err = error instanceof Error ? error : new Error(String(error));
-							// Clear nonce on error to prevent reuse
 							clearNonce();
 							callbacks?.onError?.(err);
 						}

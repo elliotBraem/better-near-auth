@@ -12,64 +12,25 @@ export default function SignInForm() {
   const search = useSearch({ from: "/login" });
   const { data: session, isPending } = authClient.useSession();
   
-  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningInWithNear, setIsSigningInWithNear] = useState(false);
   const [isDisconnectingWallet, setIsDisconnectingWallet] = useState(false);
   const [isSigningInWithGoogle, setIsSigningInWithGoogle] = useState(false);
   const [isSigningInWithGitHub, setIsSigningInWithGitHub] = useState(false);
-  
-  // Get account ID directly from the SIWN client
-  const accountId = authClient.near.getAccountId();
-
-  const handleWalletConnect = async () => {
-    setIsConnectingWallet(true);
-    try {
-      await authClient.requestSignIn.near(
-        { recipient: "better-near-auth.near" },
-        {
-          onSuccess: () => {
-            setIsConnectingWallet(false);
-            toast.success(`Wallet connected`);
-          },
-          onError: (error: any) => {
-            setIsConnectingWallet(false);
-            console.error("Wallet connection failed:", error);
-            const errorMessage = error.code === "SIGNER_NOT_AVAILABLE"
-              ? "NEAR wallet not available"
-              : error.message || "Failed to connect wallet";
-            toast.error(errorMessage);
-          },
-        }
-      );
-    } catch (error) {
-      setIsConnectingWallet(false);
-      console.error("Wallet connection error:", error);
-      toast.error("Failed to connect to NEAR wallet");
-    }
-  };
 
   const handleNearSignIn = async () => {
     setIsSigningInWithNear(true);
     try {
       await authClient.signIn.near(
-        { recipient: "better-near-auth.near" },
         {
           onSuccess: async () => {
             await authClient.getSession();
             setIsSigningInWithNear(false);
             window.location.href = search.redirect || "/dashboard";
-            toast.success(`Signed in as: ${accountId}`);
+            toast.success("Signed in successfully!");
           },
           onError: (error) => {
             setIsSigningInWithNear(false);
             console.error("NEAR sign in error:", error);
-            
-            if ((error as any)?.code === "NONCE_NOT_FOUND") {
-              toast.error("Session expired. Please reconnect your wallet.");
-              handleWalletDisconnect();
-              return;
-            }
-            
             toast.error(
               error instanceof Error ? error.message : "Authentication failed"
             );
@@ -79,13 +40,6 @@ export default function SignInForm() {
     } catch (error) {
       setIsSigningInWithNear(false);
       console.error("NEAR sign in error:", error);
-      
-      if ((error as any)?.code === "NONCE_NOT_FOUND") {
-        toast.error("Session expired. Please reconnect your wallet.");
-        handleWalletDisconnect();
-        return;
-      }
-      
       toast.error("Authentication failed");
     }
   };
@@ -93,7 +47,6 @@ export default function SignInForm() {
   const handleWalletDisconnect = async () => {
     setIsDisconnectingWallet(true);
     try {
-      await authClient.signOut();
       await authClient.near.disconnect();
       setIsDisconnectingWallet(false);
       toast.success("Wallet disconnected successfully");
@@ -149,12 +102,11 @@ export default function SignInForm() {
         </div>
 
         <div className="space-y-3 sm:space-y-4">
-          {/* Social OAuth Providers */}
           <Button
             type="button"
             className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
             onClick={handleGoogleSignIn}
-            disabled={isSigningInWithGoogle || isSigningInWithNear || isConnectingWallet}
+            disabled={isSigningInWithGoogle || isSigningInWithNear}
           >
             {isSigningInWithGoogle ? "Signing in..." : "Sign in with Google"}
           </Button>
@@ -163,12 +115,11 @@ export default function SignInForm() {
             type="button"
             className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
             onClick={handleGitHubSignIn}
-            disabled={isSigningInWithGitHub || isSigningInWithNear || isConnectingWallet}
+            disabled={isSigningInWithGitHub || isSigningInWithNear}
           >
             {isSigningInWithGitHub ? "Signing in..." : "Sign in with GitHub"}
           </Button>
 
-          {/* Divider */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
@@ -178,47 +129,31 @@ export default function SignInForm() {
             </div>
           </div>
 
-          {!accountId ? (
+          <Button
+            type="button"
+            className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation"
+            onClick={handleNearSignIn}
+            disabled={isSigningInWithNear}
+          >
+            {isSigningInWithNear ? "Signing in..." : "Sign in with NEAR"}
+          </Button>
+
+          {session && (
             <Button
               type="button"
+              variant="outline"
               className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation"
-              onClick={handleWalletConnect}
-              disabled={isConnectingWallet}
+              onClick={handleWalletDisconnect}
+              disabled={isDisconnectingWallet}
             >
-              {isConnectingWallet
-                ? "Connecting Wallet..."
-                : "Connect NEAR Wallet"}
+              {isDisconnectingWallet ? "Disconnecting..." : "Disconnect Wallet"}
             </Button>
-          ) : (
-            <div className="space-y-3 sm:space-y-4">
-              <Button
-                type="button"
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation"
-                onClick={handleNearSignIn}
-                disabled={isSigningInWithNear}
-              >
-                {isSigningInWithNear
-                  ? "Signing in..."
-                  : `Sign in with NEAR (${accountId})`}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium touch-manipulation"
-                onClick={handleWalletDisconnect}
-                disabled={isDisconnectingWallet}
-              >
-                {isDisconnectingWallet
-                  ? "Disconnecting..."
-                  : "Disconnect Wallet"}
-              </Button>
-            </div>
           )}
         </div>
 
         <div className="mt-6 sm:mt-8 text-center">
           <p className="text-xs sm:text-sm text-muted-foreground">
-            This demo uses near-kit with Hot Connect for wallet connectivity.
+            This demo uses near-kit with NEAR Connect for wallet connectivity.
           </p>
         </div>
       </div>

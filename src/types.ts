@@ -33,16 +33,39 @@ export const profileSchema = z.object({
 export type SocialImage = z.infer<typeof socialImageSchema>;
 export type Profile = z.infer<typeof profileSchema>;
 
+export interface SignedMessage {
+	accountId: string;
+	publicKey: string;
+	signature: string;
+}
+
+
+export const LinkAccountRequest = z.object({
+	authToken: z.string().min(1),
+	accountId: accountIdSchema,
+});
 
 export const NonceRequest = z.object({
 	accountId: accountIdSchema,
-	publicKey: z.string().optional(),
 	networkId: z.union([z.literal("mainnet"), z.literal("testnet")])
 });
+
+export const SignedMessageSchema = z.object({
+	accountId: accountIdSchema,
+	publicKey: z.string(),
+	signature: z.string(),
+});
+
 export const VerifyRequest = z.object({
-	authToken: z.string().min(1),
+	authToken: z.string().optional(),
+	signedMessage: SignedMessageSchema.optional(),
+	message: z.string().optional(),
+	recipient: z.string().optional(),
+	nonce: z.string().optional(),
 	accountId: accountIdSchema,
 	email: z.email().optional(),
+}).refine(data => data.authToken || (data.signedMessage && data.message && data.recipient && data.nonce), {
+	message: "Either authToken or (signedMessage, message, recipient, nonce) must be provided",
 });
 export const ProfileRequest = z.object({
 	accountId: accountIdSchema.optional(),

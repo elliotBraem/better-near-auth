@@ -13,7 +13,7 @@
 
 </div>
 
-This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify), [near-kit](https://kit.near.tools/), and [Hot Connect](https://github.com/azbang/hot-connector) to provide a complete drop-in solution with session management, secure defaults, and automatic profile integration.
+This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify), [near-kit](https://kit.near.tools/), and [NEAR Connect](https://github.com/azbang/near-connect) to provide a complete drop-in solution with session management, secure defaults, and automatic profile integration.
 
 ## Installation
 
@@ -57,7 +57,7 @@ npm install better-near-auth
     export const authClient = createAuthClient({
         plugins: [
             siwnClient({
-                domain: "myapp.com", // this doesn't actually do anything yet... taking suggestions
+                recipient: "myapp.com",
                 networkId: "mainnet", // optional, default is "mainnet"
             })
         ],
@@ -66,42 +66,9 @@ npm install better-near-auth
 
 ## Usage
 
-### Two-Step Authentication Flow
+### Single-Step Authentication Flow
 
-The plugin uses a secure two-step authentication process:
-
-1. **Step 1**: Connect wallet and cache nonce
-2. **Step 2**: Sign message and authenticate
-
-```ts title="two-step-auth.ts"
-// Step 1: Connect wallet and get nonce
-await authClient.requestSignIn.near(
-  { recipient: "myapp.com" },
-  {
-    onSuccess: () => {
-      console.log("Wallet connected, nonce cached!");
-    },
-    onError: (error) => {
-      console.error("Wallet connection failed:", error.message);
-    }
-  }
-);
-
-// Step 2: Sign message and authenticate
-await authClient.signIn.near(
-  { recipient: "myapp.com" },
-  {
-    onSuccess: () => {
-      console.log("Successfully signed in!");
-    },
-    onError: (error) => {
-      console.error("Sign in failed:", error.message);
-    }
-  }
-);
-```
-
-### Complete React Component Example
+The plugin uses a single-step authentication flow that automatically handles both wallet connection and message signing:
 
 ```tsx title="LoginButton.tsx"
 import { authClient } from "./auth-client";
@@ -109,56 +76,71 @@ import { useState } from "react";
 
 export function LoginButton() {
   const { data: session } = authClient.useSession();
-  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
-  
-  // Get account ID from near-kit client
-  const accountId = authClient.near.getAccountId();
 
   if (session) {
     return (
       <div>
         <p>Welcome, {session.user.name}!</p>
-        <button onClick={() => authClient.signOut()}>Sign out</button>
+        <button onClick={() => authClient.near.disconnect()}>Sign out</button>
       </div>
     );
   }
 
-  const handleWalletConnect = async () => {
-    setIsConnectingWallet(true);
-    
-    try {
-      await authClient.requestSignIn.near(
-        { recipient: "myapp.com" },
-        {
-          onSuccess: () => {
-            setIsConnectingWallet(false);
-            console.log("Wallet connected!");
-          },
-          onError: (error) => {
-            setIsConnectingWallet(false);
-            console.error("Wallet connection failed:", error.message);
-          },
-        }
-      );
-    } catch (error) {
-      setIsConnectingWallet(false);
-      console.error("Authentication error:", error);
-    }
-  };
-
   const handleSignIn = async () => {
     setIsSigningIn(true);
     
-    try {
-      await authClient.signIn.near(
-        { recipient: "myapp.com" },
-        {
-          onSuccess: () => {
-            setIsSigningIn(false);
-            console.log("Successfully signed in!");
-          },
-          onError: (error) => {
+    await authClient.signIn.near({
+      onSuccess: () => {
+        setIsSigningIn(false);
+        console.log("Successfully signed in!");
+      },
+      onError: (error) => {
+        setIsSigningIn(false);
+        console.error("Sign in failed:", error.message);
+      },
+    });
+  };
+
+  return (
+    <button onClick={handleSignIn} disabled={isSigningIn}>
+      {isSigningIn ? "Signing in..." : "Sign in with NEAR"}
+    </button>
+  );
+}
+```
+
+### How It Works
+
+The `signIn.near()` method automatically:
+
+1. **Checks wallet capabilities** - Detects if the wallet supports `signInAndSignMessage`
+2. **Single-step flow** (supported wallets): One popup for connection + signing
+3. **Two-step fallback** (unsupported wallets): Automatic fallback to connect then sign
+
+**Supported wallets for single-step:**
+- Meteor Wallet
+- Intear Wallet
+- NEAR CLI
+- HOT Wallet
+- MyNearWallet
+- And more...
+
+### Manual Two-Step Flow (Optional)
+
+If you need explicit control over the connection step:
+
+```ts
+// Step 1: Connect wallet (optional, for explicit control)
+await authClient.requestSignIn.near({
+  onSuccess: () => console.log("Wallet connected"),
+});
+
+// Step 2: Sign and authenticate
+await authClient.signIn.near({
+  onSuccess: () => console.log("Signed in!"),
+});
+```
             setIsSigningIn(false);
             console.error("Sign in failed:", error.message);
           },
@@ -172,15 +154,9 @@ export function LoginButton() {
 
   return (
     <div>
-      {!accountId ? (
-        <button onClick={handleWalletConnect} disabled={isConnectingWallet}>
-          {isConnectingWallet ? "Connecting..." : "Connect NEAR Wallet"}
-        </button>
-      ) : (
-        <button onClick={handleSignIn} disabled={isSigningIn}>
-          {isSigningIn ? "Signing in..." : `Sign in with NEAR (${accountId})`}
-        </button>
-      )}
+      <button onClick={handleSignIn} disabled={isSigningIn}>
+        {isSigningIn ? "Signing in..." : "Sign in with NEAR"}
+      </button>
     </div>
   );
 }
@@ -235,7 +211,7 @@ The SIWN plugin accepts the following configuration options:
 
 The SIWN client plugin accepts the following configuration options:
 
-* **domain**: Domain identifier... idk what it should do yet. Maybe shade agent.
+* **recipient**: The recipient identifier for NEP-413 messages (must match server config)
 * **networkId**: NEAR network to use ("mainnet" or "testnet"). Default is "mainnet"
 
 ```ts title="auth-client.ts"
@@ -245,7 +221,7 @@ import { siwnClient } from "better-near-auth/client";
 export const authClient = createAuthClient({
   plugins: [
     siwnClient({
-      domain: "myapp.com",
+      recipient: "myapp.com",
       networkId: "testnet", // Use testnet
     }),
   ],
@@ -280,14 +256,17 @@ The client plugin provides the following actions:
 - `getNearClient()` - Get the near-kit client instance
 - `getAccountId()` - Get the currently connected account ID
 - `disconnect()` - Disconnect wallet and clear cached data
+- `link(callbacks?)` - Link a NEAR account to the current session
+- `unlink(params)` - Unlink a NEAR account from the current session
+- `listAccounts()` - List all linked NEAR accounts
 
 #### `authClient.requestSignIn`
 
-- `near(params, callbacks?)` - Connect wallet and cache nonce (Step 1)
+- `near(callbacks?)` - Connect wallet and cache nonce (for two-step flow)
 
 #### `authClient.signIn`
 
-- `near(params, callbacks?)` - Sign message and authenticate (Step 2)
+- `near(callbacks?)` - Sign message and authenticate (single-step or two-step)
 
 ### Callback Interface
 
@@ -303,10 +282,10 @@ interface AuthCallbacks {
 Common error codes you may encounter:
 
 - `SIGNER_NOT_AVAILABLE` - NEAR wallet not available
-- `WALLET_NOT_CONNECTED` - Wallet not connected before signing
-- `NONCE_NOT_FOUND` - No valid cached nonce found
-- `ACCOUNT_MISMATCH` - Cached nonce doesn't match current account
-- `UNAUTHORIZED_INVALID_OR_EXPIRED_NONCE` - Server nonce expired or invalid
+- `WALLET_NOT_CONNECTED` - Wallet not connected before signing (two-step fallback)
+- `ACCOUNT_MISMATCH` - Cached nonce doesn't match current account (two-step fallback)
+- `UNAUTHORIZED_NONCE_REPLAY` - Nonce already used (replay attack detected)
+- `UNAUTHORIZED_INVALID_SIGNATURE` - Invalid signature verification
 
 ## Advanced Configuration
 
@@ -453,5 +432,5 @@ export const authClient = createAuthClient({
 * [NEP-413 Specification](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
 * [near-sign-verify](https://github.com/elliotBraem/near-sign-verify)
 * [near-kit](https://kit.near.tools/)
-* [Hot Connect](https://github.com/azbang/hot-connector)
+* [NEAR Connect](https://github.com/azbang/near-connect)
 * [Example Implementation](https://better-near-auth.near.page)
