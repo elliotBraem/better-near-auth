@@ -47,8 +47,8 @@ const LayoutAuthenticatedDashboardRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/login': typeof LoginRoute
   '/': typeof LayoutIndexRoute
+  '/login': typeof LoginRoute
   '/dashboard': typeof LayoutAuthenticatedDashboardRoute
   '/profile/$accountId': typeof LayoutProfileAccountIdRoute
 }
@@ -69,7 +69,7 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/login' | '/' | '/dashboard' | '/profile/$accountId'
+  fullPaths: '/' | '/login' | '/dashboard' | '/profile/$accountId'
   fileRoutesByTo: FileRoutesByTo
   to: '/login' | '/' | '/dashboard' | '/profile/$accountId'
   id:
@@ -99,7 +99,7 @@ declare module '@tanstack/react-router' {
     '/_layout': {
       id: '/_layout'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -113,7 +113,7 @@ declare module '@tanstack/react-router' {
     '/_layout/_authenticated': {
       id: '/_layout/_authenticated'
       path: ''
-      fullPath: ''
+      fullPath: '/'
       preLoaderRoute: typeof LayoutAuthenticatedRouteImport
       parentRoute: typeof LayoutRoute
     }

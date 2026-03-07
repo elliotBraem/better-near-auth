@@ -16,7 +16,7 @@ export const authClient = createAuthClient({
   baseURL: serverUrl || "http://localhost:3000",
   plugins: [
     siwnClient({
-      domain: "better-near-auth.near",
+      recipient: "better-near-auth.near",
       networkId: "mainnet",
     }),
   ],

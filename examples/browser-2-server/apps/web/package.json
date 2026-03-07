@@ -9,18 +9,18 @@
     "serve": "vite preview",
     "start": "vite",
     "check-types": "tsc --noEmit",
-    "deploy": "bunx web4-deploy dist web4.better-near-auth.near --nearfs"
+    "deploy": "pnpm dlx web4-deploy dist web4.better-near-auth.near --nearfs"
   },
   "dependencies": {
-    "@orpc/client": "catalog:",
-    "@orpc/server": "catalog:",
+    "@orpc/client": "^1.13.2",
+    "@orpc/server": "^1.13.2",
     "@orpc/tanstack-query": "^1.13.2",
     "@radix-ui/react-slot": "^1.2.3",
     "@tailwindcss/vite": "^4.1.12",
     "@tanstack/react-query": "^5.85.5",
     "@tanstack/react-router": "^1.131.27",
-    "better-auth": "catalog:",
-    "better-near-auth": "*",
+    "better-auth": "^1.5.4",
+    "better-near-auth": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.546.0",
@@ -34,20 +34,19 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "tw-animate-css": "^1.3.7",
-    "zod": "catalog:"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@tanstack/react-query-devtools": "^5.85.5",
     "@tanstack/react-router-devtools": "^1.131.27",
     "@tanstack/router-plugin": "^1.131.27",
-    "@types/node": "catalog:",
-    "@types/bun": "latest",
+    "@types/node": "^25.0.9",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.12",
-    "typescript": "catalog:",
+    "typescript": "^5.9.3",
     "vite": "^7.1.3"
   }
 }

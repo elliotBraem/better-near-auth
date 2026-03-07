@@ -5,28 +5,28 @@
   "scripts": {
     "build": "tsdown",
     "check-types": "tsc -b",
-    "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
-    "dev": "bun run --hot src/index.ts",
-    "start": "bun run dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.7",
     "@libsql/client": "^0.15.15",
-    "@orpc/server": "catalog:",
-    "better-auth": "catalog:",
-    "better-near-auth": "*",
+    "@orpc/server": "^1.13.2",
+    "better-auth": "^1.5.4",
+    "better-near-auth": "workspace:*",
     "dotenv": "^17.2.1",
     "drizzle-orm": "^0.44.4",
     "hono": "^4.9.2",
-    "zod": "catalog:"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/bun": "latest",
     "drizzle-kit": "^0.31.4",
     "tsdown": "^0.14.1",
-    "typescript": "catalog:"
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.3"
   }
 }

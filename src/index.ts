@@ -1,8 +1,9 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
-import { generateNonce, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
-import { bytesToBase64 } from "./utils";
+import { Near, verifyNep413Signature } from "near-kit";
+import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
+import { base64ToBytes, bytesToBase64 } from "./utils";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile";
 import { schema } from "./schema";
@@ -12,6 +13,7 @@ import type {
 	Profile
 } from "./types";
 import {
+	LinkAccountRequest,
 	NonceRequest,
 	NonceResponse,
 	ProfileRequest,
@@ -27,6 +29,14 @@ function getOrigin(baseURL: string): string {
 	} catch {
 		return baseURL;
 	}
+}
+
+async function hashNonce(nonce: Uint8Array): Promise<string> {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join(''));
+	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export type SIWNPluginOptions =
@@ -107,11 +117,8 @@ export const siwn = (options: SIWNPluginOptions) =>
 				"/near/link-account",
 				{
 					method: "POST",
-					body: VerifyRequest.refine((data) => options.anonymous !== false || !!data.email, {
-						message: "Email is required when the anonymous plugin option is disabled.",
-						path: ["email"],
-					}),
-					use: [sessionMiddleware], // Requires active session
+					body: LinkAccountRequest,
+					use: [sessionMiddleware],
 					requireRequest: true,
 				},
 				async (ctx) => {
@@ -127,7 +134,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 					}
 
 				try {
-					// First, verify the signature to get the publicKey
 					const requireFullAccessKey = options.requireFullAccessKey ?? true;
 					const verifyOptions: VerifyOptions = {
 						requireFullAccessKey: requireFullAccessKey,
@@ -142,43 +148,51 @@ export const siwn = (options: SIWNPluginOptions) =>
 
 					const result: VerificationResult = await verify(authToken, verifyOptions);
 
-					const verification = await ctx.context.internalAdapter.findVerificationValue(
-						`siwn:${accountId}:${network}`,
+					const parsedToken = parseAuthToken(authToken);
+					const nonceBytes = new Uint8Array(parsedToken.nonce);
+					const nonceHash = await hashNonce(nonceBytes);
+
+					const existingNonce = await ctx.context.internalAdapter.findVerificationValue(
+						`siwn-nonce:${nonceHash}`
 					);
 
-					if (!verification || new Date() > verification.expiresAt) {
+					if (existingNonce) {
 						throw new APIError("UNAUTHORIZED", {
-							message: "Unauthorized: Invalid or expired nonce",
+							message: "Unauthorized: Nonce already used (replay attack detected)",
+							status: 401,
+							code: "UNAUTHORIZED_NONCE_REPLAY",
+						});
+					}
+
+					await ctx.context.internalAdapter.createVerificationValue({
+						identifier: `siwn-nonce:${nonceHash}`,
+						value: "used",
+						expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+					});
+
+					if (result.accountId !== accountId) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Unauthorized: Account ID mismatch",
 							status: 401,
 						});
 					}
 
-						if (result.accountId !== accountId) {
+					if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
+						const isValidKey = await options.validateLimitedAccessKey({
+							accountId: result.accountId,
+							publicKey: result.publicKey,
+							recipient: options.recipient
+						});
+
+						if (!isValidKey) {
 							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Account ID mismatch",
+								message: "Unauthorized: Invalid function call access key",
 								status: 401,
 							});
 						}
+					}
 
-						if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
-							const isValidKey = await options.validateLimitedAccessKey({
-								accountId: result.accountId,
-								publicKey: result.publicKey,
-								recipient: options.recipient
-							});
-
-							if (!isValidKey) {
-								throw new APIError("UNAUTHORIZED", {
-									message: "Unauthorized: Invalid function call access key",
-									status: 401,
-								});
-							}
-						}
-
-						await ctx.context.internalAdapter.deleteVerificationValue(verification.id);
-
-						// Check if this NEAR account is already linked
-						const existingNearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+					const existingNearAccount: NearAccount | null = await ctx.context.adapter.findOne({
 							model: "nearAccount",
 							where: [
 								{ field: "accountId", operator: "eq", value: accountId },
@@ -448,6 +462,10 @@ export const siwn = (options: SIWNPluginOptions) =>
 				async (ctx) => {
 					const {
 						authToken,
+						signedMessage,
+						message,
+						recipient,
+						nonce,
 						accountId,
 						email,
 					} = ctx.body;
@@ -462,33 +480,23 @@ export const siwn = (options: SIWNPluginOptions) =>
 					}
 
 				try {
-					// First, verify the signature to get the publicKey
-					const requireFullAccessKey = options.requireFullAccessKey ?? true;
-					const verifyOptions: VerifyOptions = {
-						requireFullAccessKey: requireFullAccessKey,
-						...(options.validateNonce
-							? { validateNonce: options.validateNonce }
-							: { nonceMaxAge: 15 * 60 * 1000 }),
-						...(options.validateRecipient
-							? { validateRecipient: options.validateRecipient }
-							: { expectedRecipient: options.recipient }),
-						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
-					} as VerifyOptions;
+					let publicKey: string;
+					let nonceBytes: Uint8Array;
 
-					const result: VerificationResult = await verify(authToken, verifyOptions);
+					if (authToken) {
+						const requireFullAccessKey = options.requireFullAccessKey ?? true;
+						const verifyOptions: VerifyOptions = {
+							requireFullAccessKey: requireFullAccessKey,
+							...(options.validateNonce
+								? { validateNonce: options.validateNonce }
+								: { nonceMaxAge: 15 * 60 * 1000 }),
+							...(options.validateRecipient
+								? { validateRecipient: options.validateRecipient }
+								: { expectedRecipient: options.recipient }),
+							...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
+						} as VerifyOptions;
 
-					const verification =
-						await ctx.context.internalAdapter.findVerificationValue(
-							`siwn:${accountId}:${network}`,
-						);
-
-					if (!verification || new Date() > verification.expiresAt) {
-						throw new APIError("UNAUTHORIZED", {
-							message: "Unauthorized: Invalid or expired nonce",
-							status: 401,
-							code: "UNAUTHORIZED_INVALID_OR_EXPIRED_NONCE",
-						});
-					}
+						const result: VerificationResult = await verify(authToken, verifyOptions);
 
 						if (result.accountId !== accountId) {
 							throw new APIError("UNAUTHORIZED", {
@@ -497,92 +505,179 @@ export const siwn = (options: SIWNPluginOptions) =>
 							});
 						}
 
-						if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
-							const isValidKey = await options.validateLimitedAccessKey({
-								accountId: result.accountId,
-								publicKey: result.publicKey,
-								recipient: options.recipient
-							}); // we could validate against some access control contract
-
-							if (!isValidKey) {
-								throw new APIError("UNAUTHORIZED", {
-									message: "Unauthorized: Invalid function call access key",
-									status: 401,
-								});
-							}
-						}
-
-						await ctx.context.internalAdapter.deleteVerificationValue(
-							verification.id,
+						publicKey = result.publicKey;
+						const parsedToken = parseAuthToken(authToken);
+						nonceBytes = new Uint8Array(parsedToken.nonce);
+					} else if (signedMessage && message && recipient && nonce) {
+						const near = new Near({ network });
+						
+						const nonceArray = Array.isArray(nonce) 
+							? nonce 
+							: Array.from(base64ToBytes(nonce));
+						
+						const isValid = await verifyNep413Signature(
+							signedMessage,
+							{
+								message,
+								recipient,
+								nonce: new Uint8Array(nonceArray),
+							},
+							{ near, maxAge: 15 * 60 * 1000 }
 						);
 
-						let user: User | null = null;
+						if (!isValid) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Invalid signature",
+								status: 401,
+							});
+						}
 
-						const existingNearAccount: NearAccount | null =
+						if (signedMessage.accountId !== accountId) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Account ID mismatch",
+								status: 401,
+							});
+						}
+
+						if (recipient !== options.recipient) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Recipient mismatch",
+								status: 401,
+							});
+						}
+
+						publicKey = signedMessage.publicKey;
+						nonceBytes = new Uint8Array(nonceArray);
+					} else {
+						throw new APIError("BAD_REQUEST", {
+							message: "Invalid request: missing required fields",
+							status: 400,
+						});
+					}
+
+					const nonceHash = await hashNonce(nonceBytes);
+
+					const existingNonce = await ctx.context.internalAdapter.findVerificationValue(
+						`siwn-nonce:${nonceHash}`
+					);
+
+					if (existingNonce) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Unauthorized: Nonce already used (replay attack detected)",
+							status: 401,
+							code: "UNAUTHORIZED_NONCE_REPLAY",
+						});
+					}
+
+					await ctx.context.internalAdapter.createVerificationValue({
+						identifier: `siwn-nonce:${nonceHash}`,
+						value: "used",
+						expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+					});
+
+					if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
+						const isValidKey = await options.validateLimitedAccessKey({
+							accountId: accountId,
+							publicKey: publicKey,
+							recipient: options.recipient
+						});
+
+						if (!isValidKey) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Invalid function call access key",
+								status: 401,
+							});
+						}
+					}
+
+					let user: User | null = null;
+
+					const existingNearAccount: NearAccount | null =
+						await ctx.context.adapter.findOne({
+							model: "nearAccount",
+							where: [
+								{ field: "accountId", operator: "eq", value: accountId },
+								{ field: "network", operator: "eq", value: network },
+							],
+						});
+
+					if (existingNearAccount) {
+						user = await ctx.context.adapter.findOne({
+							model: "user",
+							where: [
+								{
+									field: "id",
+									operator: "eq",
+									value: existingNearAccount.userId,
+								},
+							],
+						});
+					} else {
+						const anyNearAccount: NearAccount | null =
 							await ctx.context.adapter.findOne({
 								model: "nearAccount",
 								where: [
 									{ field: "accountId", operator: "eq", value: accountId },
-									{ field: "network", operator: "eq", value: network },
 								],
 							});
 
-						if (existingNearAccount) {
+						if (anyNearAccount) {
 							user = await ctx.context.adapter.findOne({
 								model: "user",
 								where: [
 									{
 										field: "id",
 										operator: "eq",
-										value: existingNearAccount.userId,
+										value: anyNearAccount.userId,
 									},
 								],
 							});
-						} else {
-							const anyNearAccount: NearAccount | null =
-								await ctx.context.adapter.findOne({
-									model: "nearAccount",
-									where: [
-										{ field: "accountId", operator: "eq", value: accountId },
-									],
-								});
-
-							if (anyNearAccount) {
-								user = await ctx.context.adapter.findOne({
-									model: "user",
-									where: [
-										{
-											field: "id",
-											operator: "eq",
-											value: anyNearAccount.userId,
-										},
-									],
-								});
-							}
 						}
+					}
 
-						if (!user) {
-							const domain =
-								options.emailDomainName ?? getOrigin(ctx.context.baseURL);
-							const userEmail =
-								!isAnon && email ? email : `${accountId}@${domain}`;
+					if (!user) {
+						const domain =
+							options.emailDomainName ?? getOrigin(ctx.context.baseURL);
+						const userEmail =
+							!isAnon && email ? email : `${accountId}@${domain}`;
 
-							const profile = await (options.getProfile || defaultGetProfile)(accountId);
+						const profile = await (options.getProfile || defaultGetProfile)(accountId);
 
-							user = await ctx.context.internalAdapter.createUser({
-								name: profile?.name ?? accountId,
-								email: userEmail,
-								image: profile?.image ? getImageUrl(profile.image) : "",
-							});
+						user = await ctx.context.internalAdapter.createUser({
+							name: profile?.name ?? accountId,
+							email: userEmail,
+							image: profile?.image ? getImageUrl(profile.image) : "",
+						});
 
+						await ctx.context.adapter.create({
+							model: "nearAccount",
+							data: {
+								userId: user.id,
+								accountId,
+								network,
+								publicKey: publicKey,
+								isPrimary: true,
+								createdAt: new Date(),
+							},
+						});
+
+						await ctx.context.internalAdapter.createAccount({
+							userId: user.id,
+							providerId: "siwn",
+							accountId: `${accountId}:${network}`,
+							createdAt: new Date(),
+							updatedAt: new Date(),
+						});
+					} else {
+						if (!existingNearAccount) {
 							await ctx.context.adapter.create({
 								model: "nearAccount",
 								data: {
 									userId: user.id,
 									accountId,
 									network,
-									publicKey: result.publicKey,
-									isPrimary: true,
+									publicKey: publicKey,
+									isPrimary: false,
 									createdAt: new Date(),
 								},
 							});
@@ -594,53 +689,31 @@ export const siwn = (options: SIWNPluginOptions) =>
 								createdAt: new Date(),
 								updatedAt: new Date(),
 							});
-						} else {
-							if (!existingNearAccount) {
-								await ctx.context.adapter.create({
-									model: "nearAccount",
-									data: {
-										userId: user.id,
-										accountId,
-										network,
-										publicKey: result.publicKey,
-										isPrimary: false,
-										createdAt: new Date(),
-									},
-								});
-
-								await ctx.context.internalAdapter.createAccount({
-									userId: user.id,
-									providerId: "siwn",
-									accountId: `${accountId}:${network}`,
-									createdAt: new Date(),
-									updatedAt: new Date(),
-								});
-							}
 						}
+					}
 
-						const session = await ctx.context.internalAdapter.createSession(
-							user.id
-							// ctx,
-						);
+					const session = await ctx.context.internalAdapter.createSession(
+						user.id
+					);
 
-						if (!session) {
-							throw new APIError("INTERNAL_SERVER_ERROR", {
-								message: "Internal Server Error",
-								status: 500,
-							});
-						}
+					if (!session) {
+						throw new APIError("INTERNAL_SERVER_ERROR", {
+							message: "Internal Server Error",
+							status: 500,
+						});
+					}
 
-						await setSessionCookie(ctx, { session, user });
+					await setSessionCookie(ctx, { session, user });
 
-						return ctx.json(VerifyResponse.parse({
-							token: session.token,
-							success: true,
-							user: {
-								id: user.id,
-								accountId,
-								network,
-							},
-						}));
+					return ctx.json(VerifyResponse.parse({
+						token: session.token,
+						success: true,
+						user: {
+							id: user.id,
+							accountId,
+							network,
+						},
+					}));
 					} catch (error: unknown) {
 						if (error instanceof APIError) throw error;
 						throw new APIError("UNAUTHORIZED", {

@@ -52,5 +52,12 @@ try {
   console.error(error);
 }
 
+const port = Number(process.env.PORT) || 3000;
 
 export default app;
+
+serve(app, (info) => {
+  console.log(`Server running on http://localhost:${info.port}`);
+});
+
+import { serve } from "@hono/node-server";
