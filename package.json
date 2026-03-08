@@ -46,6 +46,7 @@
     "url": "https://github.com/elliotBraem/better-near-auth/issues"
   },
   "homepage": "https://github.com/elliotBraem/better-near-auth#readme",
+  "packageManager": "pnpm@10.30.3",
   "peerDependencies": {
     "better-auth": "^1.5.4",
     "typescript": "^5.9.3"
