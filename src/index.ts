@@ -3,15 +3,15 @@ import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
 import { Near, verifyNep413Signature } from "near-kit";
 import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
-import { base64ToBytes, bytesToBase64 } from "./utils";
+import { base64ToBytes, bytesToBase64 } from "./utils.js";
 import z from "zod";
-import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile";
-import { schema } from "./schema";
+import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
+import { schema } from "./schema.js";
 import type {
 	AccountId,
 	NearAccount,
 	Profile
-} from "./types";
+} from "./types.js";
 import {
 	LinkAccountRequest,
 	NonceRequest,
@@ -20,8 +20,8 @@ import {
 	ProfileResponse,
 	VerifyRequest,
 	VerifyResponse
-} from "./types";
-export * from "./types";
+} from "./types.js";
+export * from "./types.js";
 
 function getOrigin(baseURL: string): string {
 	try {

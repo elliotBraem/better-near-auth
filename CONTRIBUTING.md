@@ -18,6 +18,27 @@ Thank you for your interest in contributing to better-near-auth! This document p
    pnpm test
    ```
 
+## Building
+
+The package is written in TypeScript and compiled to JavaScript for distribution.
+
+**Build process:**
+```bash
+# Compile TypeScript to JavaScript
+pnpm build
+
+# Output:
+# - dist/index.js (ESM)
+# - dist/client.js (ESM)
+# - dist/*.d.ts (TypeScript declarations)
+# - dist/*.js.map (source maps)
+```
+
+**Before publishing:**
+- The `prepublishOnly` script automatically builds the package
+- Only `dist/` is published to npm (not `src/`)
+- TypeScript declarations are included for IDE support
+
 ## Project Structure
 
 ```

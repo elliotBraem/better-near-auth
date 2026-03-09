@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# build artifacts
+*.tsbuildinfo
+
 # code coverage
 coverage
 *.lcov

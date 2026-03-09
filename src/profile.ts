@@ -1,4 +1,4 @@
-import type { AccountId, Profile, SocialImage } from "./types";
+import type { AccountId, Profile, SocialImage } from "./types.js";
 
 const FALLBACK_URL =
 	"https://ipfs.near.social/ipfs/bafkreidn5fb2oygegqaldx7ycdmhu4owcrmoxd7ekbzfmeakkobz2ja7qy";

@@ -461,6 +461,9 @@ Interested in contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
 # Install dependencies
 pnpm install
 
+# Build the package
+pnpm build
+
 # Run type checking
 pnpm typecheck
 
@@ -470,6 +473,11 @@ pnpm test
 # Run example locally
 cd examples/browser-2-server && pnpm dev
 ```
+
+**Build output:**
+- `dist/index.js` - Server plugin (ESM)
+- `dist/client.js` - Client plugin (ESM)
+- `dist/*.d.ts` - TypeScript declarations
 
 ## Links
 

@@ -7,9 +7,9 @@ import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetc
 import { atom } from "nanostores";
 import { Near, fromHotConnect } from "near-kit";
 import { sign } from "near-sign-verify";
-import type { siwn } from ".";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type SignedMessage, type VerifyRequestT, type VerifyResponseT } from "./types";
-import { base64ToBytes, bytesToBase64 } from "./utils";
+import type { siwn } from "./index.js";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type SignedMessage, type VerifyRequestT, type VerifyResponseT } from "./types.js";
+import { base64ToBytes, bytesToBase64 } from "./utils.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;

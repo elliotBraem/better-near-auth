@@ -1,0 +1,11 @@
+src/
+tsconfig.json
+*.test.ts
+*.spec.ts
+examples/
+.github/
+.changeset/
+CONTRIBUTING.md
+LLM.txt
+.gitignore
+.DS_Store

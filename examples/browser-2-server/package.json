@@ -9,7 +9,7 @@
     "dev": "pnpm --filter @b2s/server dev",
     "dev:server": "pnpm --filter @b2s/server dev",
     "dev:web": "pnpm --filter @b2s/web dev",
-    "build": "pnpm --filter @b2s/server build",
+    "build": "pnpm --filter better-near-auth build && pnpm --filter @b2s/server build",
     "build:web": "pnpm --filter @b2s/web build",
     "start": "pnpm --filter @b2s/server start",
     "check-types": "pnpm -r check-types",
