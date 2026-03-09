@@ -425,6 +425,52 @@ export const authClient = createAuthClient({
    - Testnet accounts must use "testnet", mainnet accounts use "mainnet"
 
 
+## Examples
+
+This repository includes example applications demonstrating how to use better-near-auth:
+
+### Browser to Server Example
+
+A full-stack example showing NEAR authentication in a browser app with a server backend.
+
+- **Location**: `examples/browser-2-server/`
+- **Live Demo**: [better-near-auth.near.page](https://better-near-auth.near.page)
+- **Tech Stack**: Hono, Drizzle ORM, React, TanStack Router
+
+**Running locally:**
+```bash
+# From repo root
+pnpm install
+cd examples/browser-2-server
+pnpm dev
+```
+
+**Deployment:**
+Each example can be deployed independently to Railway or other platforms. See the example's README for deployment instructions.
+
+## Development
+
+Interested in contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
+- Development setup
+- How to add changesets
+- Pull request guidelines
+- Release process
+
+**Quick start:**
+```bash
+# Install dependencies
+pnpm install
+
+# Run type checking
+pnpm typecheck
+
+# Run tests
+pnpm test
+
+# Run example locally
+cd examples/browser-2-server && pnpm dev
+```
+
 ## Links
 
 * [Better Auth Documentation](https://better-auth.com)
@@ -433,4 +479,5 @@ export const authClient = createAuthClient({
 * [near-sign-verify](https://github.com/elliotBraem/near-sign-verify)
 * [near-kit](https://kit.near.tools/)
 * [NEAR Connect](https://github.com/azbang/near-connect)
-* [Example Implementation](https://better-near-auth.near.page)
+* [Example Implementation](https://better-near-auth.near.page) - Live demo
+* [Contributing Guide](./CONTRIBUTING.md) - Development and contribution guidelines

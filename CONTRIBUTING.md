@@ -18,6 +18,50 @@ Thank you for your interest in contributing to better-near-auth! This document p
    pnpm test
    ```
 
+## Project Structure
+
+```
+better-near-auth/
+├── src/                    # Main package source
+│   ├── index.ts           # Server-side plugin
+│   ├── client.ts          # Client-side plugin
+│   └── ...
+├── examples/              # Example applications
+│   └── browser-2-server/  # Full-stack example
+│       ├── apps/
+│       │   ├── server/    # Backend (Hono)
+│       │   └── web/       # Frontend (React)
+│       └── railway.toml   # Deployment config
+├── .changeset/            # Changeset files
+└── .github/
+    └── workflows/
+        └── release.yml    # Automated releases
+```
+
+## Working with Examples
+
+Examples are part of the pnpm workspace and use the local `better-near-auth` package via `workspace:*`.
+
+**Running examples locally:**
+```bash
+# From repo root
+pnpm install
+
+# Run specific example
+cd examples/browser-2-server
+pnpm dev
+```
+
+**Building examples:**
+```bash
+# Build from example directory
+cd examples/browser-2-server
+pnpm build
+
+# Or from root with filter
+pnpm --filter @b2s/server build
+```
+
 ## Development Workflow
 
 ### Making Changes

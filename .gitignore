@@ -34,3 +34,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 
 temp
+
+# Examples
+examples/*/node_modules
+examples/*/.turbo
+examples/*/apps/*/node_modules
+examples/*/apps/*/.turbo
+examples/*/pnpm-lock.yaml

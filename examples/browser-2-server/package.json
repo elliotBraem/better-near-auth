@@ -6,20 +6,19 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
-    "check-types": "turbo check-types",
-    "dev:native": "turbo -F native dev",
-    "dev:web": "turbo -F web dev",
-    "dev:server": "turbo -F server dev",
-    "db:push": "turbo -F server db:push",
-    "db:studio": "turbo -F server db:studio",
-    "db:generate": "turbo -F server db:generate",
-    "db:migrate": "turbo -F server db:migrate"
+    "dev": "pnpm --filter @b2s/server dev",
+    "dev:server": "pnpm --filter @b2s/server dev",
+    "dev:web": "pnpm --filter @b2s/web dev",
+    "build": "pnpm --filter @b2s/server build",
+    "build:web": "pnpm --filter @b2s/web build",
+    "start": "pnpm --filter @b2s/server start",
+    "check-types": "pnpm -r check-types",
+    "db:push": "pnpm --filter @b2s/server db:push",
+    "db:studio": "pnpm --filter @b2s/server db:studio",
+    "db:generate": "pnpm --filter @b2s/server db:generate",
+    "db:migrate": "pnpm --filter @b2s/server db:migrate"
   },
   "dependencies": {},
-  "devDependencies": {
-    "turbo": "^2.5.4"
-  },
+  "devDependencies": {},
   "packageManager": "pnpm@10.30.3"
 }

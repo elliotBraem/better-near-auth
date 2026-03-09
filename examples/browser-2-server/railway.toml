@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+watchPaths = ["src/**", "examples/browser-2-server/**"]
+
+[deploy]
+startCommand = "cd examples/browser-2-server/apps/server && pnpm start"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
