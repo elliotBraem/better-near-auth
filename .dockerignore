@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+out
+*.tgz
+
+# Git
+.git
+.gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs
+
+# Testing
+coverage
+*.test.ts
+*.spec.ts
+
+# Documentation
+README.md
+CONTRIBUTING.md
+LLM.txt
+
+# Railway/Nixpacks
+.changeset
+.github
+railway.toml
+.nvmrc
+.node-version
+nixpacks.toml
+
+# Misc
+.DS_Store
+.turbo
+.cache

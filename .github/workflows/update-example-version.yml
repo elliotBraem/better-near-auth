@@ -1,0 +1,55 @@
+name: Update Example Version
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Get version from release
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update example package.json
+        run: |
+          cd examples/browser-2-server/apps/server
+          cat package.json | jq '.dependencies["better-near-auth"] = "^${{ steps.get_version.outputs.VERSION }}"' > package.json.tmp
+          mv package.json.tmp package.json
+
+      - name: Commit and push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add examples/browser-2-server/apps/server/package.json
+          git commit -m "chore: update example to use better-near-auth@${{ steps.get_version.outputs.VERSION }}"
+          git push
+
+      - name: Wait for Railway deployment
+        run: sleep 120
+
+      - name: Revert to workspace dependency
+        run: |
+          cd examples/browser-2-server/apps/server
+          cat package.json | jq '.dependencies["better-near-auth"] = "workspace:*"' > package.json.tmp
+          mv package.json.tmp package.json
+          git add examples/browser-2-server/apps/server/package.json
+          git commit -m "chore: revert example to workspace dependency for development"
+          git push

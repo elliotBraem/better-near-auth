@@ -479,6 +479,13 @@ cd examples/browser-2-server && pnpm dev
 - `dist/client.js` - Client plugin (ESM)
 - `dist/*.d.ts` - TypeScript declarations
 
+**Deployment workflow:**
+1. Make changes and create changeset
+2. Merge PR → Changesets publishes to npm
+3. Example auto-updates to use published version
+4. Railway auto-deploys
+5. Example reverts to `workspace:*` for next development cycle
+
 ## Links
 
 * [Better Auth Documentation](https://better-auth.com)

@@ -50,7 +50,8 @@
   "homepage": "https://github.com/elliotBraem/better-near-auth#readme",
   "packageManager": "pnpm@10.30.3",
   "engines": {
-    "node": "24.0.0"
+    "node": "24.0.0",
+    "pnpm": "10.30.3"
   },
   "peerDependencies": {
     "better-auth": "^1.5.4",

@@ -39,7 +39,32 @@ pnpm build
 - Only `dist/` is published to npm (not `src/`)
 - TypeScript declarations are included for IDE support
 
-## Project Structure
+## Development Workflow
+
+### Making Changes
+
+1. Create a new branch for your changes
+2. Make your changes following the existing code style
+3. Test locally with the example:
+   ```bash
+   cd examples/browser-2-server
+   pnpm dev
+   ```
+4. Ensure all tests pass: `pnpm test`
+5. Ensure type checking passes: `pnpm typecheck`
+
+### Example Development
+
+The example uses `workspace:*` to always use the latest unpublished changes:
+```json
+{
+  "dependencies": {
+    "better-near-auth": "workspace:*"
+  }
+}
+```
+
+This allows you to test changes locally before publishing.
 
 ```
 better-near-auth/
