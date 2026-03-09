@@ -32,13 +32,14 @@ RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and node_modules
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml ./
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy built main package
 COPY --from=builder /app/dist ./dist
 
-# Copy example directory
+# Copy example directory with its node_modules
 COPY --from=builder /app/examples/browser-2-server ./examples/browser-2-server
 
 # Set working directory to server app
