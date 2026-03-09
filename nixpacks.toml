@@ -1,4 +1,5 @@
 [phases.setup]
+nixPkgs = ["nodejs_24"]
 
 [phases.install]
 cmds = ["pnpm install --frozen-lockfile"]
