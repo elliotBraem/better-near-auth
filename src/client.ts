@@ -1,5 +1,5 @@
 import { NearConnector } from "@hot-labs/near-connect";
-import type { NearWalletBase, WalletManifest } from "@hot-labs/near-connect";
+import type { NearWalletBase } from "@hot-labs/near-connect";
 import { generateNonce } from "near-kit";
 
 type Account = Awaited<ReturnType<NearWalletBase["getAccounts"]>>[number];
@@ -81,12 +81,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		cachedNonce.set(null);
 	};
 
-	const isNonceValid = (nonceData: CachedNonceData | null): boolean => {
-		if (!nonceData) return false;
-		const now = Date.now();
-		const fiveMinutes = 5 * 60 * 1000;
-		return (now - nonceData.timestamp) < fiveMinutes;
-	};
+
 
 	const handleAccountConnection = async (accounts: Account[]) => {
 		try {
@@ -390,9 +385,17 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-							const wallet = await connector.wallet();
-							const manifest: WalletManifest = wallet.manifest;
-							const supportsSignMessage = manifest.features?.signMessage === true;
+							await connector.whenManifestLoaded;
+							
+							const walletId = await connector.selectWallet();
+							
+							const wallet = connector.availableWallets.find(w => w.manifest.id === walletId);
+							
+							if (!wallet) {
+								throw new Error("Selected wallet not found");
+							}
+							
+							const supportsSignMessage = wallet.manifest.features?.signInAndSignMessage === true;
 
 							if (supportsSignMessage) {
 								pendingSignInCallbacks = callbacks || null;
@@ -401,6 +404,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								pendingSignInNonce = nonce;
 								
 								await connector.connect({
+									walletId,
 									signMessageParams: {
 										message: `Sign in to ${config.recipient}`,
 										recipient: config.recipient,
@@ -410,6 +414,15 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								
 								return;
 							}
+
+							await connector.connect({ walletId });
+							
+							connectionPromise = new Promise<void>((resolve, reject) => {
+								connectionResolve = resolve;
+								connectionReject = reject;
+							});
+							
+							await connectionPromise;
 
 							if (!nearInstance) {
 								const error = new Error("NEAR client not available") as Error & { code?: string };
@@ -425,21 +438,24 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw error;
 							}
 
-							const nonceData = cachedNonce.get();
+							const nonceRequest: NonceRequestT = {
+								accountId,
+								networkId: (state.networkId || network) as "mainnet" | "testnet"
+							};
 
-							if (!isNonceValid(nonceData)) {
-								const error = new Error("No valid nonce found. Please call requestSignIn first.") as Error & { code?: string };
-								error.code = "NONCE_NOT_FOUND";
-								throw error;
+							const nonceResponse: BetterFetchResponse<NonceResponseT> = await $fetch("/near/nonce", {
+								method: "POST",
+								body: nonceRequest
+							});
+
+							if (nonceResponse.error) {
+								throw new Error(nonceResponse.error.message || "Failed to get nonce");
 							}
 
-							if (nonceData!.accountId !== accountId) {
-								const error = new Error("Account ID mismatch. Please call requestSignIn again.") as Error & { code?: string };
-								error.code = "ACCOUNT_MISMATCH";
-								throw error;
+							const nonce = nonceResponse?.data?.nonce;
+							if (!nonce) {
+								throw new Error("No nonce received from server");
 							}
-
-							const { nonce } = nonceData!;
 
 							const message = `Sign in to ${config.recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
 							const nonceBytes = base64ToBytes(nonce);
@@ -466,7 +482,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								throw new Error("Authentication verification failed");
 							}
 
-							clearNonce();
 							callbacks?.onSuccess?.();
 						} catch (error) {
 							const err = error instanceof Error ? error : new Error(String(error));

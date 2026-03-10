@@ -1,5 +1,19 @@
 # Better Auth Plugin Architecture & Better-Near-Auth Implementation Guide
 
+> **⚠️ DEPRECATED**: This file is deprecated and will be removed in a future version.
+> 
+> This documentation is being migrated to the OpenSkills format for better reusability.
+> 
+> **For now, this file remains accurate and can be used**, but please note:
+> - A new `skills/better-near-auth/` directory will be created with structured documentation
+> - This file will be replaced by `skills/better-near-auth/SKILL.md` and supporting files
+> - The new format provides better organization and progressive loading
+> 
+> **Migration path**: Once the OpenSkills version is available, use:
+> ```bash
+> npx openskills install ./skills/better-near-auth
+> ```
+
 ## Overview
 
 Better Auth is a framework-agnostic authentication and authorization framework for TypeScript that uses a powerful plugin system to extend functionality. This document explains how Better Auth plugins work and provides comprehensive technical documentation for the better-near-auth plugin, which implements Sign in with NEAR (SIWN) following the NEP-413 standard.
@@ -57,7 +71,9 @@ export const myPluginClient = () => ({
 ### Architecture Overview
 
 The better-near-auth plugin implements NEP-413 (Sign in with NEAR) standard, providing:
-- Secure wallet-based authentication using a two-step process
+- Secure wallet-based authentication with automatic flow determination
+- Single-step flow for wallets with signInAndSignMessage support
+- Automatic fallback to two-step flow for other wallets
 - NEAR account linking to user profiles
 - Profile integration with NEAR Social
 - near-kit client with Hot Connect wallet connector for wallet connectivity
@@ -522,22 +538,56 @@ export const auth = betterAuth({
 
 ## Authentication Flow
 
-### Complete Two-Step Authentication Sequence
+### Automatic Flow Determination
 
-1. **Step 1 - Wallet Connection & Nonce Request**:
-   - User calls `authClient.requestSignIn.near()`
-   - Client connects to NEAR wallet via Hot Connect connector
-   - Client requests nonce from server with `{ accountId, publicKey, networkId }`
-   - Server generates and stores nonce with unique identifier
-   - Client caches nonce data locally
+The plugin automatically determines the optimal authentication flow based on the selected wallet's capabilities:
 
-2. **Step 2 - Message Signing & Verification**:
-   - User calls `authClient.signIn.near()`
-   - Client retrieves cached nonce data
-   - Client creates NEP-413 compliant message
-   - Client signs message using wallet
-   - Client sends auth token to server for verification
-   - Server verifies signature and creates session
+1. **User calls `signIn.near()`** - Single method handles everything
+2. **Wallet selector appears** - User chooses any available wallet
+3. **Plugin checks wallet capabilities** - Does it support `signInAndSignMessage`?
+4. **Automatic flow selection**:
+   - ✅ **Supports signInAndSignMessage** → Single-step flow (one popup)
+   - ❌ **Doesn't support** → Two-step flow (automatic fallback)
+
+### Single-Step Flow (signInAndSignMessage-capable wallets)
+
+For wallets with signInAndSignMessage support (Meteor, MyNearWallet, Intear, NEAR CLI):
+
+1. User calls `authClient.signIn.near()`
+2. User selects wallet from selector
+3. One popup appears for connection + signing
+4. Wallet connects and signs message in one step
+5. Server verifies signature and creates session
+
+### Two-Step Flow (automatic fallback)
+
+For wallets without signInAndSignMessage support:
+
+1. User calls `authClient.signIn.near()`
+2. User selects wallet from selector
+3. First popup: Connect wallet
+4. Plugin requests nonce from server
+5. Second popup: Sign message
+6. Server verifies signature and creates session
+
+### Wallet Selection Process
+
+The plugin uses NEAR Connect's wallet selector to let users choose their preferred wallet:
+
+1. **Manifest Loading**: Plugin waits for `connector.whenManifestLoaded`
+2. **Wallet Selector**: Calls `connector.selectWallet()` to show all available wallets
+3. **Capability Check**: Examines selected wallet's `manifest.features.signInAndSignMessage`
+4. **Flow Determination**: Automatically selects optimal authentication flow
+
+**Supported Wallets:**
+- Meteor Wallet (signInAndSignMessage: ✅)
+- MyNearWallet (signInAndSignMessage: ✅)
+- HOT Wallet (signInAndSignMessage: ❌, but signMessage: ✅)
+- Intear Wallet (signInAndSignMessage: ✅)
+- NEAR CLI (signInAndSignMessage: ✅)
+- Ledger (signInAndSignMessage: ❌)
+- WalletConnect (signInAndSignMessage: ❌)
+- Any other NEAR wallet
 
 ### Error Handling
 
@@ -681,7 +731,7 @@ import { siwnClient } from "better-near-auth/client";
 export const authClient = createAuthClient({
     plugins: [
         siwnClient({
-            domain: "myapp.com",
+            recipient: "myapp.com",
             networkId: "mainnet",
         })
     ],
@@ -696,11 +746,7 @@ import { useState } from "react";
 
 export function LoginButton() {
     const { data: session } = authClient.useSession();
-    const [isConnectingWallet, setIsConnectingWallet] = useState(false);
     const [isSigningIn, setIsSigningIn] = useState(false);
-    
-    // Get account ID from embedded client
-    const accountId = authClient.near.getAccountId();
 
     if (session) {
         return (
@@ -713,67 +759,30 @@ export function LoginButton() {
         );
     }
 
-    const handleWalletConnect = async () => {
-        setIsConnectingWallet(true);
-        
-        try {
-            await authClient.requestSignIn.near(
-                { recipient: "myapp.com" },
-                {
-                    onSuccess: () => {
-                        setIsConnectingWallet(false);
-                        console.log("Wallet connected!");
-                    },
-                    onError: (error) => {
-                        setIsConnectingWallet(false);
-                        console.error("Wallet connection failed:", error.message);
-                    },
-                }
-            );
-        } catch (error) {
-            setIsConnectingWallet(false);
-            console.error("Authentication error:", error);
-        }
-    };
-
     const handleSignIn = async () => {
         setIsSigningIn(true);
         
-        try {
-            await authClient.signIn.near(
-                { recipient: "myapp.com" },
-                {
-                    onSuccess: () => {
-                        setIsSigningIn(false);
-                        console.log("Successfully signed in!");
-                    },
-                    onError: (error) => {
-                        setIsSigningIn(false);
-                        console.error("Sign in failed:", error.message);
-                    },
-                }
-            );
-        } catch (error) {
-            setIsSigningIn(false);
-            console.error("Authentication error:", error);
-        }
+        await authClient.signIn.near({
+            onSuccess: () => {
+                setIsSigningIn(false);
+                console.log("Successfully signed in!");
+            },
+            onError: (error) => {
+                setIsSigningIn(false);
+                console.error("Sign in failed:", error.message);
+            },
+        });
     };
 
     return (
-        <div>
-            {!accountId ? (
-                <button onClick={handleWalletConnect} disabled={isConnectingWallet}>
-                    {isConnectingWallet ? "Connecting..." : "Connect NEAR Wallet"}
-                </button>
-            ) : (
-                <button onClick={handleSignIn} disabled={isSigningIn}>
-                    {isSigningIn ? "Signing in..." : `Sign in with NEAR (${accountId})`}
-                </button>
-            )}
-        </div>
+        <button onClick={handleSignIn} disabled={isSigningIn}>
+            {isSigningIn ? "Signing in..." : "Sign in with NEAR"}
+        </button>
     );
 }
 ```
+
+**Note**: The `requestSignIn.near()` method is still available for backward compatibility, but `signIn.near()` now handles everything automatically.
 
 ### Profile Access
 

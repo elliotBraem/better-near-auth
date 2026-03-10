@@ -46,12 +46,35 @@ pnpm build
 1. Create a new branch for your changes
 2. Make your changes following the existing code style
 3. Test locally with the example:
-   ```bash
-   cd examples/browser-2-server
-   pnpm dev
-   ```
+    ```bash
+    cd examples/browser-2-server
+    pnpm dev
+    ```
 4. Ensure all tests pass: `pnpm test`
 5. Ensure type checking passes: `pnpm typecheck`
+
+### Testing Authentication Flows
+
+The plugin supports two authentication flows depending on wallet capabilities:
+
+**Single-Step Flow** (wallets with signMessage support):
+- User selects wallet
+- One popup for connection + signing
+- Supported by: Meteor Wallet, MyNearWallet, HOT Wallet, Intear, NEAR CLI
+
+**Two-Step Flow** (automatic fallback):
+- User selects wallet
+- First popup: Connect wallet
+- Second popup: Sign message
+- Used automatically when wallet doesn't support signMessage
+
+**Testing locally:**
+1. Build the package: `pnpm build`
+2. Run the example: `cd examples/browser-2-server && pnpm dev`
+3. Test with a wallet that supports signMessage (e.g., Meteor Wallet)
+4. Test with a wallet that doesn't support signMessage
+5. Verify both flows work correctly
+6. Check error handling for each flow
 
 ### Example Development
 
