@@ -118,15 +118,15 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		if (data?.accounts && data.accounts[0] && fetcher && pendingSignInNonce) {
 			const account = data.accounts[0] as Account & { signedMessage?: SignedMessage };
 			const signedMessage = account.signedMessage;
-			
+
 			if (signedMessage && pendingSignInCallbacks) {
 				const callbacks = pendingSignInCallbacks;
 				pendingSignInCallbacks = null;
 				const nonce = pendingSignInNonce;
 				pendingSignInNonce = null;
-				
+
 				await handleAccountConnection(data.accounts);
-				
+
 				const message = `Sign in to ${config.recipient}`;
 
 				const verifyResponse = await fetcher("/near/verify", {
@@ -141,12 +141,19 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				}) as BetterFetchResponse<VerifyResponseT>;
 
 				if (verifyResponse.error) {
-					callbacks.onError?.(new Error(verifyResponse.error.message || "Failed to verify signature"));
+					const err = new Error(verifyResponse.error.message || "Failed to verify signature") as Error & { code?: string; status?: number };
+					err.status = verifyResponse.error.status;
+					callbacks.onError?.(err);
 				} else if (!verifyResponse?.data?.success) {
 					callbacks.onError?.(new Error("Authentication verification failed"));
 				} else {
 					callbacks.onSuccess?.();
 				}
+			} else if (pendingSignInCallbacks) {
+				const callbacks = pendingSignInCallbacks;
+				pendingSignInCallbacks = null;
+				pendingSignInNonce = null;
+				callbacks.onError?.(new Error("Wallet did not return a signed message. Please try a different wallet or use the two-step flow."));
 			}
 		}
 	};
@@ -415,12 +422,12 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								return;
 							}
 
-							await connector.connect({ walletId });
-							
 							connectionPromise = new Promise<void>((resolve, reject) => {
 								connectionResolve = resolve;
 								connectionReject = reject;
 							});
+
+							await connector.connect({ walletId });
 							
 							await connectionPromise;
 

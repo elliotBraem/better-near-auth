@@ -1,5 +1,13 @@
 # better-near-auth
 
+## 0.5.2
+
+### Patch Changes
+
+- Fix race condition in `signIn.near()` two-step flow where `connectionPromise` was created after `connector.connect()`, causing the promise to never resolve for wallets without `signInAndSignMessage` support (HOT Wallet, Ledger, WalletConnect).
+
+  Fix silent no-op in `handleSignInAndSignMessage` when wallet returns accounts without `signedMessage` — now calls `onError` callback instead of hanging indefinitely.
+
 ## 0.5.1
 
 ### Patch Changes
