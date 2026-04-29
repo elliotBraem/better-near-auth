@@ -63,6 +63,8 @@
   },
   "dependencies": {
     "@fastnear/wallet": "file:../js-monorepo/packages/wallet",
+    "@fastnear/borsh": "file:../js-monorepo/packages/borsh",
+    "@fastnear/borsh-schema": "file:../js-monorepo/packages/borsh-schema",
     "@noble/curves": "^2.0.0",
     "borsh": "^2.0.0",
     "nanostores": "^1.1.0",
@@ -82,5 +84,12 @@
     "dist/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "pnpm": {
+    "overrides": {
+      "@fastnear/borsh": "file:../js-monorepo/packages/borsh",
+      "@fastnear/borsh-schema": "file:../js-monorepo/packages/borsh-schema",
+      "@fastnear/near-connect": "^0.11.0"
+    }
+  }
 }

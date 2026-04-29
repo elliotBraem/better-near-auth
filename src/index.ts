@@ -233,7 +233,7 @@ export type SIWNPluginOptions =
 			}) => Promise<boolean>;
 		};
 
-export const siwn = (options: SIWNPluginOptions) => {
+export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 	const apiKey = options.fastnearApiKey || process.env.FASTNEAR_API_KEY;
 	let relayerState: RelayerState | null = null;
 	let relayerInitialized = false;
