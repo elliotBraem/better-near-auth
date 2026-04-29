@@ -1,75 +1,140 @@
 import { authClient } from "@/lib/auth-client";
+import { viewFunction } from "better-near-auth/rpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
+import { Badge } from "./ui/badge";
 
 const GUESTBOOK_CONTRACT = "hello.near-examples.near";
 
+type SendMode = "relay" | "direct";
+
 export function Guestbook() {
   const [newGreeting, setNewGreeting] = useState("");
+  const [sendMode, setSendMode] = useState<SendMode>("relay");
   const queryClient = useQueryClient();
 
   const { data: session } = authClient.useSession();
-  const nearClient = authClient.near.getNearClient();
+  const network = authClient.near.getState()?.networkId || "mainnet";
 
   const { data: greeting } = useQuery({
-    queryKey: ["greeting"],
-    queryFn: () => nearClient.view<string>(GUESTBOOK_CONTRACT, "get_greeting"),
+    queryKey: ["greeting", network],
+    queryFn: () => viewFunction(GUESTBOOK_CONTRACT, "get_greeting", {}, network),
   });
 
-  const { mutate: addMessage, isPending: isSubmitting } = useMutation({
+  const { mutate: addMessageRelay, isPending: isRelaying } = useMutation({
     mutationFn: async (text: string) => {
       const accountId = authClient.near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
 
-      return await nearClient
-        .transaction(accountId)
-        .functionCall(
-          GUESTBOOK_CONTRACT,
-          "set_greeting",
-          { greeting: text },
-          { gas: "30 Tgas", attachedDeposit: "0 NEAR" }
-        )
-        .send({ waitUntil: "FINAL" });
+      const signedDelegateAction = await authClient.near.buildSignedDelegateAction({
+        receiverId: GUESTBOOK_CONTRACT,
+        actions: [{
+          type: "FunctionCall",
+          methodName: "set_greeting",
+          args: { greeting: text },
+          gas: "30000000000000",
+          deposit: "0",
+        }],
+      });
+
+      const relayResult = await authClient.near.relayTransaction({
+        signedDelegateAction,
+      });
+
+      if (relayResult.error) {
+        throw new Error(relayResult.error.message || "Relay failed");
+      }
+
+      return relayResult.data;
     },
-    onSuccess: (outcome, newGreeting) => {
-      // Manually update the cache with the new value
-      queryClient.setQueryData(["greeting"], newGreeting);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["greeting", network] });
       setNewGreeting("");
-      toast.success("Message added successfully!");
-      console.log("Transaction successful:", outcome.transaction.hash);
+      toast.success("Message relayed (gasless)!");
     },
     onError: (error) => {
-      console.error("Error adding message:", error);
-      toast.error("Failed to add message. Please try again.");
+      console.error("Relay error:", error);
+      toast.error(error instanceof Error ? error.message : "Relay failed. Try direct mode.");
     },
   });
+
+  const { mutate: addMessageDirect, isPending: isDirecting } = useMutation({
+    mutationFn: async (text: string) => {
+      const accountId = authClient.near.getAccountId();
+      if (!accountId) throw new Error("Not authenticated");
+
+      const result = await authClient.near.wallet.sendTransaction({
+        receiverId: GUESTBOOK_CONTRACT,
+        actions: [{
+          type: "FunctionCall",
+          methodName: "set_greeting",
+          args: { greeting: text },
+          gas: "30000000000000",
+          deposit: "0",
+        }],
+        network,
+      });
+
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["greeting", network] });
+      setNewGreeting("");
+      toast.success("Message sent directly!");
+    },
+    onError: (error) => {
+      console.error("Direct send error:", error);
+      toast.error(error instanceof Error ? error.message : "Direct send failed.");
+    },
+  });
+
+  const isPending = isRelaying || isDirecting;
+  const isLoggedIn = !!session;
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGreeting.trim()) return;
-    addMessage(newGreeting);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onSubmit(e as any);
+    if (sendMode === "relay") {
+      addMessageRelay(newGreeting);
+    } else {
+      addMessageDirect(newGreeting);
     }
   };
-
-  const isLoggedIn = !!session;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Guestbook</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Guestbook</CardTitle>
+          <div className="flex gap-1">
+            <Button
+              variant={sendMode === "relay" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSendMode("relay")}
+            >
+              Gasless
+              {sendMode === "relay" && (
+                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">Relay</Badge>
+              )}
+            </Button>
+            <Button
+              variant={sendMode === "direct" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSendMode("direct")}
+            >
+              Direct
+              {sendMode === "direct" && (
+                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">You Pay Gas</Badge>
+              )}
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Input Section */}
         <form onSubmit={onSubmit} className="flex gap-2">
           <Input
             placeholder={
@@ -77,18 +142,17 @@ export function Guestbook() {
             }
             value={newGreeting}
             onChange={(e) => setNewGreeting(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isSubmitting || !isLoggedIn}
+            disabled={isPending || !isLoggedIn}
             className="flex-1"
           />
           <Button
             type="submit"
-            disabled={isSubmitting || !newGreeting.trim() || !isLoggedIn}
+            disabled={isPending || !newGreeting.trim() || !isLoggedIn}
           >
-            {isSubmitting ? (
+            {isPending ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                <span>Adding...</span>
+                <span>{sendMode === "relay" ? "Relaying..." : "Sending..."}</span>
               </div>
             ) : (
               "Add"

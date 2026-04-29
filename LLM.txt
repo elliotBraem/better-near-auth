@@ -1,868 +1,241 @@
-# Better Auth Plugin Architecture & Better-Near-Auth Implementation Guide
-
-> **⚠️ DEPRECATED**: This file is deprecated and will be removed in a future version.
-> 
-> This documentation is being migrated to the OpenSkills format for better reusability.
-> 
-> **For now, this file remains accurate and can be used**, but please note:
-> - A new `skills/better-near-auth/` directory will be created with structured documentation
-> - This file will be replaced by `skills/better-near-auth/SKILL.md` and supporting files
-> - The new format provides better organization and progressive loading
-> 
-> **Migration path**: Once the OpenSkills version is available, use:
-> ```bash
-> npx openskills install ./skills/better-near-auth
-> ```
+# Better-Near-Auth Implementation Guide
 
 ## Overview
 
-Better Auth is a framework-agnostic authentication and authorization framework for TypeScript that uses a powerful plugin system to extend functionality. This document explains how Better Auth plugins work and provides comprehensive technical documentation for the better-near-auth plugin, which implements Sign in with NEAR (SIWN) following the NEP-413 standard.
+Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) plus a built-in NEP-366 delegate action relayer. It provides:
 
-## Better Auth Plugin Architecture
+- **SIWN authentication** — wallet-based sign-in with automatic single-step/two-step flow detection
+- **Gasless relay** — server-side relayer broadcasts delegate actions on behalf of authenticated users, paying gas from a relayer account
+- **Ephemeral relayer keypair** — auto-generated ED25519 keypair on startup, private key encrypted with AES-256-GCM in the database, survives server restarts
+- **Profile integration** — FastNear KV primary, NEAR Social fallback
 
-### Core Plugin Concepts
+## Dependencies
 
-Better Auth plugins consist of two main components:
-1. **Server Plugin**: Handles backend logic, database operations, and API endpoints
-2. **Client Plugin**: Provides frontend interface and type-safe API calls
+| Package | Purpose |
+|---|---|
+| `@fastnear/wallet` | Multi-wallet connector (replaces @hot-labs/near-connect) |
+| `@fastnear/api` | RPC reads, sendTx, account queries (replaces near-kit) |
+| `@noble/ed25519` | ED25519 keypair generation + signing for relayer |
+| `borsh` | Borsh serialization for delegate actions + transactions (NEP-366) |
+| `near-sign-verify` | NEP-413 sign/verify |
+| `nanostores` | Client state management |
+| `zod` | Validation |
 
-### Server Plugin Structure
+## Architecture
 
-A Better Auth server plugin is an object that satisfies the `BetterAuthPlugin` interface:
-
-```typescript
-import type { BetterAuthPlugin } from "better-auth";
-
-export const myPlugin = (options: PluginOptions) => ({
-    id: "my-plugin",           // Unique identifier
-    schema: { /* ... */ },     // Database schema extensions
-    endpoints: { /* ... */ },  // Custom API endpoints
-    hooks: { /* ... */ },      // Request/response middleware
-    rateLimit: { /* ... */ },  // Rate limiting rules
-}) satisfies BetterAuthPlugin;
+```
+┌─ Web App ─────────────────────────────────────────┐
+│  siwnClient({ recipient, networkId })              │
+│  authClient.near.buildSignedDelegateAction(...)    │
+│  authClient.near.relayTransaction(...)             │
+└──────────────────┬────────────────────────────────┘
+                   │ signed delegate action (FAK)
+                   ▼
+┌─ Better Auth Server ──────────────────────────────┐
+│  /near/relay — validates session + whitelist,     │
+│                 wraps in tx, signs with relayer    │
+│                 key, broadcasts via FastNear RPC    │
+│  /near/relay-status/:txHash                        │
+│  /near/relayer-info                                │
+│  /near/nonce, /near/verify, /near/profile, etc.   │
+└──────────────────┬─────────────────────────────────┘
+                   │ broadcast_tx_commit
+                   ▼
+              NEAR Protocol (on-chain)
 ```
 
-### Client Plugin Structure
-
-Client plugins provide type-safe interfaces to server endpoints:
-
-```typescript
-import type { BetterAuthClientPlugin } from "better-auth/client";
-
-export const myPluginClient = () => ({
-    id: "my-plugin",
-    $InferServerPlugin: {} as ReturnType<typeof myPlugin>,
-    getActions: ($fetch) => ({ /* custom actions */ }),
-    getAtoms: ($fetch) => ({ /* state management */ }),
-    pathMethods: { /* HTTP method overrides */ }
-}) satisfies BetterAuthClientPlugin;
-```
-
-### Key Plugin Components
-
-1. **Schema**: Extends database with custom tables and fields
-2. **Endpoints**: Creates custom API routes with validation
-3. **Hooks**: Intercepts requests before/after processing
-4. **Actions**: Client-side methods for API interaction
-5. **Type Inference**: Automatic type safety between client/server
-
-## Better-Near-Auth Plugin Implementation
-
-### Architecture Overview
-
-The better-near-auth plugin implements NEP-413 (Sign in with NEAR) standard, providing:
-- Secure wallet-based authentication with automatic flow determination
-- Single-step flow for wallets with signInAndSignMessage support
-- Automatic fallback to two-step flow for other wallets
-- NEAR account linking to user profiles
-- Profile integration with NEAR Social
-- near-kit client with Hot Connect wallet connector for wallet connectivity
-- Support for both mainnet and testnet networks
-
-### Server Plugin Implementation
-
-```typescript
-export const siwn = (options: SIWNPluginOptions) => ({
-    id: "siwn",
-    schema,
-    endpoints: {
-        getSiwnNonce: createAuthEndpoint("/near/nonce", /* ... */),
-        getSiwnProfile: createAuthEndpoint("/near/profile", /* ... */),
-        verifySiwnMessage: createAuthEndpoint("/near/verify", /* ... */),
-    },
-}) satisfies BetterAuthPlugin;
-```
-
-### Database Schema
-
-The plugin extends the database with a `nearAccount` table:
-
-```typescript
-export const schema = {
-    nearAccount: {
-        fields: {
-            userId: {
-                type: "string",
-                references: { model: "user", field: "id" },
-                required: true,
-            },
-            accountId: { type: "string", required: true },
-            network: { type: "string", required: true },
-            publicKey: { type: "string", required: true },
-            isPrimary: { type: "boolean", defaultValue: false },
-            createdAt: { type: "date", required: true },
-        },
-    },
-} satisfies AuthPluginSchema;
-```
-
-### API Endpoints
-
-#### 1. Nonce Generation (`/near/nonce`)
-Generates cryptographic nonces for signature verification:
-
-```typescript
-getSiwnNonce: createAuthEndpoint("/near/nonce", {
-    method: "POST",
-    body: NonceRequest, // { accountId: string, publicKey: string, networkId: string }
-}, async (ctx) => {
-    const { accountId, publicKey, networkId } = ctx.body;
-    const network = getNetworkFromAccountId(accountId);
-    
-    if (networkId !== network) {
-        throw new APIError("BAD_REQUEST", {
-            message: "Network ID mismatch with account ID",
-            status: 400,
-        });
-    }
-
-    const nonce = options.getNonce ? await options.getNonce() : generateNonce();
-    
-    // Store nonce with accountId, network, and publicKey for unique identification
-    await ctx.context.internalAdapter.createVerificationValue({
-        identifier: `siwn:${accountId}:${network}:${publicKey}`,
-        value: bytesToBase64(nonce),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    });
-    
-    return ctx.json({ nonce: bytesToBase64(nonce) });
-})
-```
-
-#### 2. Profile Retrieval (`/near/profile`)
-Fetches user profiles from NEAR Social:
-
-```typescript
-getSiwnProfile: createAuthEndpoint("/near/profile", {
-    method: "POST",
-    body: ProfileRequest, // { accountId?: string }
-    use: [sessionMiddleware],
-}, async (ctx) => {
-    const { accountId } = ctx.body;
-    let targetAccountId = accountId;
-    
-    // If no accountId provided, use authenticated user's primary account
-    if (!targetAccountId) {
-        const session = ctx.context.session;
-        if (!session) {
-            throw new APIError("UNAUTHORIZED", {
-                message: "Session required when no accountId provided",
-            });
-        }
-        
-        const nearAccount = await ctx.context.adapter.findOne({
-            model: "nearAccount",
-            where: [
-                { field: "userId", operator: "eq", value: session.user.id },
-                { field: "isPrimary", operator: "eq", value: true },
-            ],
-        });
-        
-        targetAccountId = nearAccount?.accountId;
-    }
-    
-    const profile = await (options.getProfile || defaultGetProfile)(targetAccountId);
-    return ctx.json(profile);
-})
-```
-
-#### 3. Signature Verification (`/near/verify`)
-Verifies NEAR signatures and creates/updates user sessions:
-
-```typescript
-verifySiwnMessage: createAuthEndpoint("/near/verify", {
-    method: "POST",
-    body: VerifyRequest.refine((data) => 
-        options.anonymous !== false || !!data.email, {
-        message: "Email is required when anonymous is disabled.",
-        path: ["email"],
-    }),
-}, async (ctx) => {
-    const { authToken, accountId, email } = ctx.body;
-    const network = getNetworkFromAccountId(accountId);
-    
-    // Parse the auth token to get the public key
-    const { publicKey } = parseAuthToken(authToken);
-    
-    // Retrieve and validate nonce using the same identifier format
-    const verification = await ctx.context.internalAdapter.findVerificationValue(
-        `siwn:${accountId}:${network}:${publicKey}`
-    );
-    
-    // Verify signature using near-sign-verify
-    const verifyOptions: VerifyOptions = {
-        requireFullAccessKey: options.requireFullAccessKey ?? true,
-        ...(options.validateNonce 
-            ? { validateNonce: options.validateNonce }
-            : { nonceMaxAge: 15 * 60 * 1000 }),
-        ...(options.validateRecipient 
-            ? { validateRecipient: options.validateRecipient }
-            : { expectedRecipient: options.recipient }),
-    };
-    
-    const result = await verify(authToken, verifyOptions);
-    
-    // Create or update user and NEAR account records
-    // Create session and set cookies
-    // Return authentication response
-})
-```
-
-### Client Plugin Implementation
-
-The client plugin uses near-kit with Hot Connect connector and implements a **two-step authentication flow**:
-
-```typescript
-import { NearConnector } from "@hot-labs/near-connect";
-import { Near, fromHotConnect } from "near-kit";
-
-export const siwnClient = (config: SIWNClientConfig) => {
-    // Initialize Hot Connect connector
-    const network = config.networkId || "mainnet";
-    const connector = new NearConnector({ network });
-    
-    // Near instance will be created after wallet connection
-    let nearInstance: Near | null = null;
-
-    // Create atoms for caching nonce data
-    const cachedNonce = atom<CachedNonceData | null>(null);
-
-    return {
-        id: "siwn",
-        $InferServerPlugin: {} as ReturnType<typeof siwn>,
-        getActions: ($fetch) => ({
-            near: {
-                nonce: async (params) => $fetch("/near/nonce", {
-                    method: "POST",
-                    body: params,
-                }),
-                verify: async (params) => $fetch("/near/verify", {
-                    method: "POST", 
-                    body: params,
-                }),
-                getProfile: async (accountId) => $fetch("/near/profile", {
-                    method: "POST",
-                    body: { accountId },
-                }),
-                getNearClient: () => nearClient,
-                getAccountId: () => nearClient.accountId(),
-                disconnect: async () => {
-                    await nearClient.signOut();
-                    clearNonce();
-                },
-            },
-            requestSignIn: {
-                near: async (params, callbacks) => {
-                    // Step 1: Connect wallet and get nonce
-                    const { recipient } = params;
-                    
-                    await nearClient.requestSignIn({ contractId: recipient }, {
-                        onSuccess: async ({ accountId, publicKey, networkId }) => {
-                            // Request nonce from server
-                            const nonceResponse = await $fetch("/near/nonce", {
-                                method: "POST",
-                                body: { accountId, publicKey, networkId }
-                            });
-                            
-                            // Cache nonce data for step 2
-                            cachedNonce.set({
-                                nonce: nonceResponse.data.nonce,
-                                accountId,
-                                publicKey,
-                                networkId,
-                                timestamp: Date.now()
-                            });
-                            
-                            callbacks?.onSuccess?.();
-                        },
-                        onError: callbacks?.onError
-                    });
-                }
-            },
-            signIn: {
-                near: async (params, callbacks) => {
-                    // Step 2: Sign message and authenticate
-                    const { recipient } = params;
-                    
-                    const accountId = nearClient.accountId();
-                    if (!accountId) {
-                        throw new Error("Wallet not connected. Please call requestSignIn first.");
-                    }
-                    
-                    // Retrieve cached nonce
-                    const nonceData = cachedNonce.get();
-                    if (!isNonceValid(nonceData)) {
-                        throw new Error("No valid nonce found. Please call requestSignIn first.");
-                    }
-                    
-                    const { nonce } = nonceData;
-                    
-                    // Create and sign the NEP-413 message
-                    const message = `Sign in to ${recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
-                    const nonceBytes = base64ToBytes(nonce);
-                    
-                    const authToken = await sign(message, {
-                        signer: nearClient,
-                        recipient,
-                        nonce: nonceBytes,
-                    });
-                    
-                    // Verify and authenticate with server
-                    const verifyResponse = await $fetch("/near/verify", {
-                        method: "POST",
-                        body: { authToken, accountId }
-                    });
-                    
-                    clearNonce();
-                    callbacks?.onSuccess?.();
-                    return verifyResponse.data;
-                }
-            }
-        })
-    } satisfies BetterAuthClientPlugin;
-};
-```
-
-### Type Definitions
-
-The plugin uses comprehensive Zod schemas for type safety:
-
-```typescript
-// Account ID validation
-export const accountIdSchema = z.string()
-    .min(2)
-    .max(64)
-    .regex(/^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/, 
-           "Invalid NEAR account ID format");
-
-// Profile structure from NEAR Social
-export const profileSchema = z.object({
-    name: z.string().optional(),
-    description: z.string().optional(),
-    image: z.object({
-        url: z.string().optional(),
-        ipfs_cid: z.string().optional(),
-    }).optional(),
-    backgroundImage: z.object({
-        url: z.string().optional(),
-        ipfs_cid: z.string().optional(),
-    }).optional(),
-    linktree: z.record(z.string(), z.string()).optional(),
-});
-
-// API request/response schemas
-export const NonceRequest = z.object({ 
-    accountId: accountIdSchema,
-    publicKey: z.string(),
-    networkId: z.string()
-});
-export const VerifyRequest = z.object({
-    authToken: z.string().min(1),
-    accountId: accountIdSchema,
-    email: z.email().optional(),
-});
-export const ProfileRequest = z.object({
-    accountId: accountIdSchema.optional(),
-});
-
-export const NonceResponse = z.object({ nonce: z.string() });
-export const VerifyResponse = z.object({
-    token: z.string(),
-    success: z.literal(true),
-    user: z.object({
-        id: z.string(),
-        accountId: accountIdSchema,
-        network: z.union([z.literal("mainnet"), z.literal("testnet")]),
-    }),
-});
-```
-
-## Integration Patterns
-
-### Browser Wallet Integration with near-kit and Hot Connect
-
-The plugin uses near-kit with Hot Connect connector for wallet connectivity:
-
-```typescript
-// Client configuration
-export const authClient = createAuthClient({
-    plugins: [
-        siwnClient({
-            domain: "myapp.com",
-            networkId: "mainnet", // or "testnet"
-        })
-    ],
-});
-
-// Two-step authentication flow
-// Step 1: Connect wallet and get nonce
-await authClient.requestSignIn.near(
-    { recipient: "myapp.com" },
-    {
-        onSuccess: () => console.log("Wallet connected, nonce cached!"),
-        onError: (error) => console.error("Wallet connection failed:", error),
-    }
-);
-
-// Step 2: Sign message and authenticate
-await authClient.signIn.near(
-    { recipient: "myapp.com" },
-    {
-        onSuccess: () => console.log("Signed in!"),
-        onError: (error) => console.error("Sign in failed:", error),
-    }
-);
-```
-
-## Configuration Options
-
-### Server Plugin Options
-
-```typescript
-export type SIWNPluginOptions = {
-    recipient: string;                    // Required: NEP-413 recipient
-    anonymous?: boolean;                  // Allow anonymous sign-ins (default: true)
-    emailDomainName?: string;            // Email domain for user accounts
-    requireFullAccessKey?: boolean;       // Require full access keys (default: true)
-    getNonce?: () => Promise<Uint8Array>; // Custom nonce generation
-    validateNonce?: (nonce: Uint8Array) => boolean; // Custom nonce validation
-    validateRecipient?: (recipient: string) => boolean; // Custom recipient validation
-    validateMessage?: (message: string) => boolean; // Custom message validation
-    getProfile?: (accountId: string) => Promise<Profile | null>; // Custom profile lookup
-    validateLimitedAccessKey?: (args: {
-        accountId: string;
-        publicKey: string;
-        recipient?: string;
-    }) => Promise<boolean>; // Validate function call keys
-};
-```
-
-### Client Plugin Options
-
-```typescript
-export interface SIWNClientConfig {
-    domain: string;                      // Domain identifier (for display purposes)
-    networkId?: "mainnet" | "testnet";   // NEAR network (default: "mainnet")
-}
-```
-
-### Advanced Configuration Example
-
-```typescript
-import { betterAuth } from "better-auth";
-import { siwn } from "better-near-auth";
-import { generateNonce } from "near-sign-verify";
-
-const usedNonces = new Set<string>();
-
-export const auth = betterAuth({
-    plugins: [
-        siwn({
-            recipient: "myapp.com",
-            anonymous: false,
-            emailDomainName: "myapp.com",
-            requireFullAccessKey: false,
-            
-            // Custom nonce generation
-            getNonce: async () => generateNonce(),
-            
-            // Prevent replay attacks
-            validateNonce: (nonce: Uint8Array) => {
-                const nonceHex = Array.from(nonce)
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
-                if (usedNonces.has(nonceHex)) {
-                    return false;
-                }
-                usedNonces.add(nonceHex);
-                return true;
-            },
-            
-            // Allow multiple domains
-            validateRecipient: (recipient: string) => {
-                const allowedRecipients = [
-                    "myapp.com", 
-                    "staging.myapp.com", 
-                    "localhost:3000"
-                ];
-                return allowedRecipients.includes(recipient);
-            },
-            
-            // Custom profile lookup
-            getProfile: async (accountId) => {
-                try {
-                    const response = await fetch(`https://api.myapp.com/profiles/${accountId}`);
-                    if (response.ok) {
-                        const customProfile = await response.json();
-                        return {
-                            name: customProfile.displayName,
-                            description: customProfile.bio,
-                            image: { url: customProfile.avatar },
-                        };
-                    }
-                } catch (error) {
-                    console.error("Custom profile fetch failed:", error);
-                }
-                return null; // Fallback to NEAR Social
-            },
-            
-            // Validate function call keys
-            validateLimitedAccessKey: async ({ accountId, publicKey, recipient }) => {
-                const allowedContracts = ["myapp.near", "social.near"];
-                return recipient ? allowedContracts.includes(recipient) : true;
-            },
-        }),
-    ],
-});
-```
-
-## Authentication Flow
-
-### Automatic Flow Determination
-
-The plugin automatically determines the optimal authentication flow based on the selected wallet's capabilities:
-
-1. **User calls `signIn.near()`** - Single method handles everything
-2. **Wallet selector appears** - User chooses any available wallet
-3. **Plugin checks wallet capabilities** - Does it support `signInAndSignMessage`?
-4. **Automatic flow selection**:
-   - ✅ **Supports signInAndSignMessage** → Single-step flow (one popup)
-   - ❌ **Doesn't support** → Two-step flow (automatic fallback)
-
-### Single-Step Flow (signInAndSignMessage-capable wallets)
-
-For wallets with signInAndSignMessage support (Meteor, MyNearWallet, Intear, NEAR CLI):
-
-1. User calls `authClient.signIn.near()`
-2. User selects wallet from selector
-3. One popup appears for connection + signing
-4. Wallet connects and signs message in one step
-5. Server verifies signature and creates session
-
-### Two-Step Flow (automatic fallback)
-
-For wallets without signInAndSignMessage support:
-
-1. User calls `authClient.signIn.near()`
-2. User selects wallet from selector
-3. First popup: Connect wallet
-4. Plugin requests nonce from server
-5. Second popup: Sign message
-6. Server verifies signature and creates session
-
-### Wallet Selection Process
-
-The plugin uses NEAR Connect's wallet selector to let users choose their preferred wallet:
-
-1. **Manifest Loading**: Plugin waits for `connector.whenManifestLoaded`
-2. **Wallet Selector**: Calls `connector.selectWallet()` to show all available wallets
-3. **Capability Check**: Examines selected wallet's `manifest.features.signInAndSignMessage`
-4. **Flow Determination**: Automatically selects optimal authentication flow
-
-**Supported Wallets:**
-- Meteor Wallet (signInAndSignMessage: ✅)
-- MyNearWallet (signInAndSignMessage: ✅)
-- HOT Wallet (signInAndSignMessage: ❌, but signMessage: ✅)
-- Intear Wallet (signInAndSignMessage: ✅)
-- NEAR CLI (signInAndSignMessage: ✅)
-- Ledger (signInAndSignMessage: ❌)
-- WalletConnect (signInAndSignMessage: ❌)
-- Any other NEAR wallet
-
-### Error Handling
-
-The plugin provides comprehensive error handling:
-
-```typescript
-// Common error scenarios
-- UNAUTHORIZED_INVALID_OR_EXPIRED_NONCE: Nonce expired or invalid
-- BAD_REQUEST: Missing required fields or network mismatch
-- UNAUTHORIZED: Account ID mismatch or signature verification failed
-- NOT_FOUND: No NEAR account found for authenticated user
-- INTERNAL_SERVER_ERROR: Session creation failed
-- WALLET_NOT_CONNECTED: Wallet not connected before signing
-- NONCE_NOT_FOUND: No valid cached nonce found
-- ACCOUNT_MISMATCH: Cached nonce doesn't match current account
-```
-
-## Security Considerations
-
-### NEP-413 Compliance
-- Follows NEAR Enhancement Proposal 413 for secure message signing
-- Implements proper nonce handling to prevent replay attacks
-- Validates message format and recipient information
-
-### Nonce Management
-- Unique nonce storage per account/network/publicKey combination
-- 15-minute expiration for nonces
-- Automatic cleanup after successful authentication
-- Client-side caching with validation
-
-### Access Key Validation
-- Supports both full access keys and function call access keys
-- Configurable validation for limited access keys
-- Contract-specific access control when using function call keys
-
-### Session Security
-- Secure cookie handling with proper expiration
-- Session token generation and validation
-- Multi-account support with primary account designation
-
-## Network Support
-
-### Automatic Network Detection
-```typescript
-export const getNetworkFromAccountId = (accountId: string): "mainnet" | "testnet" => {
-    return accountId.endsWith(".testnet") ? "testnet" : "mainnet";
-};
-```
-
-### Multi-Network Account Linking
-- Supports both mainnet and testnet accounts
-- Separate account records per network
-- Network-specific nonce storage and validation
-
-## Profile Integration
-
-### NEAR Social Integration
-The plugin automatically fetches user profiles from NEAR Social:
-
-```typescript
-export const defaultGetProfile = async (accountId: string): Promise<Profile | null> => {
-    const network = getNetworkFromAccountId(accountId);
-    const apiBase = {
-        mainnet: "https://api.near.social",
-        testnet: "https://test.api.near.social",
-    }[network];
-
-    const keys = [`${accountId}/profile/**`];
-
-    try {
-        const response = await fetch(`${apiBase}/get`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ keys })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const profile = data?.[accountId]?.profile;
-
-        return profile ? {
-            name: profile.name,
-            description: profile.description,
-            image: profile.image,
-            backgroundImage: profile.backgroundImage,
-            linktree: profile.linktree
-        } : null;
-    } catch (error) {
-        return null;
-    }
-};
-```
-
-### Custom Profile Sources
-Configure custom profile lookup functions:
+## Plugin Options
 
 ```typescript
 siwn({
-    getProfile: async (accountId) => {
-        // Custom profile logic
-        const customProfile = await fetchFromCustomAPI(accountId);
-        if (customProfile) {
-            return {
-                name: customProfile.displayName,
-                description: customProfile.bio,
-                image: { url: customProfile.avatar },
-            };
-        }
-        // Fallback to NEAR Social
-        return null;
-    },
+  // SIWN options
+  recipient: string;                    // NEP-413 recipient (required)
+  anonymous?: boolean;                  // allow anonymous sign-ins (default: true)
+  emailDomainName?: string;
+  requireFullAccessKey?: boolean;       // default: true
+  getNonce?: () => Promise<Uint8Array>;
+  validateNonce?: (nonce: Uint8Array) => boolean;
+  validateRecipient?: (recipient: string) => boolean;
+  validateMessage?: (message: string) => boolean;
+  getProfile?: (accountId: string) => Promise<Profile | null>;
+  validateLimitedAccessKey?: (args: { accountId, publicKey, recipient? }) => Promise<boolean>;
+
+  // FastNear
+  fastnearApiKey?: string;              // or process.env.FASTNEAR_API_KEY
+
+  // Relayer
+  relayer?: {
+    accountId?: string;                  // explicit mode (production)
+    privateKey?: string;                 // explicit mode (base64)
+    relayTarget?: string;                // RPC URL (default: FastNear RPC)
+    whitelistedContracts?: string[];     // restrict relay targets
+    maxGasPerTransaction?: string;       // default "300 Tgas"
+    maxDepositPerTransaction?: string;   // default "0"
+  };
+  // When accountId + privateKey omitted → ephemeral mode
 })
 ```
 
-## Usage Examples
+## Relayer Modes
 
-### Basic Setup
+### Ephemeral (default)
+
+When `relayer` is provided without `accountId`/`privateKey`:
+
+1. On startup, checks DB for existing `relayerKey` record
+2. If found: decrypts private key using `BETTER_AUTH_SECRET` as KEK (HKDF-SHA256 → AES-256-GCM), recovers same accountId
+3. If not found: generates ED25519 keypair, derives implicit accountId (hex of public key), encrypts + stores in DB, logs accountId
+4. Private key lives only in process memory — never in env vars or config files
+
+Startup log:
+```
+[siwn] Relayer created in EPHEMERAL mode: 7a3c4b5c... (mainnet)
+[siwn] Fund this account with NEAR to enable gasless relay
+[siwn] Private key is encrypted in DB — persists across restarts
+```
+
+### Explicit (production)
+
+When `accountId` + `privateKey` are provided in config — for named, persistent relayer accounts like `relayer.myapp.near`.
+
+## Database Schema
+
+### nearAccount
+
+| Field | Type | Description |
+|---|---|---|
+| id | string | Primary key |
+| userId | string | → user.id |
+| accountId | string | NEAR account ID |
+| network | string | mainnet/testnet |
+| publicKey | string | Associated public key |
+| isPrimary | boolean | User's primary account |
+| createdAt | date | |
+
+### relayedTransaction
+
+| Field | Type | Description |
+|---|---|---|
+| userId | string | → user.id |
+| txHash | string | On-chain tx hash |
+| senderId | string | Delegate action sender |
+| receiverId | string | Contract called |
+| status | string | pending/completed/failed |
+| gasUsed | string | Gas consumed |
+| createdAt | date | |
+
+### relayerKey
+
+| Field | Type | Description |
+|---|---|---|
+| id | string | Singleton per network |
+| accountId | string | Implicit NEAR account ID |
+| encryptedPrivateKey | string | AES-256-GCM encrypted, base64 |
+| iv | string | Initialization vector, base64 |
+| publicKey | string | ed25519:base64 format |
+| network | string | mainnet/testnet |
+| createdAt | date | |
+| lastUsedAt | date | Updated on each relay |
+
+## API Endpoints
+
+### SIWN Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/near/nonce` | Generate nonce for signing |
+| POST | `/near/verify` | Verify NEP-413 signature, create session |
+| POST | `/near/profile` | Get NEAR profile |
+| POST | `/near/link-account` | Link NEAR account to session |
+| POST | `/near/unlink-account` | Unlink NEAR account |
+| GET | `/near/list-accounts` | List linked NEAR accounts |
+
+### Relay Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/near/relay` | Relay a signed delegate action on-chain |
+| GET | `/near/relay-status/:txHash` | Check relayed transaction status |
+| GET | `/near/relayer-info` | Get relayer accountId, mode, balance |
+
+## Client Actions
 
 ```typescript
-// Server (auth.ts)
-import { betterAuth } from "better-auth";
-import { siwn } from "better-near-auth";
+authClient.near.nonce(params)
+authClient.near.verify(params)
+authClient.near.getProfile(accountId?)
+authClient.near.getAccountId()
+authClient.near.getState()
+authClient.near.disconnect()
+authClient.near.link(callbacks?)
+authClient.near.unlink(params)
+authClient.near.listAccounts()
 
-export const auth = betterAuth({
-    database: drizzleAdapter(db),
-    plugins: [
-        siwn({
-            recipient: "myapp.com",
-            anonymous: true,
-        }),
-    ],
-});
+// Relay
+authClient.near.buildSignedDelegateAction({ receiverId, actions })
+authClient.near.relayTransaction({ signedDelegateAction })
+authClient.near.getRelayStatus(txHash)
 
-// Client (auth-client.ts)
-import { createAuthClient } from "better-auth/client";
-import { siwnClient } from "better-near-auth/client";
-
-export const authClient = createAuthClient({
-    plugins: [
-        siwnClient({
-            recipient: "myapp.com",
-            networkId: "mainnet",
-        })
-    ],
-});
+// Sign in
+authClient.signIn.near(callbacks?)
+authClient.requestSignIn.near(callbacks?)
 ```
 
-### React Component Example
+## Delegate Action Flow (NEP-366)
 
-```tsx
-import { authClient } from "./auth-client";
-import { useState } from "react";
-
-export function LoginButton() {
-    const { data: session } = authClient.useSession();
-    const [isSigningIn, setIsSigningIn] = useState(false);
-
-    if (session) {
-        return (
-            <div>
-                <p>Welcome, {session.user.name}!</p>
-                <button onClick={() => authClient.signOut()}>
-                    Sign out
-                </button>
-            </div>
-        );
-    }
-
-    const handleSignIn = async () => {
-        setIsSigningIn(true);
-        
-        await authClient.signIn.near({
-            onSuccess: () => {
-                setIsSigningIn(false);
-                console.log("Successfully signed in!");
-            },
-            onError: (error) => {
-                setIsSigningIn(false);
-                console.error("Sign in failed:", error.message);
-            },
-        });
-    };
-
-    return (
-        <button onClick={handleSignIn} disabled={isSigningIn}>
-            {isSigningIn ? "Signing in..." : "Sign in with NEAR"}
-        </button>
-    );
-}
+```
+1. User signs in via SIWN → gets function-call access key (FAK)
+2. FAK is scoped to the recipient contract
+3. Client calls buildSignedDelegateAction({ receiverId, actions })
+   - Queries access key nonce + block height via FastNear RPC
+   - Builds DelegateAction struct
+   - Signs via wallet's signDelegateActions (internal API)
+   - Returns base64 borsh-encoded SignedDelegateAction
+4. Client calls relayTransaction({ signedDelegateAction })
+   - Server validates: session authenticated, sender matches, receiver whitelisted
+   - Server wraps delegate action in Transaction signed with relayer key
+   - Broadcasts via FastNear RPC broadcast_tx_commit
+5. Transaction executes on-chain as if the user sent it
+   - Relayer pays gas
+   - predecessor_id = user's accountId
 ```
 
-**Note**: The `requestSignIn.near()` method is still available for backward compatibility, but `signIn.near()` now handles everything automatically.
+## Profile Lookup
 
-### Profile Access
+Profile lookup tries FastNear KV first, falls back to NEAR Social:
 
-```typescript
-// Get current user's profile (requires authentication)
-const myProfile = await authClient.near.getProfile();
-console.log("My profile:", myProfile);
+1. `GET https://kv.main.fastnear.com/v0/latest/social.near/{accountId}/profile/**`
+2. Fallback: `POST https://api.near.social/get` with `{ keys: ["{accountId}/profile/**"] }`
 
-// Get specific user's profile (no auth required)
-const aliceProfile = await authClient.near.getProfile("alice.near");
-console.log("Alice's profile:", aliceProfile);
-```
+## Encryption Details
 
-## Best Practices
+- **KEK derivation**: HKDF-SHA256 with `BETTER_AUTH_SECRET`, salt `better-near-auth-relayer`, info empty
+- **Encryption**: AES-256-GCM with 12-byte random IV
+- **Storage**: `encryptedPrivateKey` (base64 of ciphertext) + `iv` (base64 of IV) in `relayerKey` table
+- **Trust model**: Same as Better Auth session tokens — DB access + `BETTER_AUTH_SECRET` = full access
 
-### Security
-1. Always validate nonces to prevent replay attacks
-2. Use HTTPS in production for secure cookie transmission
-3. Implement proper error handling and user feedback
-4. Validate recipient domains to prevent phishing attacks
-5. Use the two-step flow to ensure proper wallet connection
+## signDelegateActions Note
 
-### Performance
-1. Cache profile data when appropriate
-2. Use connection pooling for database operations
-3. Implement rate limiting for authentication endpoints
-4. Leverage near-kit's efficient client for blockchain interactions
+`@fastnear/wallet` (v0.10.4) implements `signDelegateActions` on all internal wallet adapter types (ParentFrameWallet, SandboxWallet, InjectedWallet) but does NOT export it from the public API surface. The client accesses it via the internal `connectedWallet` object. A public export has been requested — the code will switch to the public API once available.
 
-### User Experience
-1. Provide clear error messages for authentication failures
-2. Handle wallet connection states gracefully
-3. Support both anonymous and email-required modes
-4. Implement loading states during both authentication steps
-5. Show wallet connection status to users
+## Wallet Connection
 
-## Troubleshooting
+Uses `@fastnear/wallet` public API:
 
-### Common Issues
+- `nearWallet.connect({ network, contractId })` — opens wallet picker
+- `nearWallet.disconnect()` — disconnects
+- `nearWallet.signMessage({ message, recipient, nonce })` — NEP-413 signing
+- `nearWallet.accountId()` — current account
+- `nearWallet.availableWallets()` — list manifests
+- `nearWallet.selectWallet()` — show selector, returns wallet ID
+- `nearWallet.restore({ network, contractId })` — rehydrate on page load
+- `nearWallet.onConnect(cb)` / `nearWallet.onDisconnect(cb)` — event listeners
 
-1. **"Wallet not connected"**
-   - User must call `requestSignIn.near()` before `signIn.near()`
-   - Check that the near-kit client is properly initialized
+## RPC Calls
 
-2. **"No valid nonce found"**
-   - Ensure `requestSignIn.near()` completed successfully before calling `signIn.near()`
-   - Nonces expire after 5 minutes in the client cache
+All on-chain queries and transaction broadcasting use FastNear RPC endpoints:
 
-3. **"Invalid or expired nonce"**
-   - Server nonces expire after 15 minutes
-   - Ensure client and server clocks are synchronized
+- Mainnet: `https://rpc.mainnet.fastnear.com`
+- Testnet: `https://rpc.testnet.fastnear.com`
 
-4. **"Account ID mismatch"**
-   - Verify the signed message contains the correct account ID
-   - Check for wallet switching between the two authentication steps
-
-5. **"Network ID mismatch"**
-   - Ensure the networkId sent to the server matches the account's network
-   - Testnet accounts must use "testnet", mainnet accounts use "mainnet"
-
-### Debug Mode
-
-Enable debug logging for troubleshooting:
-
-```typescript
-// Add to your auth configuration
-siwn({
-    // ... other options
-    validateMessage: (message: string) => {
-        console.log("Validating message:", message);
-        return true; // Add your validation logic
-    },
-    validateNonce: (nonce: Uint8Array) => {
-        console.log("Validating nonce:", Array.from(nonce));
-        return true; // Add your validation logic
-    },
-})
-```
-
-## Conclusion
-
-The better-near-auth plugin demonstrates the power and flexibility of Better Auth's plugin architecture. By following the established patterns for server and client plugins, it provides a complete authentication solution that integrates seamlessly with the NEAR ecosystem while maintaining type safety and security best practices.
-
-The plugin's two-step authentication flow ensures proper wallet connectivity while near-kit with Hot Connect provides a seamless user experience. The modular design allows for extensive customization while providing sensible defaults for common use cases. Whether you're building a simple dApp or a complex federated service, better-near-auth provides the foundation for secure NEAR-based authentication.
+API key passed as `?apiKey=` query parameter when configured.

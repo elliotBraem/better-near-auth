@@ -8,12 +8,19 @@
 <h1 style="font-size: 2.5rem; font-weight: bold;">better-near-auth</h1>
 
   <p>
-    <strong>Sign in with NEAR (SIWN) plugin for better-auth</strong>
+    <strong>Sign in with NEAR + gasless relay plugin for Better Auth</strong>
   </p>
 
 </div>
 
-This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets and keypairs by following the [NEP-413 standard](https://github.com/near/NEPs/blob/master/neps/nep-0413.md). It leverages [near-sign-verify](https://github.com/elliotBraem/near-sign-verify), [near-kit](https://kit.near.tools/), and [NEAR Connect](https://github.com/azbang/near-connect) to provide a complete drop-in solution with session management, secure defaults, and automatic profile integration.
+This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets following [NEP-413](https://github.com/near/NEPs/blob/master/neps/nep-0413.md) and adds a built-in [NEP-366](https://github.com/near/NEPs/blob/master/neps/nep-0366.md) delegate action relayer so authenticated users can call on-chain contracts gaslessly. It uses [FastNear](https://fastnear.com) for wallet connection, RPC queries, and transaction broadcasting.
+
+## Features
+
+- **SIWN authentication** — wallet-based sign-in with automatic single-step/two-step flow detection
+- **Gasless relay** — server relays signed delegate actions on-chain, paying gas from a relayer account
+- **Ephemeral relayer keypair** — auto-generated ED25519 keypair on first startup, private key encrypted with AES-256-GCM in the database, persists across restarts
+- **Profile integration** — FastNear KV primary, NEAR Social fallback
 
 ## Installation
 
@@ -36,7 +43,12 @@ npm install better-near-auth
         plugins: [
             siwn({
                 recipient: "myapp.com",
-                anonymous: true, // optional, default is true
+                anonymous: true,
+
+                // Optional: enable gasless relay
+                relayer: {
+                  whitelistedContracts: ["myapp.near"],
+                },
             }),
         ],
     });
@@ -58,7 +70,7 @@ npm install better-near-auth
         plugins: [
             siwnClient({
                 recipient: "myapp.com",
-                networkId: "mainnet", // optional, default is "mainnet"
+                networkId: "mainnet",
             })
         ],
     });
@@ -66,9 +78,9 @@ npm install better-near-auth
 
 ## Usage
 
-### Single-Step Authentication Flow
+### Sign In with NEAR
 
-The plugin uses a single-step authentication flow that automatically handles both wallet connection and message signing:
+The `signIn.near()` method automatically detects wallet capabilities and uses the best available flow:
 
 ```tsx title="LoginButton.tsx"
 import { authClient } from "./auth-client";
@@ -89,11 +101,9 @@ export function LoginButton() {
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
-    
     await authClient.signIn.near({
       onSuccess: () => {
         setIsSigningIn(false);
-        console.log("Successfully signed in!");
       },
       onError: (error) => {
         setIsSigningIn(false);
@@ -110,83 +120,59 @@ export function LoginButton() {
 }
 ```
 
-### How It Works
-
-The `signIn.near()` method automatically:
-
-1. **Checks wallet capabilities** - Detects if the wallet supports `signInAndSignMessage`
-2. **Single-step flow** (supported wallets): One popup for connection + signing
-3. **Two-step fallback** (unsupported wallets): Automatic fallback to connect then sign
-
-**Supported wallets for single-step:**
-- Meteor Wallet
-- Intear Wallet
-- NEAR CLI
-- HOT Wallet
-- MyNearWallet
-- And more...
+**Supported wallets for single-step flow:** Meteor Wallet, Intear Wallet, NEAR CLI, HOT Wallet, MyNearWallet, and more.
 
 ### Manual Two-Step Flow (Optional)
 
-If you need explicit control over the connection step:
-
 ```ts
-// Step 1: Connect wallet (optional, for explicit control)
 await authClient.requestSignIn.near({
   onSuccess: () => console.log("Wallet connected"),
 });
 
-// Step 2: Sign and authenticate
 await authClient.signIn.near({
   onSuccess: () => console.log("Signed in!"),
 });
 ```
-            setIsSigningIn(false);
-            console.error("Sign in failed:", error.message);
-          },
-        }
-      );
-    } catch (error) {
-      setIsSigningIn(false);
-      console.error("Authentication error:", error);
-    }
-  };
 
-  return (
-    <div>
-      <button onClick={handleSignIn} disabled={isSigningIn}>
-        {isSigningIn ? "Signing in..." : "Sign in with NEAR"}
-      </button>
-    </div>
-  );
-}
+### Gasless Relay
+
+Once the relayer is configured on the server, authenticated users can call on-chain contracts without paying gas:
+
+```ts
+// 1. Build a signed delegate action using the wallet's FAK
+const signedAction = await authClient.near.buildSignedDelegateAction({
+  receiverId: "myapp.near",
+  actions: [{
+    type: "FunctionCall",
+    methodName: "some_method",
+    args: new TextEncoder().encode(JSON.stringify({ key: "value" })),
+    gas: "30000000000000",
+    deposit: "0",
+  }],
+});
+
+// 2. Relay it — the server pays gas
+const result = await authClient.near.relayTransaction({
+  signedDelegateAction: signedAction,
+});
+
+console.log("Tx hash:", result.txHash);
+
+// 3. Check status
+const status = await authClient.near.getRelayStatus(result.txHash);
 ```
 
 ### Profile Access
 
-Access user profiles from NEAR Social automatically:
-
-```ts title="profile-usage.ts"
-// Get current user's profile (requires authentication)
+```ts
 const myProfile = await authClient.near.getProfile();
-console.log("My profile:", myProfile);
-
-// Get specific user's profile (no auth required)
 const aliceProfile = await authClient.near.getProfile("alice.near");
-console.log("Alice's profile:", aliceProfile);
 ```
 
 ### Wallet Management
 
-```ts title="wallet-management.ts"
-// Check if wallet is connected
+```ts
 const accountId = authClient.near.getAccountId();
-console.log("Connected account:", accountId);
-
-// Get the embedded NEAR client
-const nearClient = authClient.near.getNearClient();
-
-// Disconnect wallet and clear cached data
 await authClient.near.disconnect();
 ```
 
@@ -194,79 +180,105 @@ await authClient.near.disconnect();
 
 ### Server Options
 
-The SIWN plugin accepts the following configuration options:
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `recipient` | `string` | — | NEP-413 recipient identifier (required) |
+| `anonymous` | `boolean` | `true` | Allow anonymous sign-ins |
+| `emailDomainName` | `string` | recipient | Email domain for non-anonymous accounts |
+| `requireFullAccessKey` | `boolean` | `true` | Require full access keys |
+| `getNonce` | `() => Promise<Uint8Array>` | — | Custom nonce generation |
+| `validateNonce` | `(nonce: Uint8Array) => boolean` | — | Custom nonce validation |
+| `validateRecipient` | `(recipient: string) => boolean` | — | Custom recipient validation |
+| `validateMessage` | `(message: string) => boolean` | — | Custom message validation |
+| `getProfile` | `(accountId: string) => Promise<Profile \| null>` | — | Custom profile lookup |
+| `validateLimitedAccessKey` | `(args) => Promise<boolean>` | — | Validate FAK when `requireFullAccessKey` is false |
+| `fastnearApiKey` | `string` | `process.env.FASTNEAR_API_KEY` | FastNear API key |
+| `relayer` | `RelayerConfig` | — | Relayer configuration (see below) |
 
-* **recipient**: The recipient identifier for NEP-413 messages (required)
-* **anonymous**: Whether to allow anonymous sign-ins without requiring an email. Default is `true`
-* **emailDomainName**: The email domain name for creating user accounts when not using anonymous mode. Defaults to the recipient value
-* **requireFullAccessKey**: Whether to require full access keys. Default is `true`
-* **getNonce**: Function to generate a unique nonce for each sign-in attempt. Optional, uses secure defaults
-* **validateNonce**: Function to validate nonces. Optional, uses time-based validation by default
-* **validateRecipient**: Function to validate recipients. Optional, uses exact match by default
-* **validateMessage**: Function to validate messages. Optional, no validation by default
-* **getProfile**: Function to fetch user profiles. Optional, uses NEAR Social by default
-* **validateLimitedAccessKey**: Function to validate function call access keys when `requireFullAccessKey` is false
+#### Relayer Configuration
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `accountId` | `string` | — | Named relayer account (explicit mode) |
+| `privateKey` | `string` | — | Base64 private key (explicit mode) |
+| `relayTarget` | `string` | FastNear RPC | RPC URL for broadcasting |
+| `whitelistedContracts` | `string[]` | — | Restrict relay to these contracts |
+| `maxGasPerTransaction` | `string` | `"300 Tgas"` | Max gas per relayed tx |
+| `maxDepositPerTransaction` | `string` | `"0"` | Max deposit per relayed tx |
+
+When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral mode**: an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
 
 ### Client Options
 
-The SIWN client plugin accepts the following configuration options:
-
-* **recipient**: The recipient identifier for NEP-413 messages (must match server config)
-* **networkId**: NEAR network to use ("mainnet" or "testnet"). Default is "mainnet"
-
-```ts title="auth-client.ts"
-import { createAuthClient } from "better-auth/client";
-import { siwnClient } from "better-near-auth/client";
-
-export const authClient = createAuthClient({
-  plugins: [
-    siwnClient({
-      recipient: "myapp.com",
-      networkId: "testnet", // Use testnet
-    }),
-  ],
-});
-```
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `recipient` | `string` | — | NEP-413 recipient (must match server) |
+| `networkId` | `string` | `"mainnet"` | NEAR network |
 
 ## Schema
 
-The SIWN plugin adds a `nearAccount` table to store user NEAR account associations:
+### nearAccount
 
-| Field     | Type    | Description                               |
-| --------- | ------- | ----------------------------------------- |
-| id        | string  | Primary key                               |
-| userId    | string  | Reference to user.id                      |
-| accountId | string  | NEAR account ID                           |
-| network   | string  | Network (mainnet or testnet)              |
-| publicKey | string  | Associated public key                     |
-| isPrimary | boolean | Whether this is the user's primary account|
-| createdAt | date    | Creation timestamp                        |
+| Field | Type | Description |
+|---|---|---|
+| id | string | Primary key |
+| userId | string | → user.id |
+| accountId | string | NEAR account ID |
+| network | string | mainnet/testnet |
+| publicKey | string | Associated public key |
+| isPrimary | boolean | User's primary account |
+| createdAt | date | |
+
+### relayedTransaction
+
+| Field | Type | Description |
+|---|---|---|
+| userId | string | → user.id |
+| txHash | string | On-chain tx hash |
+| senderId | string | Delegate action sender |
+| receiverId | string | Contract called |
+| status | string | pending/completed/failed |
+| gasUsed | string | Gas consumed |
+| createdAt | date | |
+
+### relayerKey
+
+| Field | Type | Description |
+|---|---|---|
+| id | string | Singleton per network |
+| accountId | string | Implicit NEAR account ID |
+| encryptedPrivateKey | string | AES-256-GCM encrypted, base64 |
+| iv | string | Initialization vector, base64 |
+| publicKey | string | ed25519:base64 format |
+| network | string | mainnet/testnet |
+| createdAt | date | |
+| lastUsedAt | date | Updated on each relay |
 
 ## API Reference
 
-### Client Actions
+### Client Actions — `authClient.near`
 
-The client plugin provides the following actions:
+**SIWN**
+- `nonce(params)` — Request a nonce from the server
+- `verify(params)` — Verify an auth token with the server
+- `getProfile(accountId?)` — Get user profile (FastNear KV → NEAR Social fallback)
+- `getAccountId()` — Currently connected account ID
+- `getState()` — Current wallet state
+- `disconnect()` — Disconnect wallet and clear cached data
+- `link(callbacks?)` — Link a NEAR account to the current session
+- `unlink(params)` — Unlink a NEAR account
+- `listAccounts()` — List all linked NEAR accounts
 
-#### `authClient.near`
+**Relay**
+- `buildSignedDelegateAction({ receiverId, actions })` — Build + sign a delegate action via wallet FAK
+- `relayTransaction({ signedDelegateAction })` — Submit a signed delegate action to the relayer
+- `getRelayStatus(txHash)` — Check relayed transaction status
 
-- `nonce(params)` - Request a nonce from the server
-- `verify(params)` - Verify an auth token with the server
-- `getProfile(accountId?)` - Get user profile from NEAR Social
-- `getNearClient()` - Get the near-kit client instance
-- `getAccountId()` - Get the currently connected account ID
-- `disconnect()` - Disconnect wallet and clear cached data
-- `link(callbacks?)` - Link a NEAR account to the current session
-- `unlink(params)` - Unlink a NEAR account from the current session
-- `listAccounts()` - List all linked NEAR accounts
+### `authClient.requestSignIn`
+- `near(callbacks?)` — Connect wallet and cache nonce (two-step flow)
 
-#### `authClient.requestSignIn`
-
-- `near(callbacks?)` - Connect wallet and cache nonce (for two-step flow)
-
-#### `authClient.signIn`
-
-- `near(callbacks?)` - Sign message and authenticate (single-step or two-step)
+### `authClient.signIn`
+- `near(callbacks?)` — Sign message and authenticate (single-step or two-step)
 
 ### Callback Interface
 
@@ -279,17 +291,29 @@ interface AuthCallbacks {
 
 ### Error Codes
 
-Common error codes you may encounter:
+| Code | Description |
+|---|---|
+| `SIGNER_NOT_AVAILABLE` | NEAR wallet not available |
+| `WALLET_NOT_CONNECTED` | Wallet not connected before signing |
+| `ACCOUNT_MISMATCH` | Cached nonce doesn't match current account |
+| `UNAUTHORIZED_NONCE_REPLAY` | Nonce already used |
+| `UNAUTHORIZED_INVALID_SIGNATURE` | Invalid signature verification |
 
-- `SIGNER_NOT_AVAILABLE` - NEAR wallet not available
-- `WALLET_NOT_CONNECTED` - Wallet not connected before signing (two-step fallback)
-- `ACCOUNT_MISMATCH` - Cached nonce doesn't match current account (two-step fallback)
-- `UNAUTHORIZED_NONCE_REPLAY` - Nonce already used (replay attack detected)
-- `UNAUTHORIZED_INVALID_SIGNATURE` - Invalid signature verification
+### Server Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/near/nonce` | Generate nonce for signing |
+| POST | `/near/verify` | Verify NEP-413 signature, create session |
+| POST | `/near/profile` | Get NEAR profile |
+| POST | `/near/link-account` | Link NEAR account to session |
+| POST | `/near/unlink-account` | Unlink NEAR account |
+| GET | `/near/list-accounts` | List linked NEAR accounts |
+| POST | `/near/relay` | Relay a signed delegate action on-chain |
+| GET | `/near/relay-status/:txHash` | Check relayed transaction status |
+| GET | `/near/relayer-info` | Get relayer accountId, mode, balance |
 
 ## Advanced Configuration
-
-For advanced use cases, you can customize the validation functions:
 
 ```ts title="advanced-auth.ts"
 import { betterAuth } from "better-auth";
@@ -302,60 +326,51 @@ export const auth = betterAuth({
   plugins: [
     siwn({
       recipient: "myapp.com",
-      anonymous: false, // Require email for users
+      anonymous: false,
       emailDomainName: "myapp.com",
-      requireFullAccessKey: false, // Allow function call keys
-      
-      // Custom nonce generation
-      getNonce: async () => {
-        return generateNonce();
-      },
-      
-      // Custom nonce validation (prevents replay attacks)
+      requireFullAccessKey: false,
+
+      getNonce: async () => generateNonce(),
+
       validateNonce: (nonce: Uint8Array) => {
         const nonceHex = Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('');
-        if (usedNonces.has(nonceHex)) {
-          return false; // Prevent replay attacks
-        }
+        if (usedNonces.has(nonceHex)) return false;
         usedNonces.add(nonceHex);
         return true;
       },
-      
-      // Custom recipient validation (allow multiple domains)
+
       validateRecipient: (recipient: string) => {
-        const allowedRecipients = ["myapp.com", "staging.myapp.com", "localhost:3000"];
-        return allowedRecipients.includes(recipient);
+        return ["myapp.com", "staging.myapp.com"].includes(recipient);
       },
-      
-      // Custom message validation
+
       validateMessage: (message: string) => {
-        // Add custom message format validation
         return message.includes("Sign in to") && message.length > 10;
       },
-      
-      // Custom profile lookup
+
       getProfile: async (accountId) => {
-        // Custom profile logic, falls back to NEAR Social
         try {
-          const response = await fetch(`https://api.myapp.com/profiles/${accountId}`);
-          if (response.ok) {
-            const customProfile = await response.json();
-            return {
-              name: customProfile.displayName,
-              description: customProfile.bio,
-              image: { url: customProfile.avatar },
-            };
+          const res = await fetch(`https://api.myapp.com/profiles/${accountId}`);
+          if (res.ok) {
+            const p = await res.json();
+            return { name: p.displayName, description: p.bio, image: { url: p.avatar } };
           }
-        } catch (error) {
-          console.error("Custom profile fetch failed:", error);
-        }
-        return null; // Use default NEAR Social lookup
+        } catch {}
+        return null;
       },
-      
-      // Validate function call keys against allowed contracts
+
       validateLimitedAccessKey: async ({ accountId, publicKey, recipient }) => {
-        const allowedContracts = ["myapp.near", "social.near"];
-        return recipient ? allowedContracts.includes(recipient) : true;
+        const allowed = ["myapp.near", "social.near"];
+        return recipient ? allowed.includes(recipient) : true;
+      },
+
+      fastnearApiKey: process.env.FASTNEAR_API_KEY,
+
+      relayer: {
+        accountId: "relayer.myapp.near",
+        privateKey: process.env.RELAYER_PRIVATE_KEY,
+        whitelistedContracts: ["myapp.near"],
+        maxGasPerTransaction: "300000000000000",
+        maxDepositPerTransaction: "0",
       },
     }),
   ],
@@ -364,80 +379,51 @@ export const auth = betterAuth({
 
 ## Network Support
 
-The plugin automatically detects the network from the account ID:
+The plugin detects the network from the account ID:
 
-- Accounts ending with `.testnet` use the testnet network
-- All other accounts use the mainnet network
+- Accounts ending with `.testnet` → testnet
+- All other accounts → mainnet
 
-You can configure the client to use a specific network:
-
-```ts title="testnet-config.ts"
-export const authClient = createAuthClient({
-  plugins: [
-    siwnClient({
-      domain: "myapp.com",
-      networkId: "testnet", // Use testnet
-    }),
-  ],
-});
-```
-
-## Security Features
+## Security
 
 ### NEP-413 Compliance
-- Follows NEAR Enhancement Proposal 413 for secure message signing
-- Implements proper nonce handling to prevent replay attacks
-- Validates message format and recipient information
+- Proper nonce handling prevents replay attacks
+- Message format and recipient validation
+- 15-minute server-side nonce expiration, 5-minute client-side cache
 
-### Nonce Management
-- Unique nonce storage per account/network/publicKey combination
-- 15-minute server-side expiration for nonces
-- 5-minute client-side cache expiration
-- Automatic cleanup after successful authentication
+### Relayer Key Security
+- Ephemeral private key encrypted at rest with AES-256-GCM
+- KEK derived from `BETTER_AUTH_SECRET` via HKDF-SHA256
+- Private key held only in process memory — never in env vars or config files
+- Trust model matches Better Auth session tokens: DB access + secret = full access
 
 ### Access Key Support
-- Supports both full access keys and function call access keys
+- Full access keys and function-call access keys (FAK)
+- FAK scoped to recipient contract for delegate actions
 - Configurable validation for limited access keys
-- Contract-specific access control when using function call keys
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **"Wallet not connected"**
-   - You must call `requestSignIn.near()` before `signIn.near()`
-   - Check that the near-kit client is properly initialized
-
-2. **"No valid nonce found"**
-   - Ensure `requestSignIn.near()` completed successfully before calling `signIn.near()`
-   - Client nonces expire after 5 minutes
-
-3. **"Invalid or expired nonce"**
-   - Server nonces expire after 15 minutes
-   - Ensure client and server clocks are synchronized
-
-4. **"Account ID mismatch"**
-   - Verify the signed message contains the correct account ID
-   - Check for wallet switching between the two authentication steps
-
-5. **"Network ID mismatch"**
-   - Ensure the networkId sent to the server matches the account's network
-   - Testnet accounts must use "testnet", mainnet accounts use "mainnet"
-
+| Issue | Solution |
+|---|---|
+| "Wallet not connected" | Call `requestSignIn.near()` before `signIn.near()` |
+| "No valid nonce found" | Ensure `requestSignIn.near()` completed; client nonces expire after 5 min |
+| "Invalid or expired nonce" | Server nonces expire after 15 min; check clock sync |
+| "Account ID mismatch" | Verify signed message account ID matches wallet |
+| "Network ID mismatch" | Ensure networkId matches the account's network |
+| Relay fails with "insufficient balance" | Fund the relayer account with NEAR |
+| Relay fails with "contract not whitelisted" | Add `receiverId` to `whitelistedContracts` |
 
 ## Examples
 
-This repository includes example applications demonstrating how to use better-near-auth:
-
 ### Browser to Server Example
 
-A full-stack example showing NEAR authentication in a browser app with a server backend.
+A full-stack example showing NEAR authentication + gasless relay.
 
 - **Location**: `examples/browser-2-server/`
 - **Live Demo**: [better-near-auth.near.page](https://better-near-auth.near.page)
 - **Tech Stack**: Hono, Drizzle ORM, React, TanStack Router
 
-**Running locally:**
 ```bash
 # From repo root
 pnpm install
@@ -445,54 +431,30 @@ cd examples/browser-2-server
 pnpm dev
 ```
 
-**Deployment:**
-Each example can be deployed independently to Railway or other platforms. See the example's README for deployment instructions.
-
 ## Development
 
-Interested in contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md) for:
-- Development setup
-- How to add changesets
-- Pull request guidelines
-- Release process
+Interested in contributing? See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 **Quick start:**
 ```bash
-# Install dependencies
 pnpm install
-
-# Build the package
 pnpm build
-
-# Run type checking
 pnpm typecheck
-
-# Run tests
 pnpm test
-
-# Run example locally
-cd examples/browser-2-server && pnpm dev
 ```
 
 **Build output:**
-- `dist/index.js` - Server plugin (ESM)
-- `dist/client.js` - Client plugin (ESM)
-- `dist/*.d.ts` - TypeScript declarations
-
-**Deployment workflow:**
-1. Make changes and create changeset
-2. Merge PR → Changesets publishes to npm
-3. Example auto-updates to use published version
-4. Railway auto-deploys
-5. Example reverts to `workspace:*` for next development cycle
+- `dist/index.js` — Server plugin (ESM)
+- `dist/client.js` — Client plugin (ESM)
+- `dist/*.d.ts` — TypeScript declarations
 
 ## Links
 
-* [Better Auth Documentation](https://better-auth.com)
-* [NEAR Protocol](https://near.org)
-* [NEP-413 Specification](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
-* [near-sign-verify](https://github.com/elliotBraem/near-sign-verify)
-* [near-kit](https://kit.near.tools/)
-* [NEAR Connect](https://github.com/azbang/near-connect)
-* [Example Implementation](https://better-near-auth.near.page) - Live demo
-* [Contributing Guide](./CONTRIBUTING.md) - Development and contribution guidelines
+- [Better Auth Documentation](https://better-auth.com)
+- [NEAR Protocol](https://near.org)
+- [NEP-413 Specification](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
+- [NEP-366 Delegate Actions](https://github.com/near/NEPs/blob/master/neps/nep-0366.md)
+- [FastNear](https://fastnear.com)
+- [near-sign-verify](https://github.com/elliotBraem/near-sign-verify)
+- [Example Implementation](https://better-near-auth.near.page)
+- [Contributing Guide](./CONTRIBUTING.md)

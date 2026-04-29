@@ -26,6 +26,31 @@ CREATE TABLE `near_account` (
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE `relayed_transaction` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text,
+	`tx_hash` text NOT NULL,
+	`sender_id` text NOT NULL,
+	`receiver_id` text NOT NULL,
+	`network` text NOT NULL,
+	`status` text NOT NULL,
+	`gas_used` text,
+	`created_at` integer NOT NULL,
+	`updated_at` integer,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `relayer_key` (
+	`id` text PRIMARY KEY NOT NULL,
+	`account_id` text NOT NULL,
+	`encrypted_private_key` text NOT NULL,
+	`iv` text NOT NULL,
+	`public_key` text NOT NULL,
+	`network` text NOT NULL,
+	`created_at` integer NOT NULL,
+	`last_used_at` integer
+);
+--> statement-breakpoint
 CREATE TABLE `session` (
 	`id` text PRIMARY KEY NOT NULL,
 	`expires_at` integer NOT NULL,

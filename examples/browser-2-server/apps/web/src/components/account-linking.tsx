@@ -89,9 +89,7 @@ export default function AccountLinking() {
     setIsProcessingNear(true);
     try {
       if (!nearAccountId) {
-        // Phase 1: Connect wallet
         await authClient.requestSignIn.near(
-          { recipient: "better-near-auth.near" },
           {
             onSuccess: () => {
               setIsProcessingNear(false);
@@ -104,14 +102,11 @@ export default function AccountLinking() {
                 ? "NEAR wallet not available"
                 : error.message || "Failed to connect wallet";
               toast.error(errorMessage);
-              // No auto-disconnect needed here since wallet wasn't connected
             }
           }
         );
       } else {
-        // Phase 2: Link account
         await authClient.near.link(
-          { recipient: "better-near-auth.near" },
           {
             onSuccess: () => {
               toast.success("NEAR account linked successfully");

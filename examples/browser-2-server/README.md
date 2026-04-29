@@ -9,7 +9,8 @@ This example demonstrates a complete authentication system that combines Sign in
 - **Account Linking** - Link social accounts with NEAR accounts following better-auth best practices
 - **Profile Browser** - Public NEAR account profiles at `/profile/${accountId}` routes
 - **Better Auth Integration** - Full-featured authentication with session management
-- **near-kit with Hot Connect** - Browser wallet connectivity via near-kit and Hot Connect connector
+- **FastNear Wallet** - Browser wallet connectivity via @fastnear/wallet
+- **Gasless Relay** - Meta-transactions via ephemeral relayer (NEP-366)
 - **Profile Integration** - Automatic fetching of user profiles from NEAR Social
 - **TypeScript** - Full type safety across client and server
 - **Modern Stack** - React, TanStack Router, Hono, Drizzle ORM
@@ -76,7 +77,7 @@ This demo showcases two primary authentication flows with account linking capabi
 1. **User signs in** with a social provider (Google, GitHub, etc.)
 2. **Redirected to dashboard** with authenticated session
 3. **Click "Link NEAR Account"** button on dashboard
-4. **Hot Connect wallet connection** opens for NEAR authentication
+4. **FastNear wallet** opens for NEAR authentication
 5. **User signs NEP-413 message** with their NEAR wallet
 6. **Accounts linked** - NEAR account is now connected to social login
 7. **Profile accessible** at `/profile/${near_account_id}` route
@@ -104,7 +105,8 @@ This demo showcases two primary authentication flows with account linking capabi
 - **Client Plugin** (`apps/web/src/lib/auth-client.ts`) - Client-side Better Auth with `siwnClient`
 - **Database Schema** (`apps/server/src/db/schema/auth.ts`) - Extended schema with `nearAccount` table
 - **NEAR Profile Component** (`apps/web/src/components/near-profile.tsx`) - Displays NEAR Social profiles
-- **near-kit with Hot Connect** - Browser wallet connectivity via near-kit and Hot Connect connector
+- **FastNear Wallet** - Browser wallet connectivity via @fastnear/wallet
+- **Gasless Relay** - Meta-transactions via ephemeral relayer (NEP-366)
 
 ## Configuration Options
 
@@ -134,6 +136,8 @@ betterAuth({
     siwn({
       recipient: "better-near-auth.near",
       anonymous: true,
+      relayer: {},
+      fastnearApiKey: process.env.FASTNEAR_API_KEY,
     })
   ]
 })
@@ -146,7 +150,8 @@ betterAuth({
 createAuthClient({
   plugins: [
     siwnClient({
-      domain: "better-near-auth.near",
+      recipient: "better-near-auth.near",
+      fastnearApiKey: import.meta.env.VITE_FASTNEAR_API_KEY,
     })
   ]
 })
@@ -174,5 +179,5 @@ createAuthClient({
 - [NEAR Protocol](https://near.org)
 - [NEP-413: NEAR Sign In](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
 - [NEAR Social](https://near.social)
-- [near-kit](https://kit.near.tools/)
-- [Hot Connect](https://github.com/azbang/hot-connector)
+- [FastNear](https://fastnear.com)
+- [FastNear Wallet](https://github.com/freznate/fastnear-wallet)

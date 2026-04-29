@@ -1,7 +1,9 @@
 import "dotenv/config";
+import path from "node:path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { serve } from "@hono/node-server";
 import { auth } from "./lib/auth";
 import { createContext } from "./lib/context";
 import { appRouter } from "./routers";
@@ -46,10 +48,10 @@ app.use('/rpc/*', async (c, next) => {
 try {
   console.log("Migrating database...");
   migrate(db, {
-    migrationsFolder: `${process.cwd()}/migrations`,
+    migrationsFolder: path.resolve(process.cwd(), "migrations"),
   });
 } catch (error) {
-  console.error(error);
+  console.error("Migration skipped:", error instanceof Error ? error.message : error);
 }
 
 const port = Number(process.env.PORT) || 3000;
@@ -57,7 +59,5 @@ const port = Number(process.env.PORT) || 3000;
 export default app;
 
 serve(app, (info) => {
-  console.log(`Server running on http://localhost:${info.port}`);
+	console.log(`Server running on http://localhost:${info.port}`);
 });
-
-import { serve } from "@hono/node-server";

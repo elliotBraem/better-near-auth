@@ -33,7 +33,9 @@ export const auth = betterAuth({
   },
   plugins: [
     siwn({
-      recipient: "better-near-auth.near"
+      recipient: "better-near-auth.near",
+      relayer: {},
+      fastnearApiKey: process.env.FASTNEAR_API_KEY,
     }),
   ],
   account: {

@@ -1,16 +1,17 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
-import { Near, verifyNep413Signature } from "near-kit";
 import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
-import { base64ToBytes, bytesToBase64 } from "./utils.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
+import { queryAccessKey, queryBlock, queryTx, sendTxBroadcast, queryAccount } from "./rpc.js";
 import { schema } from "./schema.js";
 import type {
 	AccountId,
 	NearAccount,
-	Profile
+	Profile,
+	RelayerInfo,
 } from "./types.js";
 import {
 	LinkAccountRequest,
@@ -19,9 +20,26 @@ import {
 	ProfileRequest,
 	ProfileResponse,
 	VerifyRequest,
-	VerifyResponse
+	VerifyResponse,
+	RelayRequest,
+	RelayResponse,
+	RelayStatusResponse,
 } from "./types.js";
 export * from "./types.js";
+import {
+	base64ToBytes,
+	bytesToBase64,
+	bytesToHex,
+	deserializeSignedDelegateAction,
+	encryptPrivateKey,
+	decryptPrivateKey,
+	generateEphemeralKeypair,
+	serializeTransaction,
+	serializeSignedTransaction,
+	signTransaction,
+	type TransactionStruct,
+	type SignedTransactionStruct,
+} from "./utils.js";
 
 function getOrigin(baseURL: string): string {
 	try {
@@ -39,54 +57,204 @@ async function hashNonce(nonce: Uint8Array): Promise<string> {
 	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export type SIWNPluginOptions =
-	| {
-		recipient: string;
-		anonymous?: true;
-		emailDomainName?: string;
-		requireFullAccessKey?: boolean;
-		getNonce?: () => Promise<Uint8Array>;
-		validateNonce?: (nonce: Uint8Array) => boolean;
-		validateRecipient?: (recipient: string) => boolean;
-		validateMessage?: (message: string) => boolean;
-		getProfile?: (accountId: AccountId) => Promise<Profile | null>;
-		validateLimitedAccessKey?: (args: {
-			accountId: AccountId;
-			publicKey: string;
-			recipient?: string;
-		}) => Promise<boolean>;
+export interface RelayerConfig {
+	accountId?: string;
+	privateKey?: string;
+	whitelistedContracts?: string[];
+	maxGasPerTransaction?: string;
+	maxDepositPerTransaction?: string;
+}
+
+interface RelayerState {
+	accountId: string;
+	privateKey: Uint8Array;
+	publicKey: Uint8Array;
+	publicKeyBase64: string;
+	network: "mainnet" | "testnet";
+	mode: "ephemeral" | "explicit";
+	createdAt?: Date;
+	lastUsedAt?: Date;
+}
+
+async function initRelayer(
+	relayerConfig: RelayerConfig | undefined,
+	network: "mainnet" | "testnet",
+	adapter: any,
+	secret: string | undefined,
+): Promise<RelayerState | null> {
+	if (!relayerConfig) return null;
+
+	if (relayerConfig.accountId && relayerConfig.privateKey) {
+		const privateKey = base64ToBytes(relayerConfig.privateKey);
+		const publicKey = ed25519.getPublicKey(privateKey);
+		return {
+			accountId: relayerConfig.accountId,
+			privateKey,
+			publicKey,
+			publicKeyBase64: bytesToBase64(publicKey),
+			network,
+			mode: "explicit",
+		};
 	}
-	| {
-		recipient: string;
-		anonymous: false;
-		emailDomainName?: string;
-		requireFullAccessKey?: boolean;
-		getNonce?: () => Promise<Uint8Array>;
-		validateNonce?: (nonce: Uint8Array) => boolean;
-		validateRecipient?: (recipient: string) => boolean;
-		validateMessage?: (message: string) => boolean;
-		getProfile?: (accountId: AccountId) => Promise<Profile | null>;
-		validateLimitedAccessKey?: (args: {
-			accountId: AccountId;
-			publicKey: string;
-			recipient: string;
-		}) => Promise<boolean>;
+
+	const existing = await adapter.findOne({
+		model: "relayerKey",
+		where: [{ field: "network", operator: "eq", value: network }],
+	});
+
+	if (existing) {
+		const kek = secret || process.env.BETTER_AUTH_SECRET || "";
+		const privateKey = await decryptPrivateKey(existing.encryptedPrivateKey, existing.iv, kek);
+		const publicKey = ed25519.getPublicKey(privateKey);
+		const accountId = bytesToHex(publicKey);
+
+		console.log(`[siwn] Relayer recovered: ${accountId} (${network})`);
+
+		return {
+			accountId,
+			privateKey,
+			publicKey,
+			publicKeyBase64: bytesToBase64(publicKey),
+			network,
+			mode: "ephemeral",
+			createdAt: existing.createdAt,
+			lastUsedAt: existing.lastUsedAt,
+		};
+	}
+
+	const keypair = await generateEphemeralKeypair();
+	const kek = secret || process.env.BETTER_AUTH_SECRET || "";
+	const { encrypted, iv } = await encryptPrivateKey(keypair.privateKey, kek);
+
+	await adapter.create({
+		model: "relayerKey",
+		data: {
+			id: `relayer:${network}`,
+			accountId: keypair.accountId,
+			encryptedPrivateKey: encrypted,
+			iv,
+			publicKey: `ed25519:${keypair.publicKeyBase64}`,
+			network,
+			createdAt: new Date(),
+		},
+	});
+
+	console.log(`[siwn] Relayer created in EPHEMERAL mode: ${keypair.accountId} (${network})`);
+	console.log(`[siwn] Fund this account with NEAR to enable gasless relay`);
+	console.log(`[siwn] Private key is encrypted in DB — persists across restarts`);
+
+	return {
+		accountId: keypair.accountId,
+		privateKey: keypair.privateKey,
+		publicKey: keypair.publicKey,
+		publicKeyBase64: keypair.publicKeyBase64,
+		network,
+		mode: "ephemeral",
+		createdAt: new Date(),
+	};
+}
+
+async function relayOnChain(
+	signedDelegateActionBase64: string,
+	relayerState: RelayerState,
+	network: "mainnet" | "testnet",
+	apiKey?: string,
+): Promise<{ txHash: string }> {
+	const signedDelegate = deserializeSignedDelegateAction(signedDelegateActionBase64);
+
+	const relayerAccessKey = await queryAccessKey(
+		relayerState.accountId,
+		`ed25519:${relayerState.publicKeyBase64}`,
+		network,
+		apiKey,
+	);
+
+	const block = await queryBlock(network, apiKey);
+
+	const blockHashBytes = base64ToBytes(block.header.hash);
+
+	const tx: TransactionStruct = {
+		signerId: relayerState.accountId,
+		publicKey: { keyType: 0, data: relayerState.publicKey },
+		nonce: BigInt(relayerAccessKey.nonce) + 1n,
+		receiverId: signedDelegate.delegateAction.senderId,
+		blockHash: blockHashBytes,
+		actions: [{
+			signedDelegate: {
+				delegateAction: signedDelegate.delegateAction,
+				signature: signedDelegate.signature,
+				publicKey: signedDelegate.delegateAction.publicKey,
+			},
+		}],
 	};
 
-export const siwn = (options: SIWNPluginOptions) =>
-	({
+	const txBytes = serializeTransaction(tx);
+	const signature = await signTransaction(txBytes, relayerState.privateKey);
+
+	const signedTx: SignedTransactionStruct = {
+		transaction: tx,
+		signature,
+	};
+
+	const signedTxBytes = serializeSignedTransaction(signedTx);
+	const signedTxBase64 = bytesToBase64(signedTxBytes);
+
+	const txHash = await sendTxBroadcast(signedTxBase64, network, apiKey);
+
+	return { txHash };
+}
+
+interface SIWNPluginBaseOptions {
+	recipient: string;
+	emailDomainName?: string;
+	requireFullAccessKey?: boolean;
+	getNonce?: () => Promise<Uint8Array>;
+	validateNonce?: (nonce: Uint8Array) => boolean;
+	validateRecipient?: (recipient: string) => boolean;
+	validateMessage?: (message: string) => boolean;
+	getProfile?: (accountId: AccountId) => Promise<Profile | null>;
+	validateLimitedAccessKey?: (args: {
+		accountId: AccountId;
+		publicKey: string;
+		recipient?: string;
+	}) => Promise<boolean>;
+	fastnearApiKey?: string;
+	relayer?: RelayerConfig;
+}
+
+export type SIWNPluginOptions =
+	| SIWNPluginBaseOptions & { anonymous?: true }
+	| SIWNPluginBaseOptions & {
+			anonymous: false;
+			validateLimitedAccessKey?: (args: {
+				accountId: AccountId;
+				publicKey: string;
+				recipient: string;
+			}) => Promise<boolean>;
+		};
+
+export const siwn = (options: SIWNPluginOptions) => {
+	const apiKey = options.fastnearApiKey || process.env.FASTNEAR_API_KEY;
+	let relayerState: RelayerState | null = null;
+	let relayerInitialized = false;
+
+	const ensureRelayer = async (adapter: any, secret: string | undefined, network: "mainnet" | "testnet") => {
+		if (relayerInitialized) return relayerState;
+		relayerInitialized = true;
+		relayerState = await initRelayer(options.relayer, network, adapter, secret);
+		return relayerState;
+	};
+
+	return ({
 		id: "siwn",
 		schema,
 		hooks: {
 			after: [
 				{
-					// Hook into session to include NEAR account data
-					matcher: (context) => context.path === "/auth/session" && context.method === "GET",
-					handler: createAuthMiddleware(async (ctx) => {
-						// This will help the client get NEAR account data with session
+					matcher: (context: any) => context.path === "/auth/session" && context.method === "GET",
+					handler: createAuthMiddleware(async (ctx: any) => {
 						const session = ctx.context.session;
 						if (session) {
-							// Find primary NEAR account for this user
 							const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
 								model: "nearAccount",
 								where: [
@@ -96,7 +264,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 							});
 
 							if (nearAccount) {
-								// Add NEAR account to session response
 								ctx.context.session = {
 									...session,
 									user: {
@@ -133,8 +300,8 @@ export const siwn = (options: SIWNPluginOptions) =>
 						});
 					}
 
-				try {
-					const requireFullAccessKey = options.requireFullAccessKey ?? true;
+			try {
+					const requireFullAccessKey = options.requireFullAccessKey ?? false;
 					const verifyOptions: VerifyOptions = {
 						requireFullAccessKey: requireFullAccessKey,
 						...(options.validateNonce
@@ -147,28 +314,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 					} as VerifyOptions;
 
 					const result: VerificationResult = await verify(authToken, verifyOptions);
-
-					const parsedToken = parseAuthToken(authToken);
-					const nonceBytes = new Uint8Array(parsedToken.nonce);
-					const nonceHash = await hashNonce(nonceBytes);
-
-					const existingNonce = await ctx.context.internalAdapter.findVerificationValue(
-						`siwn-nonce:${nonceHash}`
-					);
-
-					if (existingNonce) {
-						throw new APIError("UNAUTHORIZED", {
-							message: "Unauthorized: Nonce already used (replay attack detected)",
-							status: 401,
-							code: "UNAUTHORIZED_NONCE_REPLAY",
-						});
-					}
-
-					await ctx.context.internalAdapter.createVerificationValue({
-						identifier: `siwn-nonce:${nonceHash}`,
-						value: "used",
-						expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-					});
 
 					if (result.accountId !== accountId) {
 						throw new APIError("UNAUTHORIZED", {
@@ -207,7 +352,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 							});
 						}
 
-						// Check if user already has a primary NEAR account
 						const existingPrimaryAccount: NearAccount | null = await ctx.context.adapter.findOne({
 							model: "nearAccount",
 							where: [
@@ -216,7 +360,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 							],
 						});
 
-						// Link the NEAR account to the current user
 						await ctx.context.adapter.create({
 							model: "nearAccount",
 							data: {
@@ -224,7 +367,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 								accountId,
 								network,
 								publicKey: result.publicKey,
-								isPrimary: !existingPrimaryAccount, // First NEAR account becomes primary
+								isPrimary: !existingPrimaryAccount,
 								createdAt: new Date(),
 							},
 						});
@@ -276,7 +419,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 
 					const network = providedNetwork || getNetworkFromAccountId(accountId);
 
-					// Find the NEAR account to unlink
 					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
 						model: "nearAccount",
 						where: [
@@ -293,7 +435,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 						});
 					}
 
-					// Safety check: Don't allow unlinking if it's the only auth method
 					const accounts = await ctx.context.adapter.findMany({
 						model: "account",
 						where: [{ field: "userId", operator: "eq", value: session.user.id }],
@@ -306,7 +447,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 						});
 					}
 
-					// If unlinking primary account, promote another one
 					if (nearAccount.isPrimary) {
 						const otherNearAccounts: NearAccount[] = await ctx.context.adapter.findMany({
 							model: "nearAccount",
@@ -317,7 +457,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 						});
 
 						if (otherNearAccounts.length > 0) {
-							// Promote the first other NEAR account to primary
 							await ctx.context.adapter.update({
 								model: "nearAccount",
 								where: [
@@ -328,7 +467,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 						}
 					}
 
-					// Delete the NEAR account record
 					await ctx.context.adapter.delete({
 						model: "nearAccount",
 						where: [
@@ -338,7 +476,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 						],
 					});
 
-					// Delete the associated account record
 					const accountToDelete: Account | null = await ctx.context.adapter.findOne({
 						model: "account",
 						where: [
@@ -400,7 +537,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 
 				await ctx.context.internalAdapter.createVerificationValue({
 					identifier: `siwn:${accountId}:${network}`,
-					value: nonceString!,
+					value: nonceString,
 					expiresAt: new Date(Date.now() + 15 * 60 * 1000),
 				});
 
@@ -445,7 +582,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 						targetAccountId = nearAccount.accountId;
 					}
 
-					const profile = await (options.getProfile || defaultGetProfile)(targetAccountId);
+					const profile = await (options.getProfile || ((id: AccountId) => defaultGetProfile(id, apiKey)))(targetAccountId);
 					return ctx.json(ProfileResponse.parse(profile));
 				},
 			),
@@ -462,10 +599,6 @@ export const siwn = (options: SIWNPluginOptions) =>
 				async (ctx) => {
 					const {
 						authToken,
-						signedMessage,
-						message,
-						recipient,
-						nonce,
 						accountId,
 						email,
 					} = ctx.body;
@@ -480,80 +613,30 @@ export const siwn = (options: SIWNPluginOptions) =>
 					}
 
 				try {
-					let publicKey: string;
-					let nonceBytes: Uint8Array;
+					const requireFullAccessKey = options.requireFullAccessKey ?? false;
+					const verifyOptions: VerifyOptions = {
+						requireFullAccessKey: requireFullAccessKey,
+						...(options.validateNonce
+							? { validateNonce: options.validateNonce }
+							: { nonceMaxAge: 15 * 60 * 1000 }),
+						...(options.validateRecipient
+							? { validateRecipient: options.validateRecipient }
+							: { expectedRecipient: options.recipient }),
+						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
+					} as VerifyOptions;
 
-					if (authToken) {
-						const requireFullAccessKey = options.requireFullAccessKey ?? true;
-						const verifyOptions: VerifyOptions = {
-							requireFullAccessKey: requireFullAccessKey,
-							...(options.validateNonce
-								? { validateNonce: options.validateNonce }
-								: { nonceMaxAge: 15 * 60 * 1000 }),
-							...(options.validateRecipient
-								? { validateRecipient: options.validateRecipient }
-								: { expectedRecipient: options.recipient }),
-							...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
-						} as VerifyOptions;
+					const result: VerificationResult = await verify(authToken, verifyOptions);
 
-						const result: VerificationResult = await verify(authToken, verifyOptions);
-
-						if (result.accountId !== accountId) {
-							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Account ID mismatch",
-								status: 401,
-							});
-						}
-
-						publicKey = result.publicKey;
-						const parsedToken = parseAuthToken(authToken);
-						nonceBytes = new Uint8Array(parsedToken.nonce);
-					} else if (signedMessage && message && recipient && nonce) {
-						const near = new Near({ network });
-						
-						const nonceArray = Array.isArray(nonce) 
-							? nonce 
-							: Array.from(base64ToBytes(nonce));
-						
-						const isValid = await verifyNep413Signature(
-							signedMessage,
-							{
-								message,
-								recipient,
-								nonce: new Uint8Array(nonceArray),
-							},
-							{ near, maxAge: 15 * 60 * 1000 }
-						);
-
-						if (!isValid) {
-							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Invalid signature",
-								status: 401,
-							});
-						}
-
-						if (signedMessage.accountId !== accountId) {
-							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Account ID mismatch",
-								status: 401,
-							});
-						}
-
-						if (recipient !== options.recipient) {
-							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Recipient mismatch",
-								status: 401,
-							});
-						}
-
-						publicKey = signedMessage.publicKey;
-						nonceBytes = new Uint8Array(nonceArray);
-					} else {
-						throw new APIError("BAD_REQUEST", {
-							message: "Invalid request: missing required fields",
-							status: 400,
+					if (result.accountId !== accountId) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Unauthorized: Account ID mismatch",
+							status: 401,
 						});
 					}
+
+					const publicKey = result.publicKey;
+					const parsedToken = parseAuthToken(authToken);
+					const nonceBytes = new Uint8Array(parsedToken.nonce);
 
 					const nonceHash = await hashNonce(nonceBytes);
 
@@ -641,7 +724,7 @@ export const siwn = (options: SIWNPluginOptions) =>
 						const userEmail =
 							!isAnon && email ? email : `${accountId}@${domain}`;
 
-						const profile = await (options.getProfile || defaultGetProfile)(accountId);
+						const profile = await (options.getProfile || ((id: AccountId) => defaultGetProfile(id, apiKey)))(accountId);
 
 						user = await ctx.context.internalAdapter.createUser({
 							name: profile?.name ?? accountId,
@@ -692,6 +775,8 @@ export const siwn = (options: SIWNPluginOptions) =>
 						}
 					}
 
+					await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+
 					const session = await ctx.context.internalAdapter.createSession(
 						user.id
 					);
@@ -716,13 +801,249 @@ export const siwn = (options: SIWNPluginOptions) =>
 					}));
 					} catch (error: unknown) {
 						if (error instanceof APIError) throw error;
+						const msg = error instanceof Error ? error.message : "Unknown error";
+						const at = error instanceof Error && error.stack ? error.stack.split("\n").slice(1, 3).map(s => s.trim()).join(" <- ") : "";
+						console.error(`[siwn] Verify error: ${msg}${at ? ` (${at})` : ""}`);
 						throw new APIError("UNAUTHORIZED", {
 							message: "Something went wrong. Please try again later.",
-							error: error instanceof Error ? error.message : "Unknown error",
+							error: msg,
 							status: 401,
 						});
 					}
 				},
 			),
+			relayNearTransaction: createAuthEndpoint(
+				"/near/relay",
+				{
+					method: "POST",
+					body: RelayRequest,
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const { signedDelegateAction } = ctx.body;
+					const session = ctx.context.session;
+
+					if (!session) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Must be authenticated to relay transactions",
+							status: 401,
+						});
+					}
+
+					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+						model: "nearAccount",
+						where: [
+							{ field: "userId", operator: "eq", value: session.user.id },
+							{ field: "isPrimary", operator: "eq", value: true },
+						],
+					});
+
+					if (!nearAccount) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "No NEAR account linked to session",
+							status: 401,
+						});
+					}
+
+					const network = nearAccount.network as "mainnet" | "testnet";
+					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+
+					if (!rState) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Relayer not configured",
+							status: 503,
+						});
+					}
+
+					try {
+						const decoded = deserializeSignedDelegateAction(signedDelegateAction);
+
+						if (decoded.delegateAction.senderId !== nearAccount.accountId) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Delegate action sender does not match session account",
+								status: 401,
+							});
+						}
+
+						const relayerConfig = options.relayer;
+						if (relayerConfig?.whitelistedContracts?.length) {
+							if (!relayerConfig.whitelistedContracts.includes(decoded.delegateAction.receiverId)) {
+								throw new APIError("FORBIDDEN", {
+									message: `Contract ${decoded.delegateAction.receiverId} is not whitelisted for relay`,
+									status: 403,
+								});
+							}
+						}
+
+						if (relayerConfig?.maxGasPerTransaction) {
+							const totalGas = decoded.delegateAction.actions.reduce((sum: bigint, a: any) => {
+								return sum + (a.functionCall?.gas ? BigInt(a.functionCall.gas) : 0n);
+							}, 0n);
+							if (totalGas > BigInt(relayerConfig.maxGasPerTransaction)) {
+								throw new APIError("BAD_REQUEST", {
+									message: `Transaction gas (${totalGas}) exceeds relayer limit (${relayerConfig.maxGasPerTransaction})`,
+									status: 400,
+								});
+							}
+						}
+
+						if (relayerConfig?.maxDepositPerTransaction) {
+							const totalDeposit = decoded.delegateAction.actions.reduce((sum: bigint, a: any) => {
+								const deposit = a.functionCall?.deposit ?? a.transfer?.deposit ?? 0n;
+								return sum + (typeof deposit === "bigint" ? deposit : BigInt(deposit));
+							}, 0n);
+							if (totalDeposit > BigInt(relayerConfig.maxDepositPerTransaction)) {
+								throw new APIError("BAD_REQUEST", {
+									message: `Transaction deposit (${totalDeposit}) exceeds relayer limit (${relayerConfig.maxDepositPerTransaction})`,
+									status: 400,
+								});
+							}
+						}
+
+						const result = await relayOnChain(
+							signedDelegateAction,
+							rState,
+							network,
+							apiKey,
+						);
+
+						await ctx.context.adapter.create({
+							model: "relayedTransaction",
+							data: {
+								userId: session.user.id,
+								txHash: result.txHash,
+								senderId: decoded.delegateAction.senderId,
+								receiverId: decoded.delegateAction.receiverId,
+								network,
+								status: "pending",
+								createdAt: new Date(),
+							},
+						});
+
+						if (rState.mode === "ephemeral") {
+							await ctx.context.adapter.update({
+								model: "relayerKey",
+								where: [{ field: "id", operator: "eq", value: `relayer:${network}` }],
+								update: { lastUsedAt: new Date() },
+							});
+						}
+
+						return ctx.json(RelayResponse.parse({
+							txHash: result.txHash,
+							status: "pending",
+						}));
+					} catch (error: unknown) {
+						if (error instanceof APIError) throw error;
+						throw new APIError("INTERNAL_SERVER_ERROR", {
+							message: error instanceof Error ? error.message : "Relay failed",
+							status: 500,
+						});
+					}
+				},
+			),
+			getRelayStatus: createAuthEndpoint(
+				"/near/relay-status/:txHash",
+				{
+					method: "GET",
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const txHash = (ctx.params as Record<string, string>)?.txHash;
+					if (!txHash) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Transaction hash required",
+							status: 400,
+						});
+					}
+
+					const session = ctx.context.session;
+
+					const relayedTx = await ctx.context.adapter.findOne({
+						model: "relayedTransaction",
+						where: [
+							{ field: "txHash", operator: "eq", value: txHash },
+							{ field: "userId", operator: "eq", value: session.user.id },
+						],
+					});
+
+					if (!relayedTx) {
+						throw new APIError("NOT_FOUND", {
+							message: "Transaction not found or not owned by this user",
+							status: 404,
+						});
+					}
+
+					const network = (relayedTx as any).network as "mainnet" | "testnet";
+
+					try {
+						const txResult = await queryTx(txHash, (relayedTx as any).senderId as string, network, apiKey);
+
+						if (txResult?.status) {
+							const status = txResult.status.HasSuccessReceiptId || txResult.status.SuccessValue
+								? "completed"
+								: txResult.status.Failure
+									? "failed"
+									: "pending";
+
+							if (status !== "pending") {
+								await ctx.context.adapter.update({
+									model: "relayedTransaction",
+									where: [{ field: "txHash", operator: "eq", value: txHash }],
+									update: { status, gasUsed: txResult.transaction?.outcome?.gas_burnt?.toString() },
+								});
+							}
+
+							return ctx.json(RelayStatusResponse.parse({
+								status,
+								gasUsed: txResult.transaction?.outcome?.gas_burnt?.toString(),
+								outcome: txResult,
+							}));
+						}
+
+						return ctx.json(RelayStatusResponse.parse({ status: "pending" }));
+					} catch (error: unknown) {
+						return ctx.json(RelayStatusResponse.parse({ status: "pending" }));
+					}
+				},
+			),
+			getRelayerInfo: createAuthEndpoint(
+				"/near/relayer-info",
+				{
+					method: "GET",
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const session = ctx.context.session;
+					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+						model: "nearAccount",
+						where: [
+							{ field: "userId", operator: "eq", value: session.user.id },
+							{ field: "isPrimary", operator: "eq", value: true },
+						],
+					});
+
+					const network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
+					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+
+					if (!rState) {
+						return ctx.json({ enabled: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
+					}
+
+					const account = await queryAccount(rState.accountId, network, apiKey);
+					const balance = account.amount;
+
+					return ctx.json({
+						enabled: true,
+						accountId: rState.accountId,
+						mode: rState.mode,
+						network: rState.network,
+						balance,
+						hasKey: true,
+						createdAt: rState.createdAt,
+						lastUsedAt: rState.lastUsedAt,
+					} as RelayerInfo & { enabled: boolean });
+				},
+			),
 		},
-	}) satisfies BetterAuthPlugin;
+	} satisfies BetterAuthPlugin);
+};

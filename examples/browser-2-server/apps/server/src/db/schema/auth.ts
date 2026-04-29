@@ -86,3 +86,28 @@ export const nearAccount = sqliteTable("near_account", {
   isPrimary: integer("is_primary", { mode: "boolean" }).default(false),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const relayedTransaction = sqliteTable("relayed_transaction", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .references(() => user.id, { onDelete: "cascade" }),
+  txHash: text("tx_hash").notNull(),
+  senderId: text("sender_id").notNull(),
+  receiverId: text("receiver_id").notNull(),
+  network: text("network").notNull(),
+  status: text("status").notNull(),
+  gasUsed: text("gas_used"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+});
+
+export const relayerKey = sqliteTable("relayer_key", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  encryptedPrivateKey: text("encrypted_private_key").notNull(),
+  iv: text("iv").notNull(),
+  publicKey: text("public_key").notNull(),
+  network: text("network").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+});

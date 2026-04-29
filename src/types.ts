@@ -33,13 +33,6 @@ export const profileSchema = z.object({
 export type SocialImage = z.infer<typeof socialImageSchema>;
 export type Profile = z.infer<typeof profileSchema>;
 
-export interface SignedMessage {
-	accountId: string;
-	publicKey: string;
-	signature: string;
-}
-
-
 export const LinkAccountRequest = z.object({
 	authToken: z.string().min(1),
 	accountId: accountIdSchema,
@@ -50,28 +43,57 @@ export const NonceRequest = z.object({
 	networkId: z.union([z.literal("mainnet"), z.literal("testnet")])
 });
 
-export const SignedMessageSchema = z.object({
+export const VerifyRequest = z.object({
+	authToken: z.string().min(1),
 	accountId: accountIdSchema,
-	publicKey: z.string(),
-	signature: z.string(),
+	email: z.string().email().optional(),
 });
 
-export const VerifyRequest = z.object({
-	authToken: z.string().optional(),
-	signedMessage: SignedMessageSchema.optional(),
-	message: z.string().optional(),
-	recipient: z.string().optional(),
-	nonce: z.string().optional(),
-	accountId: accountIdSchema,
-	email: z.email().optional(),
-}).refine(data => data.authToken || (data.signedMessage && data.message && data.recipient && data.nonce), {
-	message: "Either authToken or (signedMessage, message, recipient, nonce) must be provided",
+export const NearFunctionCallActionSchema = z.object({
+	type: z.literal("FunctionCall"),
+	methodName: z.string(),
+	args: z.record(z.string(), z.any()),
+	gas: z.string(),
+	deposit: z.string(),
 });
+
+export const NearTransferActionSchema = z.object({
+	type: z.literal("Transfer"),
+	deposit: z.string(),
+});
+
+export const NearActionSchema = z.union([NearFunctionCallActionSchema, NearTransferActionSchema]);
+export type NearActionInput = z.infer<typeof NearActionSchema>;
+
+export const BuildDelegateActionRequest = z.object({
+	receiverId: z.string(),
+	actions: z.array(NearActionSchema),
+});
+export type BuildDelegateActionRequestT = z.infer<typeof BuildDelegateActionRequest>;
+
+export const RelayRequest = z.object({
+	signedDelegateAction: z.string(),
+});
+export type RelayRequestT = z.infer<typeof RelayRequest>;
+
+export const RelayResponse = z.object({
+	txHash: z.string(),
+	status: z.enum(["pending", "completed", "failed"]),
+});
+export type RelayResponseT = z.infer<typeof RelayResponse>;
+
+export const RelayStatusResponse = z.object({
+	status: z.enum(["pending", "completed", "failed"]),
+	gasUsed: z.string().optional(),
+	outcome: z.unknown().optional(),
+});
+export type RelayStatusResponseT = z.infer<typeof RelayStatusResponse>;
+
 export const ProfileRequest = z.object({
 	accountId: accountIdSchema.optional(),
 });
 
-export const NonceResponse = z.object({ nonce: z.string() }); // Base64 string
+export const NonceResponse = z.object({ nonce: z.string() });
 export const VerifyResponse = z.object({
 	token: z.string(),
 	success: z.literal(true),
@@ -110,4 +132,14 @@ export interface SessionResponse {
 		message: string;
 		code?: string;
 	};
+}
+
+export interface RelayerInfo {
+	accountId: string;
+	mode: "ephemeral" | "explicit";
+	network: "mainnet" | "testnet";
+	balance: string;
+	hasKey: boolean;
+	createdAt?: Date;
+	lastUsedAt?: Date;
 }

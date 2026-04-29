@@ -1,4 +1,4 @@
-# dependencies (bun install)
+# dependencies (pnpm install)
 node_modules
 
 # output
@@ -38,9 +38,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 temp
 
+bun.lock
+
 # Examples
 examples/*/node_modules
 examples/*/.turbo
 examples/*/apps/*/node_modules
 examples/*/apps/*/.turbo
 examples/*/pnpm-lock.yaml
+examples/*/*.db
+examples/*/apps/*/*.db

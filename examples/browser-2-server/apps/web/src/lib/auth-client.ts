@@ -18,6 +18,7 @@ export const authClient = createAuthClient({
     siwnClient({
       recipient: "better-near-auth.near",
       networkId: "mainnet",
+      fastnearApiKey: import.meta.env.VITE_FASTNEAR_API_KEY,
     }),
   ],
 });
