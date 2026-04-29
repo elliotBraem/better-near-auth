@@ -34,11 +34,10 @@ import {
 	encryptPrivateKey,
 	decryptPrivateKey,
 	generateEphemeralKeypair,
+	makeEd25519PublicKey,
 	serializeTransaction,
 	serializeSignedTransaction,
 	signTransaction,
-	type TransactionStruct,
-	type SignedTransactionStruct,
 } from "./utils.js";
 
 function getOrigin(baseURL: string): string {
@@ -173,9 +172,9 @@ async function relayOnChain(
 
 	const blockHashBytes = base64ToBytes(block.header.hash);
 
-	const tx: TransactionStruct = {
+	const tx = {
 		signerId: relayerState.accountId,
-		publicKey: { keyType: 0, data: relayerState.publicKey },
+		publicKey: makeEd25519PublicKey(relayerState.publicKey),
 		nonce: BigInt(relayerAccessKey.nonce) + 1n,
 		receiverId: signedDelegate.delegateAction.senderId,
 		blockHash: blockHashBytes,
@@ -183,15 +182,14 @@ async function relayOnChain(
 			signedDelegate: {
 				delegateAction: signedDelegate.delegateAction,
 				signature: signedDelegate.signature,
-				publicKey: signedDelegate.delegateAction.publicKey,
 			},
 		}],
 	};
 
 	const txBytes = serializeTransaction(tx);
-	const signature = await signTransaction(txBytes, relayerState.privateKey);
+	const signature = signTransaction(txBytes, relayerState.privateKey);
 
-	const signedTx: SignedTransactionStruct = {
+	const signedTx = {
 		transaction: tx,
 		signature,
 	};

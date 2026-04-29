@@ -6,7 +6,7 @@ import { atom } from "nanostores";
 import { sign, generateNonce } from "near-sign-verify";
 import type { siwn } from "./index.js";
 import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type NearActionInput, type RelayResponseT, type RelayStatusResponseT, type NearAccount } from "./types.js";
-import { base64ToBytes, bytesToBase64, type SignedDelegateStruct, serializeSignedDelegateAction } from "./utils.js";
+import { base64ToBytes, bytesToBase64, serializeSignedDelegateAction } from "./utils.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -140,15 +140,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 			return bytesToBase64(signedDelegate.serialize());
 		}
 
-		if (signedDelegate.delegateAction && signedDelegate.signature) {
-			const adapted: SignedDelegateStruct = {
-				delegateAction: signedDelegate.delegateAction,
-				signature: signedDelegate.signature,
-			};
-			return bytesToBase64(serializeSignedDelegateAction(adapted));
-		}
-
-		throw new Error("Unexpected signed delegate format from wallet");
+		return bytesToBase64(serializeSignedDelegateAction(signedDelegate));
 	};
 
 	const buildAuthToken = async (

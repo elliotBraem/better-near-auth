@@ -66,7 +66,6 @@
     "@fastnear/borsh": "file:../js-monorepo/packages/borsh",
     "@fastnear/borsh-schema": "file:../js-monorepo/packages/borsh-schema",
     "@noble/curves": "^2.0.0",
-    "borsh": "^2.0.0",
     "nanostores": "^1.1.0",
     "near-sign-verify": "^0.4.5",
     "zod": "^4.3.5"
