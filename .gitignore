@@ -4,6 +4,7 @@ node_modules
 # output
 out
 dist
+!vendor/*/dist
 *.tgz
 
 # build artifacts
