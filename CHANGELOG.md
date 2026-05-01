@@ -1,5 +1,29 @@
 # better-near-auth
 
+## 0.6.0
+
+### Minor Changes
+
+- [`2ec6e28`](https://github.com/elliotBraem/better-near-auth/commit/2ec6e28878fd3e542df1721ee32f4a3eb31d3d46) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add gasless relay (NEP-366), replace @hot-labs/near-connect with @fastnear/wallet, and add `authClient.near.wallet` passthrough
+
+  - **Gasless relay**: Server relays signed delegate actions on-chain, paying gas from an auto-generated ephemeral keypair (encrypted in DB). New endpoints: `/near/relay`, `/near/relay-status/:txHash`, `/near/relayer-info`. New client methods: `buildSignedDelegateAction`, `relayTransaction`, `getRelayStatus`.
+  - **Wallet passthrough**: `authClient.near.wallet` exposes the full `@fastnear/wallet` API (connect, sendTransaction, signMessage, etc.) without wrapping each method.
+  - **Dependency swap**: `@hot-labs/near-connect` → `@fastnear/wallet`, `near-kit` → `@fastnear/api` + `@noble/curves` + `borsh`.
+  - **BigInt fix**: Delegate action gas/deposit now passed as strings to avoid `JSON.stringify` BigInt error.
+  - **Profile**: FastNear KV primary, NEAR Social fallback.
+  - **`requireFullAccessKey`** default changed from `true` to `false`.
+  - **Guestbook example**: Toggle between gasless relay and direct wallet send.
+
+### Patch Changes
+
+- [`e86e184`](https://github.com/elliotBraem/better-near-auth/commit/e86e18424378785228cc6d99019e32bfe9ea1387) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add better-auth 1.6.x compatibility, rewrite test suite, vendor @fastnear packages
+
+  - **Schema fix**: Remove duplicate `id` field from `relayerKey` table (better-auth 1.6+ auto-adds `id` to all plugin tables, causing migration errors)
+  - **Client plugin**: Update `getActions` signature to `($fetch, $store, options)` matching better-auth 1.6.9's `BetterAuthClientPlugin` type
+  - **Dependencies**: Update `better-auth` devDependency to `^1.6.9` (peerDependency remains `^1.5.4` which already covers 1.6.x by semver), update `drizzle-orm` in example to `^0.45.2`
+  - **Vendor @fastnear packages**: Replace `file:../js-monorepo/...` dependencies with vendored workspace packages under `vendor/`, keeping `signMessageParams` and `signedMessage` features from the unreleased wallet API
+  - **Tests**: Rewrite full test suite (32 tests) covering nonce, verify, nonce replay detection, anonymous mode, account ID validation, link account, profile, and relayer endpoints
+
 ## 0.5.2
 
 ### Patch Changes
