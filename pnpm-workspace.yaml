@@ -1,4 +1,5 @@
 packages:
   - '.'
+  - 'vendor/*'
   - 'examples/browser-2-server'
   - 'examples/browser-2-server/apps/*'

@@ -76,10 +76,6 @@ export const schema = {
 	},
 	relayerKey: {
 		fields: {
-			id: {
-				type: "string",
-				required: true,
-			},
 			accountId: {
 				type: "string",
 				required: true,

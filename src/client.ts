@@ -1,7 +1,7 @@
 import * as nearWallet from "@fastnear/wallet";
 import type { SignDelegateActionsResponse, SignedMessage } from "@fastnear/wallet";
 type NearWallet = typeof nearWallet;
-import type { BetterAuthClientPlugin, BetterFetch, BetterFetchOption, BetterFetchResponse } from "better-auth/client";
+import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import { sign, generateNonce } from "near-sign-verify";
 import type { siwn } from "./index.js";
@@ -58,7 +58,7 @@ export interface SIWNClientPlugin extends BetterAuthClientPlugin {
 		nearState: ReturnType<typeof atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>>;
 		cachedNonce: ReturnType<typeof atom<CachedNonceData | null>>;
 	};
-	getActions: ($fetch: BetterFetch) => SIWNClientActions;
+	getActions: ($fetch: BetterFetch, $store: ClientStore, options: BetterAuthClientOptions | undefined) => SIWNClientActions;
 }
 
 export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
@@ -166,7 +166,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 			cachedNonce,
 		}),
 
-		getActions: ($fetch): SIWNClientActions => {
+		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined): SIWNClientActions => {
 			const fetchNonce = async (accountId: string): Promise<string> => {
 				const state = nearState.get();
 				const nonceRequest: NonceRequestT = {

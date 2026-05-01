@@ -5,8 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@fastnear/borsh': file:../js-monorepo/packages/borsh
-  '@fastnear/borsh-schema': file:../js-monorepo/packages/borsh-schema
   '@fastnear/near-connect': ^0.11.0
 
 importers:
@@ -14,14 +12,14 @@ importers:
   .:
     dependencies:
       '@fastnear/borsh':
-        specifier: file:../js-monorepo/packages/borsh
-        version: file:../js-monorepo/packages/borsh
+        specifier: workspace:*
+        version: link:vendor/borsh
       '@fastnear/borsh-schema':
-        specifier: file:../js-monorepo/packages/borsh-schema
-        version: file:../js-monorepo/packages/borsh-schema
+        specifier: workspace:*
+        version: link:vendor/borsh-schema
       '@fastnear/wallet':
-        specifier: file:../js-monorepo/packages/wallet
-        version: file:../js-monorepo/packages/wallet
+        specifier: workspace:*
+        version: link:vendor/wallet
       '@noble/curves':
         specifier: ^2.0.0
         version: 2.2.0
@@ -48,8 +46,8 @@ importers:
         specifier: ^25.0.9
         version: 25.6.0
       better-auth:
-        specifier: ^1.5.4
-        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)))
+        specifier: ^1.6.9
+        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -71,8 +69,8 @@ importers:
         specifier: ^1.13.2
         version: 1.14.0(ws@8.20.0)
       better-auth:
-        specifier: ^1.5.4
-        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)))
+        specifier: ^1.6.9
+        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)))
       better-near-auth:
         specifier: workspace:*
         version: link:../../../..
@@ -80,8 +78,8 @@ importers:
         specifier: ^17.2.1
         version: 17.4.2
       drizzle-orm:
-        specifier: ^0.44.4
-        version: 0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16)
+        specifier: ^0.45.2
+        version: 0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16)
       hono:
         specifier: ^4.9.2
         version: 4.12.15
@@ -126,8 +124,8 @@ importers:
         specifier: ^1.131.27
         version: 1.168.26(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       better-auth:
-        specifier: ^1.5.4
-        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)))
+        specifier: ^1.6.9
+        version: 1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)))
       better-near-auth:
         specifier: workspace:*
         version: link:../../../..
@@ -207,6 +205,26 @@ importers:
       vite:
         specifier: ^7.1.3
         version: 7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)
+
+  vendor/borsh: {}
+
+  vendor/borsh-schema:
+    dependencies:
+      '@fastnear/borsh':
+        specifier: workspace:*
+        version: link:../borsh
+
+  vendor/wallet:
+    dependencies:
+      '@fastnear/borsh':
+        specifier: workspace:*
+        version: link:../borsh
+      '@fastnear/borsh-schema':
+        specifier: workspace:*
+        version: link:../borsh-schema
+      '@fastnear/near-connect':
+        specifier: ^0.11.0
+        version: 0.11.2
 
 packages:
 
@@ -913,17 +931,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@fastnear/borsh-schema@file:../js-monorepo/packages/borsh-schema':
-    resolution: {directory: ../js-monorepo/packages/borsh-schema, type: directory}
-
-  '@fastnear/borsh@file:../js-monorepo/packages/borsh':
-    resolution: {directory: ../js-monorepo/packages/borsh, type: directory}
-
   '@fastnear/near-connect@0.11.2':
     resolution: {integrity: sha512-7isGKmjFM6cKo0AgqikC1Dq3aZF/69x6jo0bXw1prYMN/i2YC3Hfp4+iHzt02io01PAf5ioRoptvD2iMZx9FeA==}
-
-  '@fastnear/wallet@file:../js-monorepo/packages/wallet':
-    resolution: {directory: ../js-monorepo/packages/wallet, type: directory}
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -2654,8 +2663,8 @@ packages:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
     hasBin: true
 
-  drizzle-orm@0.44.7:
-    resolution: {integrity: sha512-quIpnYznjU9lHshEOAYLoZ9s3jweleHlZIAWR/jX9gAWNg/JhQ1wj0KGRf7/Zm+obRrYd9GjPVJg790QY9N5AQ==}
+  drizzle-orm@0.45.2:
+    resolution: {integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==}
     peerDependencies:
       '@aws-sdk/client-rds-data': '>=3'
       '@cloudflare/workers-types': '>=4'
@@ -4067,12 +4076,12 @@ snapshots:
       nanostores: 1.3.0
       zod: 4.3.6
 
-  '@better-auth/drizzle-adapter@1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))':
+  '@better-auth/drizzle-adapter@1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))':
     dependencies:
       '@better-auth/core': 1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0)
       '@better-auth/utils': 0.4.0
     optionalDependencies:
-      drizzle-orm: 0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16)
+      drizzle-orm: 0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16)
 
   '@better-auth/kysely-adapter@1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(kysely@0.28.16)':
     dependencies:
@@ -4516,19 +4525,7 @@ snapshots:
   '@esbuild/win32-x64@0.27.7':
     optional: true
 
-  '@fastnear/borsh-schema@file:../js-monorepo/packages/borsh-schema':
-    dependencies:
-      '@fastnear/borsh': file:../js-monorepo/packages/borsh
-
-  '@fastnear/borsh@file:../js-monorepo/packages/borsh': {}
-
   '@fastnear/near-connect@0.11.2': {}
-
-  '@fastnear/wallet@file:../js-monorepo/packages/wallet':
-    dependencies:
-      '@fastnear/borsh': file:../js-monorepo/packages/borsh
-      '@fastnear/borsh-schema': file:../js-monorepo/packages/borsh-schema
-      '@fastnear/near-connect': 0.11.2
 
   '@floating-ui/core@1.7.5':
     dependencies:
@@ -6033,10 +6030,10 @@ snapshots:
 
   baseline-browser-mapping@2.10.24: {}
 
-  better-auth@1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))):
+  better-auth@1.6.9(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))):
     dependencies:
       '@better-auth/core': 1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0)
-      '@better-auth/drizzle-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))
+      '@better-auth/drizzle-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16))
       '@better-auth/kysely-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(kysely@0.28.16)
       '@better-auth/memory-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)
       '@better-auth/mongo-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.3.6))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)
@@ -6054,7 +6051,7 @@ snapshots:
       zod: 4.3.6
     optionalDependencies:
       drizzle-kit: 0.31.10
-      drizzle-orm: 0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16)
+      drizzle-orm: 0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16)
       react: 19.2.5
       react-dom: 19.2.5(react@19.2.5)
       vitest: 4.1.5(@types/node@25.6.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0))
@@ -6198,7 +6195,7 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.21.0
 
-  drizzle-orm@0.44.7(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16):
+  drizzle-orm@0.45.2(@libsql/client@0.15.15)(bun-types@1.3.13)(kysely@0.28.16):
     optionalDependencies:
       '@libsql/client': 0.15.15
       bun-types: 1.3.13

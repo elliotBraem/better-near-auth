@@ -3,6 +3,7 @@ tsconfig.json
 *.test.ts
 *.spec.ts
 examples/
+vendor/
 .github/
 .changeset/
 CONTRIBUTING.md

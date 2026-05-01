@@ -17,10 +17,10 @@
     "@hono/node-server": "^1.13.7",
     "@libsql/client": "^0.15.15",
     "@orpc/server": "^1.13.2",
-    "better-auth": "^1.5.4",
+    "better-auth": "^1.6.9",
     "better-near-auth": "workspace:*",
     "dotenv": "^17.2.1",
-    "drizzle-orm": "^0.44.4",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.9.2",
     "zod": "^4.3.5"
   },

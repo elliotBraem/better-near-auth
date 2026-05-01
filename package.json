@@ -62,9 +62,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@fastnear/wallet": "file:../js-monorepo/packages/wallet",
-    "@fastnear/borsh": "file:../js-monorepo/packages/borsh",
-    "@fastnear/borsh-schema": "file:../js-monorepo/packages/borsh-schema",
+    "@fastnear/wallet": "workspace:*",
+    "@fastnear/borsh": "workspace:*",
+    "@fastnear/borsh-schema": "workspace:*",
     "@noble/curves": "^2.0.0",
     "nanostores": "^1.1.0",
     "near-sign-verify": "^0.4.5",
@@ -75,7 +75,7 @@
     "@changesets/cli": "^2.30.0",
     "@types/bun": "latest",
     "@types/node": "^25.0.9",
-    "better-auth": "^1.5.4",
+    "better-auth": "^1.6.9",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
@@ -86,8 +86,6 @@
   ],
   "pnpm": {
     "overrides": {
-      "@fastnear/borsh": "file:../js-monorepo/packages/borsh",
-      "@fastnear/borsh-schema": "file:../js-monorepo/packages/borsh-schema",
       "@fastnear/near-connect": "^0.11.0"
     }
   }

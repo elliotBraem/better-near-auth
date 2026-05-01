@@ -18,7 +18,7 @@ export function Guestbook() {
   const queryClient = useQueryClient();
 
   const { data: session } = authClient.useSession();
-  const network = authClient.near.getState()?.networkId || "mainnet";
+  const network = (authClient.near.getState()?.networkId || "mainnet") as "mainnet" | "testnet";
 
   const { data: greeting } = useQuery({
     queryKey: ["greeting", network],
