@@ -53,7 +53,7 @@ export default function AccountLinking() {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const accountsResponse = await authClient.listAccounts();
+      const accountsResponse = await authClient.near.listAccounts();
       const accounts = accountsResponse?.data;
       setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
       setError(null);
@@ -88,42 +88,24 @@ export default function AccountLinking() {
   const handleNearAction = async () => {
     setIsProcessingNear(true);
     try {
-      if (!nearAccountId) {
-        await authClient.requestSignIn.near(
-          {
-            onSuccess: () => {
-              setIsProcessingNear(false);
-              fetchNearAccountId();
-            },
-            onError: async (error: any) => {
-              setIsProcessingNear(false);
-              console.error("Wallet connection failed:", error);
-              const errorMessage = error.code === "SIGNER_NOT_AVAILABLE"
-                ? "NEAR wallet not available"
-                : error.message || "Failed to connect wallet";
-              toast.error(errorMessage);
-            }
-          }
-        );
-      } else {
-        await authClient.near.link(
-          {
-            onSuccess: () => {
-              toast.success("NEAR account linked successfully");
-              refreshAccounts();
-              setIsProcessingNear(false);
-            },
-            onError: async (error: any) => {
-              console.error("NEAR link error:", error);
-              toast.error(error.message || "Failed to link NEAR account");
-              setIsProcessingNear(false);
-              // Auto-disconnect wallet on link failure to reset state
-              await authClient.near.disconnect();
-              fetchNearAccountId();
-            }
-          }
-        );
-      }
+      await authClient.near.link({
+        onSuccess: () => {
+          toast.success("NEAR account linked successfully");
+          refreshAccounts();
+          fetchNearAccountId();
+          setIsProcessingNear(false);
+        },
+        onError: async (error: any) => {
+          console.error("NEAR link error:", error);
+          const errorMessage = error.code === "SIGNER_NOT_AVAILABLE"
+            ? "NEAR wallet not available"
+            : error.message || "Failed to link NEAR account";
+          toast.error(errorMessage);
+          setIsProcessingNear(false);
+          await authClient.near.disconnect();
+          fetchNearAccountId();
+        }
+      });
     } catch (error) {
       console.error("Failed to process NEAR action:", error);
       setIsProcessingNear(false);
@@ -162,7 +144,7 @@ export default function AccountLinking() {
       });
       toast.success("Account unlinked successfully");
       // Refresh accounts list
-      const accountsResponse = await authClient.listAccounts();
+      const accountsResponse = await authClient.near.listAccounts();
       const accounts = accountsResponse?.data;
       setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
     } catch (error) {

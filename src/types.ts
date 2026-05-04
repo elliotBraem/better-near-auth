@@ -1,11 +1,9 @@
 import { z } from "zod";
+import { AccountIdSchema } from "near-kit/schemas";
+import type { AccountId, GasInput, AmountInput, AccountState } from "near-kit";
 
-export const accountIdSchema = z.string()
-	.min(2)
-	.max(64)
-	.regex(/^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/, "Invalid NEAR account ID format");
-
-export type AccountId = z.infer<typeof accountIdSchema>;
+export { AccountIdSchema as accountIdSchema };
+export type { AccountId };
 
 export interface NearAccount {
 	id: string;
@@ -33,46 +31,51 @@ export const profileSchema = z.object({
 export type SocialImage = z.infer<typeof socialImageSchema>;
 export type Profile = z.infer<typeof profileSchema>;
 
+const signedMessageSchema = z.object({
+	accountId: z.string(),
+	publicKey: z.string(),
+	signature: z.string(),
+	state: z.string().optional(),
+});
+
 export const LinkAccountRequest = z.object({
-	authToken: z.string().min(1),
-	accountId: accountIdSchema,
+	signedMessage: signedMessageSchema,
+	message: z.string(),
+	recipient: z.string(),
+	nonce: z.string(),
+	accountId: AccountIdSchema,
 });
 
 export const NonceRequest = z.object({
-	accountId: accountIdSchema,
+	accountId: AccountIdSchema,
 	networkId: z.union([z.literal("mainnet"), z.literal("testnet")])
 });
 
 export const VerifyRequest = z.object({
-	authToken: z.string().min(1),
-	accountId: accountIdSchema,
-	email: z.string().email().optional(),
+	signedMessage: signedMessageSchema,
+	message: z.string(),
+	recipient: z.string(),
+	nonce: z.string(),
+	accountId: AccountIdSchema,
 });
 
-export const NearFunctionCallActionSchema = z.object({
-	type: z.literal("FunctionCall"),
-	methodName: z.string(),
-	args: z.record(z.string(), z.any()),
-	gas: z.string(),
-	deposit: z.string(),
-});
+export interface NearFunctionCallAction {
+	type: "FunctionCall";
+	methodName: string;
+	args: Record<string, unknown>;
+	gas: GasInput;
+	deposit: AmountInput;
+}
 
-export const NearTransferActionSchema = z.object({
-	type: z.literal("Transfer"),
-	deposit: z.string(),
-});
+export interface NearTransferAction {
+	type: "Transfer";
+	deposit: AmountInput;
+}
 
-export const NearActionSchema = z.union([NearFunctionCallActionSchema, NearTransferActionSchema]);
-export type NearActionInput = z.infer<typeof NearActionSchema>;
-
-export const BuildDelegateActionRequest = z.object({
-	receiverId: z.string(),
-	actions: z.array(NearActionSchema),
-});
-export type BuildDelegateActionRequestT = z.infer<typeof BuildDelegateActionRequest>;
+export type NearActionInput = NearFunctionCallAction | NearTransferAction;
 
 export const RelayRequest = z.object({
-	signedDelegateAction: z.string(),
+	payload: z.string(),
 });
 export type RelayRequestT = z.infer<typeof RelayRequest>;
 
@@ -89,9 +92,12 @@ export const RelayStatusResponse = z.object({
 });
 export type RelayStatusResponseT = z.infer<typeof RelayStatusResponse>;
 
-export const ProfileRequest = z.object({
-	accountId: accountIdSchema.optional(),
+export const ViewContractRequest = z.object({
+	contractId: z.string(),
+	methodName: z.string(),
+	args: z.record(z.string(), z.any()).optional(),
 });
+export type ViewContractRequestT = z.infer<typeof ViewContractRequest>;
 
 export const NonceResponse = z.object({ nonce: z.string() });
 export const VerifyResponse = z.object({
@@ -99,46 +105,29 @@ export const VerifyResponse = z.object({
 	success: z.literal(true),
 	user: z.object({
 		id: z.string(),
-		accountId: accountIdSchema,
+		accountId: AccountIdSchema,
 		network: z.union([z.literal("mainnet"), z.literal("testnet")]),
 	}),
 });
 export const ProfileResponse = profileSchema.nullable();
+export const ViewContractResponse = z.object({ result: z.unknown() });
+
+export const ProfileRequest = z.object({
+	accountId: AccountIdSchema.optional(),
+});
+export type ProfileRequestT = z.infer<typeof ProfileRequest>;
 
 export type NonceRequestT = z.infer<typeof NonceRequest>;
 export type NonceResponseT = z.infer<typeof NonceResponse>;
 export type VerifyRequestT = z.infer<typeof VerifyRequest>;
 export type VerifyResponseT = z.infer<typeof VerifyResponse>;
-export type ProfileRequestT = z.infer<typeof ProfileRequest>;
 export type ProfileResponseT = z.infer<typeof ProfileResponse>;
+export type ViewContractResponseT = z.infer<typeof ViewContractResponse>;
 
-export interface BetterAuthSession {
-	user: {
-		id: string;
-		name: string;
-		email: string;
-		image?: string;
-		nearAccount?: NearAccount;
-	};
-	session: {
-		token: string;
-		expiresAt: Date;
-	};
-}
-
-export interface SessionResponse {
-	data: BetterAuthSession | null;
-	error?: {
-		message: string;
-		code?: string;
-	};
-}
-
-export interface RelayerInfo {
+export interface RelayerInfo extends AccountState {
 	accountId: string;
 	mode: "ephemeral" | "explicit";
 	network: "mainnet" | "testnet";
-	balance: string;
 	hasKey: boolean;
 	createdAt?: Date;
 	lastUsedAt?: Date;

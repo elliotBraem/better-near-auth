@@ -9,7 +9,7 @@ This example demonstrates a complete authentication system that combines Sign in
 - **Account Linking** - Link social accounts with NEAR accounts following better-auth best practices
 - **Profile Browser** - Public NEAR account profiles at `/profile/${accountId}` routes
 - **Better Auth Integration** - Full-featured authentication with session management
-- **FastNear Wallet** - Browser wallet connectivity via @fastnear/wallet
+- **near-kit** - NEAR Protocol SDK for RPC, transactions, and wallet connectivity
 - **Gasless Relay** - Meta-transactions via ephemeral relayer (NEP-366)
 - **Profile Integration** - Automatic fetching of user profiles from NEAR Social
 - **TypeScript** - Full type safety across client and server
@@ -44,7 +44,7 @@ GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 
 # Database
-DATABASE_URL=postgresql://postgres:password@localhost:5432/better-near-auth
+DATABASE_URL=libsql://better-near-auth.db
 
 # Better Auth
 BETTER_AUTH_SECRET=your_secret_key
@@ -53,11 +53,7 @@ BETTER_AUTH_URL=http://localhost:3000
 
 ### 3. Database Setup
 
-Start the Postgres service:
-
-```bash
-docker compose up -d
-```
+The example uses SQLite/Turso (libsql). No external database service is needed.
 
 ### 4. Start the Development Server
 
@@ -77,7 +73,7 @@ This demo showcases two primary authentication flows with account linking capabi
 1. **User signs in** with a social provider (Google, GitHub, etc.)
 2. **Redirected to dashboard** with authenticated session
 3. **Click "Link NEAR Account"** button on dashboard
-4. **FastNear wallet** opens for NEAR authentication
+4. **Wallet opens** (via @hot-labs/near-connect) for NEAR authentication
 5. **User signs NEP-413 message** with their NEAR wallet
 6. **Accounts linked** - NEAR account is now connected to social login
 7. **Profile accessible** at `/profile/${near_account_id}` route
@@ -105,7 +101,7 @@ This demo showcases two primary authentication flows with account linking capabi
 - **Client Plugin** (`apps/web/src/lib/auth-client.ts`) - Client-side Better Auth with `siwnClient`
 - **Database Schema** (`apps/server/src/db/schema/auth.ts`) - Extended schema with `nearAccount` table
 - **NEAR Profile Component** (`apps/web/src/components/near-profile.tsx`) - Displays NEAR Social profiles
-- **FastNear Wallet** - Browser wallet connectivity via @fastnear/wallet
+- **near-kit** - NEAR Protocol SDK for RPC, transactions, and wallet connectivity
 - **Gasless Relay** - Meta-transactions via ephemeral relayer (NEP-366)
 
 ## Configuration Options
@@ -135,9 +131,8 @@ betterAuth({
   plugins: [
     siwn({
       recipient: "better-near-auth.near",
-      anonymous: true,
       relayer: {},
-      fastnearApiKey: process.env.FASTNEAR_API_KEY,
+      apiKey: process.env.FASTNEAR_API_KEY,
     })
   ]
 })
@@ -151,7 +146,7 @@ createAuthClient({
   plugins: [
     siwnClient({
       recipient: "better-near-auth.near",
-      fastnearApiKey: import.meta.env.VITE_FASTNEAR_API_KEY,
+      apiKey: import.meta.env.VITE_FASTNEAR_API_KEY,
     })
   ]
 })
@@ -179,5 +174,5 @@ createAuthClient({
 - [NEAR Protocol](https://near.org)
 - [NEP-413: NEAR Sign In](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
 - [NEAR Social](https://near.social)
-- [FastNear](https://fastnear.com)
-- [FastNear Wallet](https://github.com/freznate/fastnear-wallet)
+- [near-kit](https://github.com/elliotBraem/near-kit)
+- [@hot-labs/near-connect](https://github.com/azbang/near-connect)

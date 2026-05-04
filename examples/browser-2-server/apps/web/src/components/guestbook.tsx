@@ -1,5 +1,5 @@
 import { authClient } from "@/lib/auth-client";
-import { viewFunction } from "better-near-auth/rpc";
+import { Gas } from "near-kit";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,7 +22,10 @@ export function Guestbook() {
 
   const { data: greeting } = useQuery({
     queryKey: ["greeting", network],
-    queryFn: () => viewFunction(GUESTBOOK_CONTRACT, "get_greeting", {}, network),
+    queryFn: async () => {
+      const res = await authClient.near.view({ contractId: GUESTBOOK_CONTRACT, methodName: "get_greeting" });
+      return res.data?.result as string;
+    },
   });
 
   const { mutate: addMessageRelay, isPending: isRelaying } = useMutation({
@@ -36,13 +39,13 @@ export function Guestbook() {
           type: "FunctionCall",
           methodName: "set_greeting",
           args: { greeting: text },
-          gas: "30000000000000",
-          deposit: "0",
+          gas: Gas.Tgas(30),
+          deposit: BigInt(0),
         }],
       });
 
       const relayResult = await authClient.near.relayTransaction({
-        signedDelegateAction,
+        payload: signedDelegateAction,
       });
 
       if (relayResult.error) {
@@ -67,17 +70,13 @@ export function Guestbook() {
       const accountId = authClient.near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
 
-      const result = await authClient.near.wallet.sendTransaction({
-        receiverId: GUESTBOOK_CONTRACT,
-        actions: [{
-          type: "FunctionCall",
-          methodName: "set_greeting",
-          args: { greeting: text },
-          gas: "30000000000000",
-          deposit: "0",
-        }],
-        network,
-      });
+      const result = await authClient.near.client
+        .transaction(accountId)
+        .functionCall(GUESTBOOK_CONTRACT, "set_greeting", { greeting: text }, {
+          gas: Gas.Tgas(30),
+          attachedDeposit: BigInt(0),
+        })
+        .send();
 
       return result;
     },

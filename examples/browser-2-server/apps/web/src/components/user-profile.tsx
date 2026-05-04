@@ -15,7 +15,7 @@ export default function UserProfile() {
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const accountsResponse = await authClient.listAccounts();
+        const accountsResponse = await authClient.near.listAccounts();
         const accounts = accountsResponse?.data;
         setLinkedAccounts(Array.isArray(accounts) ? accounts : []);
       } catch (error) {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { getTestInstance } from "better-auth/test";
 import { siwn } from "./index.js";
+import { hex } from "@scure/base";
 
 const MOCK_ACCOUNT_ID = "test.near";
 const MOCK_TESTNET_ACCOUNT_ID = "test.testnet";
@@ -13,87 +14,122 @@ function makeNonceBytes(): Uint8Array {
 	return nonce;
 }
 
-const mockVerifyResult = {
+const mockSignedMessage = {
 	accountId: MOCK_ACCOUNT_ID,
-	message: `Sign in to ${MOCK_RECIPIENT}`,
 	publicKey: MOCK_PUBLIC_KEY,
+	signature: "mock-signature-base64",
 };
 
 let nonceCounter = 0;
-function makeUniqueNonce(): number[] {
+function makeUniqueNonce(): Uint8Array {
 	nonceCounter++;
 	const nonce = new Uint8Array(32);
 	for (let i = 0; i < 32; i++) nonce[i] = (i + 1) ^ (nonceCounter & 0xff);
-	return Array.from(nonce);
+	return nonce;
 }
 
-const mockParsedToken = {
-	accountId: MOCK_ACCOUNT_ID,
-	publicKey: MOCK_PUBLIC_KEY,
-	signature: "mock-signature",
-	message: `Sign in to ${MOCK_RECIPIENT}`,
-	nonce: makeUniqueNonce(),
-	recipient: MOCK_RECIPIENT,
-	callbackUrl: null,
-	state: null,
-};
+vi.mock("near-kit", () => {
+	const mockNearInstance = {
+		view: vi.fn(),
+		call: vi.fn(),
+		send: vi.fn(),
+		signMessage: vi.fn(() => Promise.resolve(mockSignedMessage)),
+		getBalance: vi.fn(() => Promise.resolve("100")),
+		getAccount: vi.fn(() => Promise.resolve({
+			balance: "100",
+			available: "98",
+			staked: "0",
+			storageUsage: "2",
+			storageBytes: 100,
+			hasContract: false,
+		})),
+		accountExists: vi.fn(() => Promise.resolve(true)),
+		getAccessKey: vi.fn(() => Promise.resolve({ nonce: 0, permission: "FullAccess" })),
+		getAccessKeys: vi.fn(() => Promise.resolve({ keys: [] })),
+		getTransactionStatus: vi.fn(() => Promise.resolve({
+			status: { SuccessReceiptId: "yes" },
+			transaction: { hash: "mock-tx-hash", outcome: { gas_burnt: "1000" } },
+			transaction_outcome: { outcome: { gas_burnt: 1000 } },
+		})),
+		transaction: vi.fn(() => ({
+			signedDelegateAction: vi.fn().mockReturnThis(),
+			functionCall: vi.fn().mockReturnThis(),
+			transfer: vi.fn().mockReturnThis(),
+			delegate: vi.fn(() => Promise.resolve({ payload: "mock-payload" })),
+			send: vi.fn(() => Promise.resolve({ transaction: { hash: "mock-tx-hash" } })),
+		})),
+		contract: vi.fn(),
+		batch: vi.fn(),
+		getStatus: vi.fn(),
+	};
 
-vi.mock("near-sign-verify", () => ({
-	generateNonce: vi.fn(() => {
-		nonceCounter++;
-		const nonce = new Uint8Array(32);
-		for (let i = 0; i < 32; i++) nonce[i] = (i + 1) ^ (nonceCounter & 0xff);
-		return nonce;
-	}),
-	verify: vi.fn(() => Promise.resolve({ ...mockVerifyResult })),
-	parseAuthToken: vi.fn(() => ({
-		...mockParsedToken,
-		nonce: makeUniqueNonce(),
-	})),
-	sign: vi.fn(() => Promise.resolve("mock-auth-token")),
-	stringToUint8Array: vi.fn((s: string) => new TextEncoder().encode(s)),
-	uint8ArrayToString: vi.fn((arr: Uint8Array) => new TextDecoder().decode(arr)),
-}));
+	return {
+		Near: vi.fn(function(this: any) { Object.assign(this, mockNearInstance); }),
+		generateNonce: vi.fn(() => {
+			nonceCounter++;
+			const nonce = new Uint8Array(32);
+			for (let i = 0; i < 32; i++) nonce[i] = (i + 1) ^ (nonceCounter & 0xff);
+			return nonce;
+		}),
+		generateKey: vi.fn(() => ({
+			publicKey: { data: new Uint8Array(32).fill(1), toString: () => "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" },
+			secretKey: "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			sign: vi.fn(),
+			signNep413Message: vi.fn(),
+		})),
+		parseKey: vi.fn(() => ({
+			publicKey: { data: new Uint8Array(32).fill(1), toString: () => "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" },
+			secretKey: "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			sign: vi.fn(),
+		})),
+		verifyNep413Signature: vi.fn(() => Promise.resolve(true)),
+		decodeSignedDelegateAction: vi.fn(() => ({
+			signedDelegate: {
+				delegateAction: {
+					senderId: MOCK_ACCOUNT_ID,
+					receiverId: "contract.near",
+					actions: [],
+					nonce: 1n,
+					maxBlockHeight: 1000n,
+					publicKey: { ed25519Key: { data: new Array(32).fill(0) } },
+				},
+				signature: { ed25519Signature: { data: new Array(64).fill(0) } },
+			},
+		})),
+		InMemoryKeyStore: vi.fn(function(this: any) {
+			this.add = vi.fn(() => Promise.resolve());
+			this.get = vi.fn(() => Promise.resolve(null));
+			this.remove = vi.fn(() => Promise.resolve());
+			this.list = vi.fn(() => Promise.resolve([]));
+			this.clear = vi.fn();
+		}),
+		RotatingKeyStore: vi.fn(function(this: any) {
+			this.add = vi.fn(() => Promise.resolve());
+			this.get = vi.fn(() => Promise.resolve(null));
+			this.remove = vi.fn(() => Promise.resolve());
+			this.list = vi.fn(() => Promise.resolve([]));
+			this.getAll = vi.fn(() => Promise.resolve([]));
+			this.getCurrentIndex = vi.fn(() => 0);
+			this.resetCounter = vi.fn();
+			this.clear = vi.fn();
+		}),
+		fromNearConnect: vi.fn(() => ({})),
+	};
+});
 
-vi.mock("@fastnear/wallet", () => ({
-	onConnect: vi.fn(),
-	onDisconnect: vi.fn(),
-	restore: vi.fn(() => Promise.resolve(null)),
-	connect: vi.fn(() => Promise.resolve({ accountId: MOCK_ACCOUNT_ID, publicKey: MOCK_PUBLIC_KEY })),
-	disconnect: vi.fn(() => Promise.resolve()),
-	signMessage: vi.fn(() => Promise.resolve({
-		accountId: MOCK_ACCOUNT_ID,
-		publicKey: MOCK_PUBLIC_KEY,
-		signature: "mock-signature",
+vi.mock("@hot-labs/near-connect", () => ({
+	NearConnector: vi.fn().mockImplementation(() => ({
+		connect: vi.fn(() => Promise.resolve({})),
+		disconnect: vi.fn(() => Promise.resolve()),
+		getConnectedWallet: vi.fn(() => Promise.resolve({
+			accounts: [{ accountId: MOCK_ACCOUNT_ID, publicKey: MOCK_PUBLIC_KEY }],
+		})),
+		on: vi.fn(),
+		once: vi.fn(),
+		off: vi.fn(),
+		wallet: vi.fn(() => Promise.resolve({})),
+		switchNetwork: vi.fn(),
 	})),
-	signDelegateActions: vi.fn(() => Promise.resolve({
-		signedDelegateActions: [{
-			signedDelegate: { delegateAction: {}, signature: {} },
-		}],
-	})),
-	isConnected: vi.fn(() => false),
-	accountId: vi.fn(() => null),
-	availableWallets: vi.fn(() => []),
-	selectWallet: vi.fn(() => Promise.resolve("my-near-wallet")),
-	walletName: vi.fn(() => null),
-	sendTransaction: vi.fn(() => Promise.resolve({})),
-	sendTransactions: vi.fn(() => Promise.resolve({})),
-	reset: vi.fn(),
-	addFunctionCallKey: vi.fn(),
-	removeDebugWallet: vi.fn(),
-	registerDebugWallet: vi.fn(),
-	switchNetwork: vi.fn(),
-}));
-
-vi.mock("./rpc.js", () => ({
-	queryAccessKey: vi.fn(() => Promise.resolve({ nonce: 0, permission: "FullAccess" })),
-	queryBlock: vi.fn(() => Promise.resolve({
-		header: { hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", height: 100, timestamp_nanosec: "0" },
-	})),
-	queryTx: vi.fn(() => Promise.resolve({ status: { HasSuccessReceiptId: "yes" }, transaction: { outcome: { gas_burnt: "1000" } } })),
-	sendTxBroadcast: vi.fn(() => Promise.resolve("mock-tx-hash")),
-	queryAccount: vi.fn(() => Promise.resolve({ amount: "10000000000000000000000000" })),
-	viewFunction: vi.fn(() => Promise.resolve("")),
 }));
 
 vi.mock("./profile.js", () => ({
@@ -104,10 +140,25 @@ vi.mock("./profile.js", () => ({
 	),
 }));
 
+function makeVerifyBody(accountId: string = MOCK_ACCOUNT_ID) {
+	const nonceBytes = makeUniqueNonce();
+	const nonceHex = hex.encode(nonceBytes);
+	return {
+		signedMessage: {
+			accountId,
+			publicKey: MOCK_PUBLIC_KEY,
+			signature: "mock-signature-base64",
+		},
+		message: `Sign in to ${MOCK_RECIPIENT}`,
+		recipient: MOCK_RECIPIENT,
+		nonce: nonceHex,
+		accountId,
+	};
+}
+
 async function setup(overrides?: {
 	recipient?: string;
 	requireFullAccessKey?: boolean;
-	anonymous?: boolean;
 	relayer?: any;
 	getProfile?: any;
 	validateLimitedAccessKey?: any;
@@ -118,7 +169,6 @@ async function setup(overrides?: {
 				siwn({
 					recipient: overrides?.recipient ?? MOCK_RECIPIENT,
 					requireFullAccessKey: overrides?.requireFullAccessKey ?? false,
-					anonymous: overrides?.anonymous ?? true,
 					relayer: overrides?.relayer,
 					getProfile: overrides?.getProfile,
 					validateLimitedAccessKey: overrides?.validateLimitedAccessKey,
@@ -187,12 +237,9 @@ describe("siwn plugin", () => {
 	});
 
 	describe("verify endpoint", () => {
-		it("should verify a valid auth token and create a session", async () => {
+		it("should verify a valid signed message and create a session", async () => {
 			const { client } = await setup();
-			const { data, error } = await client.near.verify({
-				authToken: "valid-auth-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { data, error } = await client.near.verify(makeVerifyBody());
 			expect(error).toBeNull();
 			expect(data?.success).toBe(true);
 			expect(data?.token).toBeDefined();
@@ -200,66 +247,54 @@ describe("siwn plugin", () => {
 			expect(data?.user.network).toBe("mainnet");
 		});
 
-		it("should reject an auth token with mismatched accountId", async () => {
-			const { verify } = await import("near-sign-verify");
-			(verify as any).mockResolvedValueOnce({
-				...mockVerifyResult,
-				accountId: "other.near",
-			});
+		it("should reject an signed message with mismatched accountId", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+			(verifyNep413Signature as any).mockResolvedValueOnce(false);
 			const { client } = await setup();
-			const { error } = await client.near.verify({
-				authToken: "mismatched-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { error } = await client.near.verify(makeVerifyBody());
 			expect(error).toBeDefined();
 		});
 
 		it("should detect nonce replay", async () => {
 			const { client } = await setup();
-			const { data: first } = await client.near.verify({
-				authToken: "replay-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const body = makeVerifyBody();
+			const { data: first } = await client.near.verify(body);
 			expect(first?.success).toBe(true);
 
-			const { error } = await client.near.verify({
-				authToken: "replay-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { error } = await client.near.verify(body);
 			expect(error).toBeDefined();
 		});
 
-		it("should create a user with email derived from accountId when anonymous", async () => {
+		it("should create a user with near.email for .near accounts", async () => {
 			const { client, db } = await setup();
-			const { data } = await client.near.verify({
-				authToken: "new-user-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { data } = await client.near.verify(makeVerifyBody());
 			expect(data?.success).toBe(true);
 
 			const users = await db.findMany({ model: "user" });
 			expect(users.length).toBeGreaterThan(0);
 			const user = users.find((u: any) => u.id === data?.user.id);
 			expect(user).toBeDefined();
-			expect((user as any).email).toContain(MOCK_ACCOUNT_ID);
+			expect((user as any).email).toBe("test@near.email");
 		});
 
-		it("should create a testnet user with correct network", async () => {
-			const { verify } = await import("near-sign-verify");
-			(verify as any).mockResolvedValueOnce({
-				...mockVerifyResult,
+		it("should create a testnet user without email", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+
+			const testnetSignedMessage = {
 				accountId: MOCK_TESTNET_ACCOUNT_ID,
-			});
-			const { parseAuthToken } = await import("near-sign-verify");
-			(parseAuthToken as any).mockReturnValueOnce({
-				...mockParsedToken,
-				accountId: MOCK_TESTNET_ACCOUNT_ID,
-				nonce: Array.from(makeNonceBytes().map((b: number) => b ^ 0xff)),
-			});
+				publicKey: MOCK_PUBLIC_KEY,
+				signature: "mock-signature-base64",
+			};
+
+			const nonceBytes = makeUniqueNonce();
+			const nonceHex = hex.encode(nonceBytes);
 
 			const { client } = await setup();
 			const { data, error } = await client.near.verify({
-				authToken: "testnet-token",
+				signedMessage: testnetSignedMessage,
+				message: `Sign in to ${MOCK_RECIPIENT}`,
+				recipient: MOCK_RECIPIENT,
+				nonce: nonceHex,
 				accountId: MOCK_TESTNET_ACCOUNT_ID,
 			});
 			expect(error).toBeNull();
@@ -267,39 +302,13 @@ describe("siwn plugin", () => {
 			expect(data?.user.network).toBe("testnet");
 		});
 
-		it("should require email when anonymous is false", async () => {
-			const { client } = await setup({ anonymous: false });
-			const { error } = await client.near.verify({
-				authToken: "no-email-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
-			expect(error).toBeDefined();
-		});
-
-		it("should succeed with email when anonymous is false", async () => {
-			const { client } = await setup({ anonymous: false });
-			const { data, error } = await client.near.verify({
-				authToken: "with-email-token",
-				accountId: MOCK_ACCOUNT_ID,
-				email: "test@example.com",
-			});
-			expect(error).toBeNull();
-			expect(data?.success).toBe(true);
-		});
-
 		it("should link existing user on re-verify with same accountId", async () => {
 			const { client } = await setup();
-			const { data: first } = await client.near.verify({
-				authToken: "first-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { data: first } = await client.near.verify(makeVerifyBody());
 			expect(first?.success).toBe(true);
 			const userId = first!.user.id;
 
-			const { data: second } = await client.near.verify({
-				authToken: "second-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { data: second } = await client.near.verify(makeVerifyBody());
 			expect(second?.success).toBe(true);
 			expect(second?.user.id).toBe(userId);
 		});
@@ -317,6 +326,9 @@ describe("siwn plugin", () => {
 
 			const { headers, setCookie } = await signInWithTestUser();
 
+			const nonceBytes = makeUniqueNonce();
+			const nonceHex = hex.encode(nonceBytes);
+
 			const res = await customFetchImpl("http://localhost/api/auth/near/link-account", {
 				method: "POST",
 				headers: {
@@ -324,7 +336,14 @@ describe("siwn plugin", () => {
 					cookie: headers.get("cookie") || "",
 				},
 				body: JSON.stringify({
-					authToken: "link-token",
+					signedMessage: {
+						accountId: MOCK_ACCOUNT_ID,
+						publicKey: MOCK_PUBLIC_KEY,
+						signature: "mock-signature-base64",
+					},
+					message: `Sign in to ${MOCK_RECIPIENT}`,
+					recipient: MOCK_RECIPIENT,
+					nonce: nonceHex,
 					accountId: MOCK_ACCOUNT_ID,
 				}),
 			});
@@ -336,10 +355,7 @@ describe("siwn plugin", () => {
 
 		it("should reject linking without a session", async () => {
 			const { client } = await setup();
-			const { error } = await client.near.verify({
-				authToken: "unauth-link-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			const { error } = await client.near.verify(makeVerifyBody());
 			expect(error).toBeNull();
 		});
 	});
@@ -347,10 +363,7 @@ describe("siwn plugin", () => {
 	describe("list accounts endpoint", () => {
 		it("should list NEAR accounts for authenticated user", async () => {
 			const { client } = await setup();
-			await client.near.verify({
-				authToken: "list-token",
-				accountId: MOCK_ACCOUNT_ID,
-			});
+			await client.near.verify(makeVerifyBody());
 
 			const { data, error } = await client.near.listAccounts();
 			if (error) {
@@ -416,7 +429,7 @@ describe("siwn plugin", () => {
 		it("should return relayer info when relayer is configured", async () => {
 			const { client } = await setup({ relayer: {} });
 			const { data, error } = await client.near.relayTransaction({
-				signedDelegateAction: "mock-delegate-action",
+				payload: "mock-delegate-action-payload",
 			});
 			if (error) {
 				expect(error).toBeDefined();

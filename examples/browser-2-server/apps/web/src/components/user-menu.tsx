@@ -24,7 +24,7 @@ export default function UserMenu() {
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const accountsResponse = await authClient.listAccounts();
+        const accountsResponse = await authClient.near.listAccounts();
         console.log("accountsResponse", accountsResponse);
         const accounts = accountsResponse?.data;
         setLinkedAccounts(Array.isArray(accounts) ? accounts : []);

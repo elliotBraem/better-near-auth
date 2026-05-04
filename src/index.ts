@@ -1,11 +1,11 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User } from "better-auth/types";
-import { generateNonce, parseAuthToken, verify, type VerificationResult, type VerifyOptions } from "near-sign-verify";
-import { ed25519 } from "@noble/curves/ed25519.js";
+import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
+import type { SignedMessage, SignMessageParams, SignedDelegateAction } from "near-kit";
+import { hex } from "@scure/base";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
-import { queryAccessKey, queryBlock, queryTx, sendTxBroadcast, queryAccount } from "./rpc.js";
 import { schema } from "./schema.js";
 import type {
 	AccountId,
@@ -24,29 +24,17 @@ import {
 	RelayRequest,
 	RelayResponse,
 	RelayStatusResponse,
+	ViewContractRequest,
+	ViewContractResponse,
 } from "./types.js";
 export * from "./types.js";
 import {
-	base64ToBytes,
 	bytesToBase64,
 	bytesToHex,
-	deserializeSignedDelegateAction,
+	hexToBytes,
 	encryptPrivateKey,
 	decryptPrivateKey,
-	generateEphemeralKeypair,
-	makeEd25519PublicKey,
-	serializeTransaction,
-	serializeSignedTransaction,
-	signTransaction,
 } from "./utils.js";
-
-function getOrigin(baseURL: string): string {
-	try {
-		return new URL(baseURL).origin;
-	} catch {
-		return baseURL;
-	}
-}
 
 async function hashNonce(nonce: Uint8Array): Promise<string> {
 	const encoder = new TextEncoder();
@@ -56,19 +44,26 @@ async function hashNonce(nonce: Uint8Array): Promise<string> {
 	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function deriveEmail(accountId: string): string | null {
+	if (accountId.endsWith(".near")) {
+		const localPart = accountId.slice(0, -5);
+		return `${localPart}@near.email`;
+	}
+	return null;
+}
+
 export interface RelayerConfig {
 	accountId?: string;
 	privateKey?: string;
+	privateKeys?: string[];
 	whitelistedContracts?: string[];
 	maxGasPerTransaction?: string;
 	maxDepositPerTransaction?: string;
 }
 
 interface RelayerState {
+	near: Near;
 	accountId: string;
-	privateKey: Uint8Array;
-	publicKey: Uint8Array;
-	publicKeyBase64: string;
 	network: "mainnet" | "testnet";
 	mode: "ephemeral" | "explicit";
 	createdAt?: Date;
@@ -80,17 +75,34 @@ async function initRelayer(
 	network: "mainnet" | "testnet",
 	adapter: any,
 	secret: string | undefined,
+	apiKey?: string,
 ): Promise<RelayerState | null> {
 	if (!relayerConfig) return null;
 
-	if (relayerConfig.accountId && relayerConfig.privateKey) {
-		const privateKey = base64ToBytes(relayerConfig.privateKey);
-		const publicKey = ed25519.getPublicKey(privateKey);
+	const headers: Record<string, string> = {};
+	const effectiveApiKey = apiKey || process.env.FASTNEAR_API_KEY;
+	if (effectiveApiKey) {
+		headers["Authorization"] = `Bearer ${effectiveApiKey}`;
+	}
+
+	if (relayerConfig.accountId && (relayerConfig.privateKey || relayerConfig.privateKeys)) {
+		const keys = relayerConfig.privateKeys ?? (relayerConfig.privateKey ? [relayerConfig.privateKey] : []);
+		let keyStore: InMemoryKeyStore | RotatingKeyStore;
+
+		if (keys.length === 1) {
+			keyStore = new InMemoryKeyStore({
+				[relayerConfig.accountId]: keys[0]!,
+			});
+		} else {
+			keyStore = new RotatingKeyStore({
+				[relayerConfig.accountId]: keys as string[],
+			});
+		}
+
+		const near = new Near({ network, keyStore, headers });
 		return {
+			near,
 			accountId: relayerConfig.accountId,
-			privateKey,
-			publicKey,
-			publicKeyBase64: bytesToBase64(publicKey),
 			network,
 			mode: "explicit",
 		};
@@ -103,17 +115,19 @@ async function initRelayer(
 
 	if (existing) {
 		const kek = secret || process.env.BETTER_AUTH_SECRET || "";
-		const privateKey = await decryptPrivateKey(existing.encryptedPrivateKey, existing.iv, kek);
-		const publicKey = ed25519.getPublicKey(privateKey);
-		const accountId = bytesToHex(publicKey);
+		const privateKeyBytes = await decryptPrivateKey(existing.encryptedPrivateKey, existing.iv, kek);
+		const keyPair = parseKey(`ed25519:${bytesToBase64(privateKeyBytes)}`);
+		const accountId = bytesToHex(keyPair.publicKey.data);
 
 		console.log(`[siwn] Relayer recovered: ${accountId} (${network})`);
 
+		const keyStore = new InMemoryKeyStore();
+		await keyStore.add(accountId, keyPair);
+
+		const near = new Near({ network, keyStore, headers });
 		return {
+			near,
 			accountId,
-			privateKey,
-			publicKey,
-			publicKeyBase64: bytesToBase64(publicKey),
 			network,
 			mode: "ephemeral",
 			createdAt: existing.createdAt,
@@ -121,32 +135,41 @@ async function initRelayer(
 		};
 	}
 
-	const keypair = await generateEphemeralKeypair();
+	const keyPair = generateKey();
 	const kek = secret || process.env.BETTER_AUTH_SECRET || "";
-	const { encrypted, iv } = await encryptPrivateKey(keypair.privateKey, kek);
+	const privateKeyBytes = keyPair.secretKey.startsWith("ed25519:")
+		? hexToBytes(keyPair.secretKey.slice(8))
+		: new Uint8Array(0);
+
+	const publicKeyBase64 = keyPair.publicKey.toString().replace("ed25519:", "");
+	const accountId = bytesToHex(keyPair.publicKey.data);
+
+	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, kek);
 
 	await adapter.create({
 		model: "relayerKey",
 		data: {
 			id: `relayer:${network}`,
-			accountId: keypair.accountId,
+			accountId,
 			encryptedPrivateKey: encrypted,
 			iv,
-			publicKey: `ed25519:${keypair.publicKeyBase64}`,
+			publicKey: `ed25519:${publicKeyBase64}`,
 			network,
 			createdAt: new Date(),
 		},
 	});
 
-	console.log(`[siwn] Relayer created in EPHEMERAL mode: ${keypair.accountId} (${network})`);
+	console.log(`[siwn] Relayer created in EPHEMERAL mode: ${accountId} (${network})`);
 	console.log(`[siwn] Fund this account with NEAR to enable gasless relay`);
 	console.log(`[siwn] Private key is encrypted in DB — persists across restarts`);
 
+	const keyStore = new InMemoryKeyStore();
+	await keyStore.add(accountId, keyPair);
+
+	const near = new Near({ network, keyStore, headers });
 	return {
-		accountId: keypair.accountId,
-		privateKey: keypair.privateKey,
-		publicKey: keypair.publicKey,
-		publicKeyBase64: keypair.publicKeyBase64,
+		near,
+		accountId,
 		network,
 		mode: "ephemeral",
 		createdAt: new Date(),
@@ -154,93 +177,67 @@ async function initRelayer(
 }
 
 async function relayOnChain(
-	signedDelegateActionBase64: string,
+	payload: string,
 	relayerState: RelayerState,
-	network: "mainnet" | "testnet",
-	apiKey?: string,
 ): Promise<{ txHash: string }> {
-	const signedDelegate = deserializeSignedDelegateAction(signedDelegateActionBase64);
+	const userAction = decodeSignedDelegateAction(payload);
 
-	const relayerAccessKey = await queryAccessKey(
-		relayerState.accountId,
-		`ed25519:${relayerState.publicKeyBase64}`,
-		network,
-		apiKey,
-	);
+	const result = await relayerState.near
+		.transaction(relayerState.accountId)
+		.signedDelegateAction(userAction)
+		.send();
 
-	const block = await queryBlock(network, apiKey);
-
-	const blockHashBytes = base64ToBytes(block.header.hash);
-
-	const tx = {
-		signerId: relayerState.accountId,
-		publicKey: makeEd25519PublicKey(relayerState.publicKey),
-		nonce: BigInt(relayerAccessKey.nonce) + 1n,
-		receiverId: signedDelegate.delegateAction.senderId,
-		blockHash: blockHashBytes,
-		actions: [{
-			signedDelegate: {
-				delegateAction: signedDelegate.delegateAction,
-				signature: signedDelegate.signature,
-			},
-		}],
-	};
-
-	const txBytes = serializeTransaction(tx);
-	const signature = signTransaction(txBytes, relayerState.privateKey);
-
-	const signedTx = {
-		transaction: tx,
-		signature,
-	};
-
-	const signedTxBytes = serializeSignedTransaction(signedTx);
-	const signedTxBase64 = bytesToBase64(signedTxBytes);
-
-	const txHash = await sendTxBroadcast(signedTxBase64, network, apiKey);
-
-	return { txHash };
+	return { txHash: result.transaction.hash };
 }
 
-interface SIWNPluginBaseOptions {
+async function defaultValidateLimitedAccessKey(
+	accountId: string,
+	publicKey: string,
+	recipient: string,
+	near: Near,
+): Promise<boolean> {
+	const key = await near.getAccessKey(accountId, publicKey);
+	if (!key) return false;
+	if (key.permission === "FullAccess") return true;
+	if ("FunctionCall" in key.permission) {
+		return key.permission.FunctionCall.receiver_id === recipient;
+	}
+	return false;
+}
+
+export interface SIWNPluginOptions {
 	recipient: string;
-	emailDomainName?: string;
 	requireFullAccessKey?: boolean;
 	getNonce?: () => Promise<Uint8Array>;
-	validateNonce?: (nonce: Uint8Array) => boolean;
-	validateRecipient?: (recipient: string) => boolean;
-	validateMessage?: (message: string) => boolean;
 	getProfile?: (accountId: AccountId) => Promise<Profile | null>;
 	validateLimitedAccessKey?: (args: {
 		accountId: AccountId;
 		publicKey: string;
 		recipient?: string;
 	}) => Promise<boolean>;
-	fastnearApiKey?: string;
+	apiKey?: string;
 	relayer?: RelayerConfig;
 }
 
-export type SIWNPluginOptions =
-	| SIWNPluginBaseOptions & { anonymous?: true }
-	| SIWNPluginBaseOptions & {
-			anonymous: false;
-			validateLimitedAccessKey?: (args: {
-				accountId: AccountId;
-				publicKey: string;
-				recipient: string;
-			}) => Promise<boolean>;
-		};
-
 export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
-	const apiKey = options.fastnearApiKey || process.env.FASTNEAR_API_KEY;
+	const apiKey = options.apiKey || process.env.FASTNEAR_API_KEY;
 	let relayerState: RelayerState | null = null;
 	let relayerInitialized = false;
+
+	const headers: Record<string, string> = {};
+	if (apiKey) {
+		headers["Authorization"] = `Bearer ${apiKey}`;
+	}
 
 	const ensureRelayer = async (adapter: any, secret: string | undefined, network: "mainnet" | "testnet") => {
 		if (relayerInitialized) return relayerState;
 		relayerInitialized = true;
-		relayerState = await initRelayer(options.relayer, network, adapter, secret);
+		relayerState = await initRelayer(options.relayer, network, adapter, secret, apiKey);
 		return relayerState;
+	};
+
+	const getNear = (network: "mainnet" | "testnet") => {
+		return new Near({ network, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined });
 	};
 
 	return ({
@@ -287,7 +284,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					requireRequest: true,
 				},
 				async (ctx) => {
-					const { authToken, accountId } = ctx.body;
+					const { signedMessage, message, recipient, nonce, accountId } = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
 					const session = ctx.context.session;
 
@@ -298,44 +295,48 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						});
 					}
 
-			try {
-					const requireFullAccessKey = options.requireFullAccessKey ?? false;
-					const verifyOptions: VerifyOptions = {
-						requireFullAccessKey: requireFullAccessKey,
-						...(options.validateNonce
-							? { validateNonce: options.validateNonce }
-							: { nonceMaxAge: 15 * 60 * 1000 }),
-						...(options.validateRecipient
-							? { validateRecipient: options.validateRecipient }
-							: { expectedRecipient: options.recipient }),
-						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
-					} as VerifyOptions;
+					try {
+						const near = getNear(network);
+						const nonceBytes = hex.decode(nonce);
 
-					const result: VerificationResult = await verify(authToken, verifyOptions);
+						const isValid = await verifyNep413Signature(
+							signedMessage as SignedMessage,
+							{ message, recipient, nonce: nonceBytes } as SignMessageParams,
+							{ near, maxAge: 15 * 60 * 1000 },
+						);
 
-					if (result.accountId !== accountId) {
-						throw new APIError("UNAUTHORIZED", {
-							message: "Unauthorized: Account ID mismatch",
-							status: 401,
-						});
-					}
-
-					if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
-						const isValidKey = await options.validateLimitedAccessKey({
-							accountId: result.accountId,
-							publicKey: result.publicKey,
-							recipient: options.recipient
-						});
-
-						if (!isValidKey) {
+						if (!isValid) {
 							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Invalid function call access key",
+								message: "Unauthorized: Invalid signature",
 								status: 401,
 							});
 						}
-					}
 
-					const existingNearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+						if (signedMessage.accountId !== accountId) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Account ID mismatch",
+								status: 401,
+							});
+						}
+
+						const publicKey = signedMessage.publicKey;
+
+						if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
+							const isValidKey = await options.validateLimitedAccessKey({
+								accountId: accountId,
+								publicKey: publicKey,
+								recipient: options.recipient
+							});
+
+							if (!isValidKey) {
+								throw new APIError("UNAUTHORIZED", {
+									message: "Unauthorized: Invalid function call access key",
+									status: 401,
+								});
+							}
+						}
+
+						const existingNearAccount: NearAccount | null = await ctx.context.adapter.findOne({
 							model: "nearAccount",
 							where: [
 								{ field: "accountId", operator: "eq", value: accountId },
@@ -364,7 +365,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 								userId: session.user.id,
 								accountId,
 								network,
-								publicKey: result.publicKey,
+								publicKey: publicKey,
 								isPrimary: !existingPrimaryAccount,
 								createdAt: new Date(),
 							},
@@ -529,6 +530,15 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					});
 				}
 
+				const near = getNear(network);
+				const exists = await near.accountExists(accountId);
+				if (!exists) {
+					throw new APIError("BAD_REQUEST", {
+						message: "Account does not exist on-chain",
+						status: 400,
+					});
+				}
+
 				const nonce = options.getNonce ? await options.getNonce() : generateNonce();
 
 				const nonceString = bytesToBase64(nonce);
@@ -588,169 +598,140 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 				"/near/verify",
 				{
 					method: "POST",
-					body: VerifyRequest.refine((data) => options.anonymous !== false || !!data.email, {
-						message: "Email is required when the anonymous plugin option is disabled.",
-						path: ["email"],
-					}),
+					body: VerifyRequest,
 					requireRequest: true,
 				},
 				async (ctx) => {
 					const {
-						authToken,
+						signedMessage,
+						message,
+						recipient,
+						nonce,
 						accountId,
-						email,
 					} = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
-					const isAnon = options.anonymous ?? true;
 
-					if (!isAnon && !email) {
-						throw new APIError("BAD_REQUEST", {
-							message: "Email is required when anonymous is disabled.",
-							status: 400,
-						});
-					}
+					try {
+						const near = getNear(network);
+						const nonceBytes = hex.decode(nonce);
 
-				try {
-					const requireFullAccessKey = options.requireFullAccessKey ?? false;
-					const verifyOptions: VerifyOptions = {
-						requireFullAccessKey: requireFullAccessKey,
-						...(options.validateNonce
-							? { validateNonce: options.validateNonce }
-							: { nonceMaxAge: 15 * 60 * 1000 }),
-						...(options.validateRecipient
-							? { validateRecipient: options.validateRecipient }
-							: { expectedRecipient: options.recipient }),
-						...(options.validateMessage ? { validateMessage: options.validateMessage } : {}),
-					} as VerifyOptions;
+						const isValid = await verifyNep413Signature(
+							signedMessage as SignedMessage,
+							{ message, recipient, nonce: nonceBytes } as SignMessageParams,
+							{ near, maxAge: 15 * 60 * 1000 },
+						);
 
-					const result: VerificationResult = await verify(authToken, verifyOptions);
-
-					if (result.accountId !== accountId) {
-						throw new APIError("UNAUTHORIZED", {
-							message: "Unauthorized: Account ID mismatch",
-							status: 401,
-						});
-					}
-
-					const publicKey = result.publicKey;
-					const parsedToken = parseAuthToken(authToken);
-					const nonceBytes = new Uint8Array(parsedToken.nonce);
-
-					const nonceHash = await hashNonce(nonceBytes);
-
-					const existingNonce = await ctx.context.internalAdapter.findVerificationValue(
-						`siwn-nonce:${nonceHash}`
-					);
-
-					if (existingNonce) {
-						throw new APIError("UNAUTHORIZED", {
-							message: "Unauthorized: Nonce already used (replay attack detected)",
-							status: 401,
-							code: "UNAUTHORIZED_NONCE_REPLAY",
-						});
-					}
-
-					await ctx.context.internalAdapter.createVerificationValue({
-						identifier: `siwn-nonce:${nonceHash}`,
-						value: "used",
-						expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-					});
-
-					if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
-						const isValidKey = await options.validateLimitedAccessKey({
-							accountId: accountId,
-							publicKey: publicKey,
-							recipient: options.recipient
-						});
-
-						if (!isValidKey) {
+						if (!isValid) {
 							throw new APIError("UNAUTHORIZED", {
-								message: "Unauthorized: Invalid function call access key",
+								message: "Unauthorized: Invalid signature",
 								status: 401,
 							});
 						}
-					}
 
-					let user: User | null = null;
+						if (signedMessage.accountId !== accountId) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Account ID mismatch",
+								status: 401,
+							});
+						}
 
-					const existingNearAccount: NearAccount | null =
-						await ctx.context.adapter.findOne({
-							model: "nearAccount",
-							where: [
-								{ field: "accountId", operator: "eq", value: accountId },
-								{ field: "network", operator: "eq", value: network },
-							],
+						const publicKey = signedMessage.publicKey;
+
+						const nonceHash = await hashNonce(nonceBytes);
+
+						const existingNonce = await ctx.context.internalAdapter.findVerificationValue(
+							`siwn-nonce:${nonceHash}`
+						);
+
+						if (existingNonce) {
+							throw new APIError("UNAUTHORIZED", {
+								message: "Unauthorized: Nonce already used (replay attack detected)",
+								status: 401,
+								code: "UNAUTHORIZED_NONCE_REPLAY",
+							});
+						}
+
+						await ctx.context.internalAdapter.createVerificationValue({
+							identifier: `siwn-nonce:${nonceHash}`,
+							value: "used",
+							expiresAt: new Date(Date.now() + 15 * 60 * 1000),
 						});
 
-					if (existingNearAccount) {
-						user = await ctx.context.adapter.findOne({
-							model: "user",
-							where: [
-								{
-									field: "id",
-									operator: "eq",
-									value: existingNearAccount.userId,
-								},
-							],
-						});
-					} else {
-						const anyNearAccount: NearAccount | null =
+						if (!options.requireFullAccessKey) {
+							const validateKey = options.validateLimitedAccessKey
+								|| ((args: { accountId: string; publicKey: string; recipient?: string }) =>
+									defaultValidateLimitedAccessKey(args.accountId, args.publicKey, args.recipient || options.recipient, near));
+
+							const isValidKey = await validateKey({
+								accountId: accountId,
+								publicKey: publicKey,
+								recipient: options.recipient
+							});
+
+							if (!isValidKey) {
+								throw new APIError("UNAUTHORIZED", {
+									message: "Unauthorized: Invalid function call access key",
+									status: 401,
+								});
+							}
+						}
+
+						let user: User | null = null;
+
+						const existingNearAccount: NearAccount | null =
 							await ctx.context.adapter.findOne({
 								model: "nearAccount",
 								where: [
 									{ field: "accountId", operator: "eq", value: accountId },
+									{ field: "network", operator: "eq", value: network },
 								],
 							});
 
-						if (anyNearAccount) {
+						if (existingNearAccount) {
 							user = await ctx.context.adapter.findOne({
 								model: "user",
 								where: [
 									{
 										field: "id",
 										operator: "eq",
-										value: anyNearAccount.userId,
+										value: existingNearAccount.userId,
 									},
 								],
 							});
+						} else {
+							const anyNearAccount: NearAccount | null =
+								await ctx.context.adapter.findOne({
+									model: "nearAccount",
+									where: [
+										{ field: "accountId", operator: "eq", value: accountId },
+									],
+								});
+
+							if (anyNearAccount) {
+								user = await ctx.context.adapter.findOne({
+									model: "user",
+									where: [
+										{
+											field: "id",
+											operator: "eq",
+											value: anyNearAccount.userId,
+										},
+									],
+								});
+							}
 						}
-					}
 
-					if (!user) {
-						const domain =
-							options.emailDomainName ?? getOrigin(ctx.context.baseURL);
-						const userEmail =
-							!isAnon && email ? email : `${accountId}@${domain}`;
+						if (!user) {
+							const userEmail = deriveEmail(accountId) ?? "";
 
-						const profile = await (options.getProfile || ((id: AccountId) => defaultGetProfile(id, apiKey)))(accountId);
+							const profile = await (options.getProfile || ((id: AccountId) => defaultGetProfile(id, apiKey)))(accountId);
 
-						user = await ctx.context.internalAdapter.createUser({
-							name: profile?.name ?? accountId,
-							email: userEmail,
-							image: profile?.image ? getImageUrl(profile.image) : "",
-						});
+							user = await ctx.context.internalAdapter.createUser({
+								name: profile?.name ?? accountId,
+								email: userEmail,
+								image: profile?.image ? getImageUrl(profile.image) : "",
+							});
 
-						await ctx.context.adapter.create({
-							model: "nearAccount",
-							data: {
-								userId: user.id,
-								accountId,
-								network,
-								publicKey: publicKey,
-								isPrimary: true,
-								createdAt: new Date(),
-							},
-						});
-
-						await ctx.context.internalAdapter.createAccount({
-							userId: user.id,
-							providerId: "siwn",
-							accountId: `${accountId}:${network}`,
-							createdAt: new Date(),
-							updatedAt: new Date(),
-						});
-					} else {
-						if (!existingNearAccount) {
 							await ctx.context.adapter.create({
 								model: "nearAccount",
 								data: {
@@ -758,7 +739,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 									accountId,
 									network,
 									publicKey: publicKey,
-									isPrimary: false,
+									isPrimary: true,
 									createdAt: new Date(),
 								},
 							});
@@ -770,33 +751,54 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 								createdAt: new Date(),
 								updatedAt: new Date(),
 							});
+						} else {
+							if (!existingNearAccount) {
+								await ctx.context.adapter.create({
+									model: "nearAccount",
+									data: {
+										userId: user.id,
+										accountId,
+										network,
+										publicKey: publicKey,
+										isPrimary: false,
+										createdAt: new Date(),
+									},
+								});
+
+								await ctx.context.internalAdapter.createAccount({
+									userId: user.id,
+									providerId: "siwn",
+									accountId: `${accountId}:${network}`,
+									createdAt: new Date(),
+									updatedAt: new Date(),
+								});
+							}
 						}
-					}
 
-					await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+						await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
 
-					const session = await ctx.context.internalAdapter.createSession(
-						user.id
-					);
+						const session = await ctx.context.internalAdapter.createSession(
+							user.id
+						);
 
-					if (!session) {
-						throw new APIError("INTERNAL_SERVER_ERROR", {
-							message: "Internal Server Error",
-							status: 500,
-						});
-					}
+						if (!session) {
+							throw new APIError("INTERNAL_SERVER_ERROR", {
+								message: "Internal Server Error",
+								status: 500,
+							});
+						}
 
-					await setSessionCookie(ctx, { session, user });
+						await setSessionCookie(ctx, { session, user });
 
-					return ctx.json(VerifyResponse.parse({
-						token: session.token,
-						success: true,
-						user: {
-							id: user.id,
-							accountId,
-							network,
-						},
-					}));
+						return ctx.json(VerifyResponse.parse({
+							token: session.token,
+							success: true,
+							user: {
+								id: user.id,
+								accountId,
+								network,
+							},
+						}));
 					} catch (error: unknown) {
 						if (error instanceof APIError) throw error;
 						const msg = error instanceof Error ? error.message : "Unknown error";
@@ -818,7 +820,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					use: [sessionMiddleware],
 				},
 				async (ctx) => {
-					const { signedDelegateAction } = ctx.body;
+					const { payload } = ctx.body;
 					const session = ctx.context.session;
 
 					if (!session) {
@@ -854,9 +856,10 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					}
 
 					try {
-						const decoded = deserializeSignedDelegateAction(signedDelegateAction);
+						const decoded: SignedDelegateAction = decodeSignedDelegateAction(payload);
+						const delegateAction = decoded.signedDelegate.delegateAction;
 
-						if (decoded.delegateAction.senderId !== nearAccount.accountId) {
+						if (delegateAction.senderId !== nearAccount.accountId) {
 							throw new APIError("UNAUTHORIZED", {
 								message: "Delegate action sender does not match session account",
 								status: 401,
@@ -865,16 +868,16 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 
 						const relayerConfig = options.relayer;
 						if (relayerConfig?.whitelistedContracts?.length) {
-							if (!relayerConfig.whitelistedContracts.includes(decoded.delegateAction.receiverId)) {
+							if (!relayerConfig.whitelistedContracts.includes(delegateAction.receiverId)) {
 								throw new APIError("FORBIDDEN", {
-									message: `Contract ${decoded.delegateAction.receiverId} is not whitelisted for relay`,
+									message: `Contract ${delegateAction.receiverId} is not whitelisted for relay`,
 									status: 403,
 								});
 							}
 						}
 
 						if (relayerConfig?.maxGasPerTransaction) {
-							const totalGas = decoded.delegateAction.actions.reduce((sum: bigint, a: any) => {
+							const totalGas = delegateAction.actions.reduce((sum: bigint, a: any) => {
 								return sum + (a.functionCall?.gas ? BigInt(a.functionCall.gas) : 0n);
 							}, 0n);
 							if (totalGas > BigInt(relayerConfig.maxGasPerTransaction)) {
@@ -886,7 +889,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						}
 
 						if (relayerConfig?.maxDepositPerTransaction) {
-							const totalDeposit = decoded.delegateAction.actions.reduce((sum: bigint, a: any) => {
+							const totalDeposit = delegateAction.actions.reduce((sum: bigint, a: any) => {
 								const deposit = a.functionCall?.deposit ?? a.transfer?.deposit ?? 0n;
 								return sum + (typeof deposit === "bigint" ? deposit : BigInt(deposit));
 							}, 0n);
@@ -898,20 +901,15 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 							}
 						}
 
-						const result = await relayOnChain(
-							signedDelegateAction,
-							rState,
-							network,
-							apiKey,
-						);
+						const result = await relayOnChain(payload, rState);
 
 						await ctx.context.adapter.create({
 							model: "relayedTransaction",
 							data: {
 								userId: session.user.id,
 								txHash: result.txHash,
-								senderId: decoded.delegateAction.senderId,
-								receiverId: decoded.delegateAction.receiverId,
+								senderId: delegateAction.senderId,
+								receiverId: delegateAction.receiverId,
 								network,
 								status: "pending",
 								createdAt: new Date(),
@@ -956,7 +954,20 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 
 					const session = ctx.context.session;
 
-					const relayedTx = await ctx.context.adapter.findOne({
+					interface RelayedTransactionRecord {
+						id: string;
+						userId: string;
+						txHash: string;
+						senderId: string;
+						receiverId: string;
+						network: "mainnet" | "testnet";
+						status: string;
+						gasUsed?: string;
+						createdAt: Date;
+						updatedAt: Date;
+					}
+
+					const relayedTx = await ctx.context.adapter.findOne<RelayedTransactionRecord>({
 						model: "relayedTransaction",
 						where: [
 							{ field: "txHash", operator: "eq", value: txHash },
@@ -971,29 +982,32 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						});
 					}
 
-					const network = (relayedTx as any).network as "mainnet" | "testnet";
+					const network = relayedTx.network;
+					const senderId = relayedTx.senderId;
 
 					try {
-						const txResult = await queryTx(txHash, (relayedTx as any).senderId as string, network, apiKey);
+						const near = getNear(network);
+						const txResult = await near.getTransactionStatus(txHash, senderId);
 
-						if (txResult?.status) {
-							const status = txResult.status.HasSuccessReceiptId || txResult.status.SuccessValue
-								? "completed"
-								: txResult.status.Failure
-									? "failed"
-									: "pending";
+						const txStatus = txResult.status;
+						if (txStatus && typeof txStatus === "object") {
+							const hasSuccess = "SuccessValue" in txStatus || "SuccessReceiptId" in txStatus;
+							const hasFailure = "Failure" in txStatus;
+							const status = hasSuccess ? "completed" : hasFailure ? "failed" : "pending";
 
 							if (status !== "pending") {
 								await ctx.context.adapter.update({
 									model: "relayedTransaction",
 									where: [{ field: "txHash", operator: "eq", value: txHash }],
-									update: { status, gasUsed: txResult.transaction?.outcome?.gas_burnt?.toString() },
+									update: { status },
 								});
 							}
 
+							const gasUsed = txResult.transaction_outcome?.outcome?.gas_burnt?.toString();
+
 							return ctx.json(RelayStatusResponse.parse({
 								status,
-								gasUsed: txResult.transaction?.outcome?.gas_burnt?.toString(),
+								gasUsed,
 								outcome: txResult,
 							}));
 						}
@@ -1027,19 +1041,48 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						return ctx.json({ enabled: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
 					}
 
-					const account = await queryAccount(rState.accountId, network, apiKey);
-					const balance = account.amount;
+					const near = getNear(network);
+					const account = await near.getAccount(rState.accountId);
 
 					return ctx.json({
 						enabled: true,
 						accountId: rState.accountId,
 						mode: rState.mode,
 						network: rState.network,
-						balance,
+						balance: account.balance,
+						available: account.available,
+						staked: account.staked,
+						storageUsage: account.storageUsage,
+						storageBytes: account.storageBytes,
+						hasContract: account.hasContract,
 						hasKey: true,
 						createdAt: rState.createdAt,
 						lastUsedAt: rState.lastUsedAt,
 					} as RelayerInfo & { enabled: boolean });
+				},
+			),
+			viewContract: createAuthEndpoint(
+				"/near/view",
+				{
+					method: "POST",
+					body: ViewContractRequest,
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const { contractId, methodName, args } = ctx.body;
+					const session = ctx.context.session;
+					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+						model: "nearAccount",
+						where: [
+							{ field: "userId", operator: "eq", value: session.user.id },
+							{ field: "isPrimary", operator: "eq", value: true },
+						],
+					});
+
+					const network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
+					const near = getNear(network);
+					const result = await near.view(contractId, methodName, args ?? {});
+					return ctx.json(ViewContractResponse.parse({ result }));
 				},
 			),
 		},

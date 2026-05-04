@@ -44,13 +44,13 @@ export function NearProfile({
 
   const displayName = profile?.name;
   const avatarUrl =
-    profile?.image?.url || profile?.image?.ipfs_cid
+    profile?.image?.url ?? (profile?.image?.ipfs_cid
       ? `https://ipfs.near.social/ipfs/${profile.image.ipfs_cid}`
-      : null;
+      : null);
   const backgroundUrl =
-    profile?.backgroundImage?.url || profile?.backgroundImage?.ipfs_cid
+    profile?.backgroundImage?.url ?? (profile?.backgroundImage?.ipfs_cid
       ? `https://ipfs.near.social/ipfs/${profile.backgroundImage.ipfs_cid}`
-      : null;
+      : null);
 
   if (isLoading) {
     if (variant === "card") {
