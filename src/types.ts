@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AccountIdSchema } from "near-kit/schemas";
-import type { AccountId, GasInput, AmountInput, AccountState } from "near-kit";
+import type { AccountId, AccountState } from "near-kit";
 
 export type { AccountId };
 
@@ -57,21 +57,6 @@ export const VerifyRequest = z.object({
 	nonce: z.string(),
 	accountId: AccountIdSchema,
 });
-
-export interface NearFunctionCallAction {
-	type: "FunctionCall";
-	methodName: string;
-	args: Record<string, unknown>;
-	gas: GasInput;
-	deposit: AmountInput;
-}
-
-export interface NearTransferAction {
-	type: "Transfer";
-	deposit: AmountInput;
-}
-
-export type NearActionInput = NearFunctionCallAction | NearTransferAction;
 
 export const RelayRequest = z.object({
 	payload: z.string(),

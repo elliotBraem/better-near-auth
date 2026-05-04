@@ -1,4 +1,4 @@
-import { Near, fromNearConnect, generateNonce } from "near-kit";
+import { Near, fromNearConnect, generateNonce, TransactionBuilder } from "near-kit";
 import type { Near as NearType, SignedMessage } from "near-kit";
 import { NearConnector } from "@hot-labs/near-connect";
 import type { EventMap } from "@hot-labs/near-connect";
@@ -6,7 +6,7 @@ import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import type { siwn } from "./index.js";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type NearActionInput, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT } from "./types.js";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -37,7 +37,7 @@ export interface SIWNClientActions {
 		link: (callbacks?: AuthCallbacks) => Promise<void>;
 		unlink: (params: { accountId: string; network?: "mainnet" | "testnet" }) => Promise<BetterFetchResponse<{ success: boolean; message: string }>>;
 		listAccounts: () => Promise<BetterFetchResponse<{ accounts: NearAccount[] }>>;
-		buildSignedDelegateAction: (params: { receiverId: string; actions: NearActionInput[] }) => Promise<string>;
+		buildSignedDelegateAction: (receiverId: string, buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder) => Promise<string>;
 		relayTransaction: (params: { payload: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
 		getRelayStatus: (txHash: string) => Promise<BetterFetchResponse<RelayStatusResponseT>>;
 		client: NearType;
@@ -154,25 +154,14 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 	const buildSignedDelegateActionInternal = async (
 		receiverId: string,
-		actions: NearActionInput[],
+		buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder,
 	): Promise<string> => {
 		const state = nearState.get();
 		if (!state?.accountId) {
 			throw new Error("No wallet connected — cannot sign delegate action");
 		}
 
-		let builder = near.transaction(state.accountId);
-
-		for (const a of actions) {
-			if (a.type === "FunctionCall") {
-				builder = builder.functionCall(receiverId, a.methodName, a.args, {
-					gas: a.gas,
-					attachedDeposit: a.deposit,
-				});
-			} else {
-				builder = builder.transfer(receiverId, a.deposit);
-			}
-		}
+		const builder = buildActions(near.transaction(state.accountId), receiverId);
 
 		const { payload } = await builder.delegate();
 		return payload;
@@ -273,11 +262,11 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					listAccounts: async (): Promise<BetterFetchResponse<{ accounts: NearAccount[] }>> => {
 						return await $fetch("/near/list-accounts", { method: "GET" });
 					},
-					buildSignedDelegateAction: async (params: {
-						receiverId: string;
-						actions: NearActionInput[];
-					}): Promise<string> => {
-						return buildSignedDelegateActionInternal(params.receiverId, params.actions);
+					buildSignedDelegateAction: async (
+						receiverId: string,
+						buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder,
+					): Promise<string> => {
+						return buildSignedDelegateActionInternal(receiverId, buildActions);
 					},
 					relayTransaction: async (params: {
 						payload: string;
