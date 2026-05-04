@@ -33,16 +33,13 @@ export function Guestbook() {
       const accountId = authClient.near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
 
-      const signedDelegateAction = await authClient.near.buildSignedDelegateAction({
-        receiverId: GUESTBOOK_CONTRACT,
-        actions: [{
-          type: "FunctionCall",
-          methodName: "set_greeting",
-          args: { greeting: text },
+      const signedDelegateAction = await authClient.near.buildSignedDelegateAction(
+        GUESTBOOK_CONTRACT,
+        (builder) => builder.functionCall(GUESTBOOK_CONTRACT, "set_greeting", { greeting: text }, {
           gas: Gas.Tgas(30),
-          deposit: BigInt(0),
-        }],
-      });
+          attachedDeposit: BigInt(0),
+        }),
+      );
 
       const relayResult = await authClient.near.relayTransaction({
         payload: signedDelegateAction,

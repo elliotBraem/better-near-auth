@@ -6,7 +6,7 @@ import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import type { siwn } from "./index.js";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT } from "./types.js";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -40,6 +40,7 @@ export interface SIWNClientActions {
 		buildSignedDelegateAction: (receiverId: string, buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder) => Promise<string>;
 		relayTransaction: (params: { payload: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
 		getRelayStatus: (txHash: string) => Promise<BetterFetchResponse<RelayStatusResponseT>>;
+		getRelayerInfo: () => Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>>;
 		client: NearType;
 	};
 	signIn: {
@@ -89,12 +90,27 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		nearState.set(null);
 	});
 
+	connector.getConnectedWallet().then(({ accounts }) => {
+		const account = accounts?.[0];
+		if (account?.accountId && !nearState.get()) {
+			nearState.set({
+				accountId: account.accountId,
+				publicKey: account.publicKey ?? null,
+				networkId: network,
+			});
+		}
+	}).catch(() => {});
+
 	const signWithWallet = async (): Promise<SignWithWalletResult> => {
 		const nonceBytes = generateNonce();
 		const nonceHex = hex.encode(nonceBytes);
 		const message = `Sign in to ${config.recipient}`;
 
-		const connectedWallet = await connector.getConnectedWallet();
+		let connectedWallet: Awaited<ReturnType<typeof connector.getConnectedWallet>> | null = null;
+		try {
+			connectedWallet = await connector.getConnectedWallet();
+		} catch {}
+
 		if (connectedWallet?.accounts?.length) {
 			const signedMessage = await near.signMessage({
 				message,
@@ -278,6 +294,11 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					},
 					getRelayStatus: async (txHash: string): Promise<BetterFetchResponse<RelayStatusResponseT>> => {
 						return await $fetch(`/near/relay-status/${txHash}`, {
+							method: "GET",
+						});
+					},
+					getRelayerInfo: async (): Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>> => {
+						return await $fetch("/near/relayer-info", {
 							method: "GET",
 						});
 					},

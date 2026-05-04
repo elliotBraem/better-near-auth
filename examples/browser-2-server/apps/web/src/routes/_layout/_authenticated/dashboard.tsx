@@ -1,5 +1,6 @@
 import UserProfile from "@/components/user-profile";
 import AccountLinking from "@/components/account-linking";
+import RelayerInfo from "@/components/relayer-info";
 import { Guestbook } from "@/components/guestbook";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -42,6 +43,7 @@ function RouteComponent() {
         <div className="lg:col-span-1 order-1 lg:order-1 space-y-4 sm:space-y-6">
           <UserProfile />
           <AccountLinking />
+          <RelayerInfo />
         </div>
 
         {/* Main Content Area - Full width on mobile, 2 columns on desktop */}

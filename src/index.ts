@@ -3,7 +3,7 @@ import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User, DBAdapter } from "better-auth/types";
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
 import type { SignedMessage, SignMessageParams, SignedDelegateAction } from "near-kit";
-import { hex } from "@scure/base";
+import { hex, base58 } from "@scure/base";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
 import { schema } from "./schema.js";
@@ -30,9 +30,7 @@ import {
 } from "./types.js";
 export * from "./types.js";
 import {
-	bytesToBase64,
 	bytesToHex,
-	hexToBytes,
 	encryptPrivateKey,
 	decryptPrivateKey,
 } from "./utils.js";
@@ -116,7 +114,7 @@ async function initRelayer(
 	if (existing) {
 		const kek = secret || process.env.BETTER_AUTH_SECRET || "";
 		const privateKeyBytes = await decryptPrivateKey(existing.encryptedPrivateKey, existing.iv, kek);
-		const keyPair = parseKey(`ed25519:${bytesToBase64(privateKeyBytes)}`);
+		const keyPair = parseKey(`ed25519:${base58.encode(privateKeyBytes)}`);
 		const accountId = bytesToHex(keyPair.publicKey.data);
 
 		console.log(`[siwn] Relayer recovered: ${accountId} (${network})`);
@@ -138,10 +136,10 @@ async function initRelayer(
 	const keyPair = generateKey();
 	const kek = secret || process.env.BETTER_AUTH_SECRET || "";
 	const privateKeyBytes = keyPair.secretKey.startsWith("ed25519:")
-		? hexToBytes(keyPair.secretKey.slice(8))
+		? base58.decode(keyPair.secretKey.slice(8))
 		: new Uint8Array(0);
 
-	const publicKeyBase64 = keyPair.publicKey.toString().replace("ed25519:", "");
+	const publicKeyBase58 = keyPair.publicKey.toString().replace("ed25519:", "");
 	const accountId = bytesToHex(keyPair.publicKey.data);
 
 	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, kek);
@@ -153,7 +151,7 @@ async function initRelayer(
 			accountId,
 			encryptedPrivateKey: encrypted,
 			iv,
-			publicKey: `ed25519:${publicKeyBase64}`,
+			publicKey: `ed25519:${publicKeyBase58}`,
 			network,
 			createdAt: new Date(),
 		},
@@ -541,7 +539,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 
 				const nonce = options.getNonce ? await options.getNonce() : generateNonce();
 
-				const nonceString = bytesToBase64(nonce);
+				const nonceString = hex.encode(nonce);
 
 				await ctx.context.internalAdapter.createVerificationValue({
 					identifier: `siwn:${accountId}:${network}`,
@@ -1030,7 +1028,20 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					}
 
 					const near = getNear(network);
-					const account = await near.getAccount(rState.accountId);
+					let account;
+					try {
+						account = await near.getAccount(rState.accountId);
+					} catch {
+						account = {
+							balance: "0",
+							available: "0",
+							staked: "0",
+							storageUsage: "0",
+							storageBytes: 0,
+							hasContract: false,
+							codeHash: "",
+						};
+					}
 
 					return ctx.json({
 						enabled: true,
