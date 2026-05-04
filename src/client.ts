@@ -1,7 +1,7 @@
 import { Near, fromNearConnect, generateNonce } from "near-kit";
-import type { Near as NearType } from "near-kit";
+import type { Near as NearType, SignedMessage } from "near-kit";
 import { NearConnector } from "@hot-labs/near-connect";
-import type { EventMap, AccountWithSignedMessage } from "@hot-labs/near-connect";
+import type { EventMap } from "@hot-labs/near-connect";
 import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
@@ -19,7 +19,7 @@ export interface SIWNClientConfig {
 }
 
 interface SignWithWalletResult {
-	signedMessage: { accountId: string; publicKey: string; signature: string };
+	signedMessage: SignedMessage;
 	accountId: string;
 	publicKey: string;
 	nonceHex: string;
@@ -114,7 +114,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 			};
 		}
 
-		const result: { value: { signedMessage: AccountWithSignedMessage["signedMessage"]; accountId: string; publicKey: string } | null } = { value: null };
+		const result: { value: { signedMessage: SignedMessage; accountId: string; publicKey: string } | null } = { value: null };
 		const handler = (data: EventMap["wallet:signInAndSignMessage"]) => {
 			const account = data.accounts?.[0];
 			if (account?.signedMessage) {

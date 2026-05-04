@@ -1,6 +1,6 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import type { Account, BetterAuthPlugin, User } from "better-auth/types";
+import type { Account, BetterAuthPlugin, User, DBAdapter } from "better-auth/types";
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
 import type { SignedMessage, SignMessageParams, SignedDelegateAction } from "near-kit";
 import { hex } from "@scure/base";
@@ -12,6 +12,7 @@ import type {
 	NearAccount,
 	Profile,
 	RelayerInfo,
+	RelayedTransactionRecord,
 } from "./types.js";
 import {
 	LinkAccountRequest,
@@ -73,16 +74,15 @@ interface RelayerState {
 async function initRelayer(
 	relayerConfig: RelayerConfig | undefined,
 	network: "mainnet" | "testnet",
-	adapter: any,
+	adapter: DBAdapter,
 	secret: string | undefined,
 	apiKey?: string,
 ): Promise<RelayerState | null> {
 	if (!relayerConfig) return null;
 
 	const headers: Record<string, string> = {};
-	const effectiveApiKey = apiKey || process.env.FASTNEAR_API_KEY;
-	if (effectiveApiKey) {
-		headers["Authorization"] = `Bearer ${effectiveApiKey}`;
+	if (apiKey) {
+		headers["Authorization"] = `Bearer ${apiKey}`;
 	}
 
 	if (relayerConfig.accountId && (relayerConfig.privateKey || relayerConfig.privateKeys)) {
@@ -108,7 +108,7 @@ async function initRelayer(
 		};
 	}
 
-	const existing = await adapter.findOne({
+	const existing = await adapter.findOne<{ encryptedPrivateKey: string; iv: string; createdAt: Date; lastUsedAt: Date }>({
 		model: "relayerKey",
 		where: [{ field: "network", operator: "eq", value: network }],
 	});
@@ -220,7 +220,7 @@ export interface SIWNPluginOptions {
 }
 
 export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
-	const apiKey = options.apiKey || process.env.FASTNEAR_API_KEY;
+	const apiKey = options.apiKey;
 	let relayerState: RelayerState | null = null;
 	let relayerInitialized = false;
 
@@ -229,7 +229,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 		headers["Authorization"] = `Bearer ${apiKey}`;
 	}
 
-	const ensureRelayer = async (adapter: any, secret: string | undefined, network: "mainnet" | "testnet") => {
+	const ensureRelayer = async (adapter: DBAdapter, secret: string | undefined, network: "mainnet" | "testnet") => {
 		if (relayerInitialized) return relayerState;
 		relayerInitialized = true;
 		relayerState = await initRelayer(options.relayer, network, adapter, secret, apiKey);
@@ -246,8 +246,8 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 		hooks: {
 			after: [
 				{
-					matcher: (context: any) => context.path === "/auth/session" && context.method === "GET",
-					handler: createAuthMiddleware(async (ctx: any) => {
+					matcher: (context: { path?: string; method?: string }) => context.path === "/auth/session" && context.method === "GET",
+					handler: createAuthMiddleware(async (ctx) => {
 						const session = ctx.context.session;
 						if (session) {
 							const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
@@ -877,8 +877,8 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						}
 
 						if (relayerConfig?.maxGasPerTransaction) {
-							const totalGas = delegateAction.actions.reduce((sum: bigint, a: any) => {
-								return sum + (a.functionCall?.gas ? BigInt(a.functionCall.gas) : 0n);
+							const totalGas = delegateAction.actions.reduce((sum: bigint, a) => {
+								return sum + ("functionCall" in a ? a.functionCall.gas : 0n);
 							}, 0n);
 							if (totalGas > BigInt(relayerConfig.maxGasPerTransaction)) {
 								throw new APIError("BAD_REQUEST", {
@@ -889,9 +889,10 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						}
 
 						if (relayerConfig?.maxDepositPerTransaction) {
-							const totalDeposit = delegateAction.actions.reduce((sum: bigint, a: any) => {
-								const deposit = a.functionCall?.deposit ?? a.transfer?.deposit ?? 0n;
-								return sum + (typeof deposit === "bigint" ? deposit : BigInt(deposit));
+							const totalDeposit = delegateAction.actions.reduce((sum: bigint, a) => {
+								if ("functionCall" in a) return sum + a.functionCall.deposit;
+								if ("transfer" in a) return sum + a.transfer.deposit;
+								return sum;
 							}, 0n);
 							if (totalDeposit > BigInt(relayerConfig.maxDepositPerTransaction)) {
 								throw new APIError("BAD_REQUEST", {
@@ -953,19 +954,6 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					}
 
 					const session = ctx.context.session;
-
-					interface RelayedTransactionRecord {
-						id: string;
-						userId: string;
-						txHash: string;
-						senderId: string;
-						receiverId: string;
-						network: "mainnet" | "testnet";
-						status: string;
-						gasUsed?: string;
-						createdAt: Date;
-						updatedAt: Date;
-					}
 
 					const relayedTx = await ctx.context.adapter.findOne<RelayedTransactionRecord>({
 						model: "relayedTransaction",

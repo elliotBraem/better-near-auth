@@ -2,7 +2,6 @@ import { z } from "zod";
 import { AccountIdSchema } from "near-kit/schemas";
 import type { AccountId, GasInput, AmountInput, AccountState } from "near-kit";
 
-export { AccountIdSchema as accountIdSchema };
 export type { AccountId };
 
 export interface NearAccount {
@@ -123,6 +122,19 @@ export type VerifyRequestT = z.infer<typeof VerifyRequest>;
 export type VerifyResponseT = z.infer<typeof VerifyResponse>;
 export type ProfileResponseT = z.infer<typeof ProfileResponse>;
 export type ViewContractResponseT = z.infer<typeof ViewContractResponse>;
+
+export interface RelayedTransactionRecord {
+	id: string;
+	userId: string;
+	txHash: string;
+	senderId: string;
+	receiverId: string;
+	network: "mainnet" | "testnet";
+	status: string;
+	gasUsed?: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
 
 export interface RelayerInfo extends AccountState {
 	accountId: string;
