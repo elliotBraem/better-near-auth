@@ -6,7 +6,7 @@ import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import type { siwn } from "./index.js";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo } from "./types.js";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -41,6 +41,7 @@ export interface SIWNClientActions {
 		relayTransaction: (params: { payload: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
 		getRelayStatus: (txHash: string) => Promise<BetterFetchResponse<RelayStatusResponseT>>;
 		getRelayerInfo: () => Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>>;
+		relayHistory: () => Promise<BetterFetchResponse<RelayHistoryResponseT>>;
 		client: NearType;
 	};
 	signIn: {
@@ -299,6 +300,11 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					},
 					getRelayerInfo: async (): Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>> => {
 						return await $fetch("/near/relayer-info", {
+							method: "GET",
+						});
+					},
+					relayHistory: async (): Promise<BetterFetchResponse<RelayHistoryResponseT>> => {
+						return await $fetch("/near/relay-history", {
 							method: "GET",
 						});
 					},

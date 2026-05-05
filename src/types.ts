@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { AccountIdSchema } from "near-kit/schemas";
-import type { AccountId, AccountState } from "near-kit";
+import { AccountIdSchema, type AccountId } from "near-kit/schemas";
+import type { AccountState } from "near-kit";
 
 export type { AccountId };
 
@@ -107,6 +107,25 @@ export type VerifyRequestT = z.infer<typeof VerifyRequest>;
 export type VerifyResponseT = z.infer<typeof VerifyResponse>;
 export type ProfileResponseT = z.infer<typeof ProfileResponse>;
 export type ViewContractResponseT = z.infer<typeof ViewContractResponse>;
+
+export const RelayedTransactionSchema = z.object({
+	id: z.string(),
+	userId: z.string(),
+	txHash: z.string(),
+	senderId: z.string(),
+	receiverId: z.string(),
+	network: z.string(),
+	status: z.string(),
+	gasUsed: z.string().optional(),
+	createdAt: z.string(),
+	updatedAt: z.string().optional(),
+});
+export type RelayedTransactionT = z.infer<typeof RelayedTransactionSchema>;
+
+export const RelayHistoryResponse = z.object({
+	transactions: z.array(RelayedTransactionSchema),
+});
+export type RelayHistoryResponseT = z.infer<typeof RelayHistoryResponse>;
 
 export interface RelayedTransactionRecord {
 	id: string;

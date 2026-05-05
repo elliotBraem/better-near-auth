@@ -183,7 +183,7 @@ async function relayOnChain(
 	const result = await relayerState.near
 		.transaction(relayerState.accountId)
 		.signedDelegateAction(userAction)
-		.send();
+		.send({ waitUntil: "EXECUTED" });
 
 	return { txHash: result.transaction.hash };
 }
@@ -1058,6 +1058,50 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						createdAt: rState.createdAt,
 						lastUsedAt: rState.lastUsedAt,
 					} as RelayerInfo & { enabled: boolean });
+				},
+			),
+			getRelayHistory: createAuthEndpoint(
+				"/near/relay-history",
+				{
+					method: "GET",
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const session = ctx.context.session;
+
+					let transactions: RelayedTransactionRecord[] = [];
+					try {
+						const result = await ctx.context.adapter.findMany<RelayedTransactionRecord>({
+							model: "relayedTransaction",
+							where: [
+								{ field: "userId", operator: "eq", value: session.user.id },
+							],
+						});
+						transactions = (result || []) as RelayedTransactionRecord[];
+					} catch (err) {
+						console.error("relay-history findMany error:", err);
+					}
+
+					const sorted = transactions.sort((a, b) => {
+						const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt ?? 0).getTime();
+						const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt ?? 0).getTime();
+						return bTime - aTime;
+					});
+
+					return ctx.json({
+						transactions: sorted.map((tx) => ({
+							id: String(tx.id ?? ""),
+							userId: String(tx.userId ?? ""),
+							txHash: String(tx.txHash ?? ""),
+							senderId: String(tx.senderId ?? ""),
+							receiverId: String(tx.receiverId ?? ""),
+							network: String(tx.network ?? "mainnet"),
+							status: String(tx.status ?? "pending"),
+							gasUsed: tx.gasUsed ? String(tx.gasUsed) : undefined,
+							createdAt: tx.createdAt instanceof Date ? tx.createdAt.toISOString() : tx.createdAt ? String(tx.createdAt) : new Date().toISOString(),
+							updatedAt: tx.updatedAt instanceof Date ? tx.updatedAt.toISOString() : tx.updatedAt ? String(tx.updatedAt) : undefined,
+						})),
+					});
 				},
 			),
 			viewContract: createAuthEndpoint(

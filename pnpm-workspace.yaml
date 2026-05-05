@@ -1,3 +1,6 @@
+onlyBuiltDependencies:
+  - "@hot-labs/near-connect"
+
 packages:
   - '.'
   - 'examples/browser-2-server'
