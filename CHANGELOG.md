@@ -1,5 +1,54 @@
 # better-near-auth
 
+## 1.0.0
+
+### Major Changes
+
+- [#17](https://github.com/elliotBraem/better-near-auth/pull/17) [`1127f48`](https://github.com/elliotBraem/better-near-auth/commit/1127f4880c1acc24c4efb23d121d7593d4904c55) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Migrate from @fastnear/wallet to near-kit with full type safety
+
+  - **Breaking**: Removed `requestSignIn.near()` — consolidated into `signIn.near()` with single-popup flow
+  - **Breaking**: Renamed `fastnearApiKey` → `apiKey` in server config
+  - **Breaking**: Renamed `authClient.near.near` → `authClient.near.client` for near-kit access
+  - **Breaking**: Changed `relayTransaction({ signedDelegateAction })` → `relayTransaction({ payload })`
+  - **Breaking**: Changed `NearActionInput` gas/deposit from `string` to `GasInput`/`AmountInput` from near-kit
+  - **Breaking**: Removed `anonymous` and `emailDomainName` options
+  - **Breaking**: Removed `validateNonce`, `validateRecipient`, `validateMessage` options (dead code)
+  - **Breaking**: Removed `apiKey` from client config (unused)
+  - **Breaking**: `RelayerInfo` now extends near-kit's `AccountState`
+  - Added `/near/view` endpoint for server-side contract view calls
+  - Added `authClient.near.view()` client action
+  - Added `deriveEmail()` for automatic near.email derivation on .near accounts
+  - Added `accountExists` check during nonce generation
+  - Added `defaultValidateLimitedAccessKey()` for FAK validation
+  - Added `RotatingKeyStore` / `InMemoryKeyStore` for relayer key management
+  - Single-popup sign-in and link flows via `signWithWallet()` helper
+  - Zero `as any` type casts — full type safety via near-kit/near-connect imports
+
+### Minor Changes
+
+- [#17](https://github.com/elliotBraem/better-near-auth/pull/17) [`1127f48`](https://github.com/elliotBraem/better-near-auth/commit/1127f4880c1acc24c4efb23d121d7593d4904c55) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add relay history endpoint and improve relayer reliability
+
+  - Added `/near/relay-history` endpoint for fetching user's relayed transaction history
+  - Added `authClient.near.relayHistory()` client action
+  - Updated relay transaction to wait until `EXECUTED` before returning
+  - Updated `near-kit` dependency from local path to published `^0.14.0`
+  - Updated `zod` to `^4.4.3`
+  - Refactored example app: removed authenticated layout guard, simplified dashboard route
+  - Added `relay-feed` component and `auth-hooks` for cleaner data fetching patterns
+  - Switched `NearProfile` to use `@tanstack/react-query` instead of manual `useEffect`
+
+### Patch Changes
+
+- [#17](https://github.com/elliotBraem/better-near-auth/pull/17) [`1127f48`](https://github.com/elliotBraem/better-near-auth/commit/1127f4880c1acc24c4efb23d121d7593d4904c55) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Fix base58/base64 encoding bugs and wallet connection issues
+
+  - Fix relayer key recovery: `parseKey` now uses `base58.encode` instead of `bytesToBase64`, and private key extraction uses `base58.decode` instead of `hexToBytes` — both were producing corrupted keys that crashed on server restart with "Unknown letter: +" base58 errors
+  - Fix nonce endpoint encoding: `/near/nonce` now returns hex-encoded nonces matching the verify endpoint's `hex.decode`
+  - Fix "No wallet selected" error: `connector.getConnectedWallet()` now caught gracefully so the `connector.connect()` wallet picker path is reached
+  - Fix "Not authenticated" after page refresh: `nearState` atom now auto-restores from persisted wallet connection on init
+  - Fix unfunded relayer crash: `/near/relayer-info` returns zero-balance defaults instead of throwing `AccountDoesNotExistError`
+  - Add `getRelayerInfo()` client action for relayer balance/account monitoring
+  - Fix example guestbook `buildSignedDelegateAction` call signature
+
 ## 0.6.0
 
 ### Minor Changes
