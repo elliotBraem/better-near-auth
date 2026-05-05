@@ -146,7 +146,7 @@ createAuthClient({
   plugins: [
     siwnClient({
       recipient: "better-near-auth.near",
-      apiKey: import.meta.env.VITE_FASTNEAR_API_KEY,
+      networkId: "mainnet",
     })
   ]
 })

@@ -127,16 +127,15 @@ Once the relayer is configured on the server, authenticated users can call on-ch
 
 ```ts
 // 1. Build a signed delegate action using the wallet's FAK
-const signedAction = await authClient.near.buildSignedDelegateAction({
-  receiverId: "myapp.near",
-  actions: [{
-    type: "FunctionCall",
-    methodName: "some_method",
-    args: new TextEncoder().encode(JSON.stringify({ key: "value" })),
-    gas: "30000000000000",
-    deposit: "0",
-  }],
-});
+import { Gas } from "near-kit";
+
+const signedAction = await authClient.near.buildSignedDelegateAction(
+  "myapp.near",
+  (builder, receiverId) => builder.functionCall(receiverId, "some_method", { key: "value" }, {
+    gas: Gas.Tgas(30),
+    attachedDeposit: BigInt(0),
+  })
+);
 
 // 2. Relay it — the server pays gas
 const result = await authClient.near.relayTransaction({
@@ -172,9 +171,6 @@ await authClient.near.disconnect();
 | `recipient` | `string` | — | NEP-413 recipient identifier (required) |
 | `requireFullAccessKey` | `boolean` | `false` | Require full access keys |
 | `getNonce` | `() => Promise<Uint8Array>` | — | Custom nonce generation |
-| `validateNonce` | `(nonce: Uint8Array) => boolean` | — | Custom nonce validation |
-| `validateRecipient` | `(recipient: string) => boolean` | — | Custom recipient validation |
-| `validateMessage` | `(message: string) => boolean` | — | Custom message validation |
 | `getProfile` | `(accountId: string) => Promise<Profile \| null>` | — | Custom profile lookup |
 | `validateLimitedAccessKey` | `(args) => Promise<boolean>` | — | Validate FAK when `requireFullAccessKey` is false |
 | `apiKey` | `string` | `process.env.FASTNEAR_API_KEY` | API key for RPC |
@@ -187,8 +183,8 @@ await authClient.near.disconnect();
 | `accountId` | `string` | — | Named relayer account (explicit mode) |
 | `privateKey` | `string` | — | Base64 private key (explicit mode) |
 | `whitelistedContracts` | `string[]` | — | Restrict relay to these contracts |
-| `maxGasPerTransaction` | `string` | `"300 Tgas"` | Max gas per relayed tx |
-| `maxDepositPerTransaction` | `string` | `"0"` | Max deposit per relayed tx |
+| `maxGasPerTransaction` | `string` | — | Max gas per relayed tx |
+| `maxDepositPerTransaction` | `string` | — | Max deposit per relayed tx |
 
 When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral mode**: an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
 
@@ -197,7 +193,7 @@ When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `recipient` | `string` | — | NEP-413 recipient (must match server) |
-| `networkId` | `string` | `"mainnet"` | NEAR network |
+| `networkId` | `"mainnet" \| "testnet"` | `"mainnet"` | NEAR network |
 
 ## Schema
 
@@ -254,9 +250,11 @@ When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral
 - `listAccounts()` — List all linked NEAR accounts
 
 **Relay**
-- `buildSignedDelegateAction({ receiverId, actions })` — Build + sign a delegate action via wallet FAK
+- `buildSignedDelegateAction(receiverId, buildActions)` — Build + sign a delegate action via wallet FAK
 - `relayTransaction({ payload })` — Submit a signed delegate action to the relayer
 - `getRelayStatus(txHash)` — Check relayed transaction status
+- `getRelayerInfo()` — Get relayer account info, mode, and balance
+- `relayHistory()` — List relayed transactions for current user
 
 ### `authClient.signIn`
 - `near(callbacks?)` — Connect wallet, sign message, and authenticate (single popup)
@@ -274,11 +272,8 @@ interface AuthCallbacks {
 
 | Code | Description |
 |---|---|
-| `SIGNER_NOT_AVAILABLE` | NEAR wallet not available |
-| `WALLET_NOT_CONNECTED` | Wallet not connected before signing |
-| `ACCOUNT_MISMATCH` | Cached nonce doesn't match current account |
-| `UNAUTHORIZED_NONCE_REPLAY` | Nonce already used |
-| `UNAUTHORIZED_INVALID_SIGNATURE` | Invalid signature verification |
+| `UNAUTHORIZED_NONCE_REPLAY` | Nonce already used (replay attack detected) |
+| `UNAUTHORIZED` | Generic auth failure (invalid signature, account mismatch, etc.) |
 
 ### Server Endpoints
 
@@ -293,6 +288,8 @@ interface AuthCallbacks {
 | POST | `/near/relay` | Relay a signed delegate action on-chain |
 | GET | `/near/relay-status/:txHash` | Check relayed transaction status |
 | GET | `/near/relayer-info` | Get relayer accountId, mode, balance |
+| GET | `/near/relay-history` | List relayed transactions for current user |
+| POST | `/near/view` | Server-side read-only contract call (authenticated) |
 
 ## Advanced Configuration
 
@@ -310,21 +307,6 @@ export const auth = betterAuth({
       requireFullAccessKey: false,
 
       getNonce: async () => generateNonce(),
-
-      validateNonce: (nonce: Uint8Array) => {
-        const nonceHex = Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('');
-        if (usedNonces.has(nonceHex)) return false;
-        usedNonces.add(nonceHex);
-        return true;
-      },
-
-      validateRecipient: (recipient: string) => {
-        return ["myapp.com", "staging.myapp.com"].includes(recipient);
-      },
-
-      validateMessage: (message: string) => {
-        return message.includes("Sign in to") && message.length > 10;
-      },
 
       getProfile: async (accountId) => {
         try {
@@ -368,7 +350,7 @@ The plugin detects the network from the account ID:
 ### NEP-413 Compliance
 - Proper nonce handling prevents replay attacks
 - Message format and recipient validation
-- 15-minute server-side nonce expiration, 5-minute client-side cache
+- 15-minute server-side nonce expiration with DB replay detection
 
 ### Relayer Key Security
 - Ephemeral private key encrypted at rest with AES-256-GCM

@@ -53,9 +53,6 @@ siwn({
   recipient: string;                    // NEP-413 recipient (required)
   requireFullAccessKey?: boolean;       // default: false
   getNonce?: () => Promise<Uint8Array>;
-  validateNonce?: (nonce: Uint8Array) => boolean;
-  validateRecipient?: (recipient: string) => boolean;
-  validateMessage?: (message: string) => boolean;
   getProfile?: (accountId: string) => Promise<Profile | null>;
   validateLimitedAccessKey?: (args: { accountId, publicKey, recipient? }) => Promise<boolean>;
 
@@ -166,6 +163,7 @@ When `privateKeys` array is provided with multiple keys, a `RotatingKeyStore` is
 | POST | `/near/relay` | Relay a delegate action payload on-chain |
 | GET | `/near/relay-status/:txHash` | Check relayed transaction status |
 | GET | `/near/relayer-info` | Get relayer accountId, mode, balance, etc. |
+| GET | `/near/relay-history` | List relayed transactions for current user |
 
 ### View Endpoint
 
@@ -188,9 +186,11 @@ authClient.near.unlink(params)
 authClient.near.listAccounts()
 
 // Relay
-authClient.near.buildSignedDelegateAction({ receiverId, actions })
+authClient.near.buildSignedDelegateAction(receiverId, (builder, receiverId) => builder.functionCall(...))
 authClient.near.relayTransaction({ payload })
 authClient.near.getRelayStatus(txHash)
+authClient.near.getRelayerInfo()
+authClient.near.relayHistory()
 
 // Sign in (single popup — handles both wallet connection and signing)
 authClient.signIn.near(callbacks?)
@@ -215,7 +215,7 @@ POST /near/verify
 ```
 
 Server-side verification uses `verifyNep413Signature()` from near-kit with:
-- Built-in 5-minute nonce expiration (from embedded timestamp in nonce)
+- Built-in 15-minute nonce expiration (from embedded timestamp in nonce)
 - Additional DB-based nonce replay detection as defense-in-depth
 - Access key validation (full access or function call key matching recipient)
 
@@ -224,7 +224,7 @@ Server-side verification uses `verifyNep413Signature()` from near-kit with:
 ```
 1. User signs in via SIWN → gets function-call access key (FAK)
 2. FAK is scoped to the recipient contract
-3. Client calls buildSignedDelegateAction({ receiverId, actions })
+3. Client calls buildSignedDelegateAction(receiverId, buildActions)
    - Uses near-kit TransactionBuilder .delegate() method
    - Returns base64 payload string
 4. Client calls relayTransaction({ payload })
