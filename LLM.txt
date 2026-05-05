@@ -59,6 +59,9 @@ siwn({
   // API key for RPC (near-kit compatible providers)
   apiKey?: string;                      // or process.env.FASTNEAR_API_KEY
 
+  // Custom RPC URL (sandbox, private node, etc.)
+  rpcUrl?: string;
+
   // Relayer
   relayer?: {
     accountId?: string;                  // explicit mode (production)

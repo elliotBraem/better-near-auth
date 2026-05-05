@@ -69,12 +69,31 @@ interface RelayerState {
 	lastUsedAt?: Date;
 }
 
+function createNear(
+	network: "mainnet" | "testnet",
+	headers: Record<string, string>,
+	rpcUrl?: string,
+	keyStore?: InMemoryKeyStore | RotatingKeyStore,
+): Near {
+	const config: ConstructorParameters<typeof Near>[0] = { headers };
+	if (rpcUrl) {
+		config.network = { rpcUrl, networkId: network };
+	} else {
+		config.network = network;
+	}
+	if (keyStore) {
+		config.keyStore = keyStore;
+	}
+	return new Near(config);
+}
+
 async function initRelayer(
 	relayerConfig: RelayerConfig | undefined,
 	network: "mainnet" | "testnet",
 	adapter: DBAdapter,
 	secret: string | undefined,
 	apiKey?: string,
+	rpcUrl?: string,
 ): Promise<RelayerState | null> {
 	if (!relayerConfig) return null;
 
@@ -97,7 +116,7 @@ async function initRelayer(
 			});
 		}
 
-		const near = new Near({ network, keyStore, headers });
+		const near = createNear(network, headers, rpcUrl, keyStore);
 		return {
 			near,
 			accountId: relayerConfig.accountId,
@@ -122,7 +141,7 @@ async function initRelayer(
 		const keyStore = new InMemoryKeyStore();
 		await keyStore.add(accountId, keyPair);
 
-		const near = new Near({ network, keyStore, headers });
+		const near = createNear(network, headers, rpcUrl, keyStore);
 		return {
 			near,
 			accountId,
@@ -164,7 +183,7 @@ async function initRelayer(
 	const keyStore = new InMemoryKeyStore();
 	await keyStore.add(accountId, keyPair);
 
-	const near = new Near({ network, keyStore, headers });
+	const near = createNear(network, headers, rpcUrl, keyStore);
 	return {
 		near,
 		accountId,
@@ -214,6 +233,7 @@ export interface SIWNPluginOptions {
 		recipient?: string;
 	}) => Promise<boolean>;
 	apiKey?: string;
+	rpcUrl?: string;
 	relayer?: RelayerConfig;
 }
 
@@ -230,11 +250,14 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 	const ensureRelayer = async (adapter: DBAdapter, secret: string | undefined, network: "mainnet" | "testnet") => {
 		if (relayerInitialized) return relayerState;
 		relayerInitialized = true;
-		relayerState = await initRelayer(options.relayer, network, adapter, secret, apiKey);
+		relayerState = await initRelayer(options.relayer, network, adapter, secret, apiKey, options.rpcUrl);
 		return relayerState;
 	};
 
 	const getNear = (network: "mainnet" | "testnet") => {
+		if (options.rpcUrl) {
+			return new Near({ network: { rpcUrl: options.rpcUrl, networkId: network }, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined });
+		}
 		return new Near({ network, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined });
 	};
 

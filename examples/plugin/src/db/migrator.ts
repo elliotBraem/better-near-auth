@@ -1,8 +1,14 @@
+import type { DatabaseDriver } from "./driver";
 import type { Migration } from "virtual:drizzle-migrations.sql";
-import type { Client } from "@libsql/client";
 
-export async function migrate(client: Client, migrations: Migration[]): Promise<void> {
-  await client.execute(`
+/**
+ * Run migrations against any database driver.
+ *
+ * Uses the driver's `execute` and `query` methods so it works with
+ * libsql, better-sqlite3, bun:sqlite, and node:sqlite.
+ */
+export async function migrate(driver: DatabaseDriver, migrations: Migration[]): Promise<void> {
+  await driver.execute(`
     CREATE TABLE IF NOT EXISTS __drizzle_migrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       hash TEXT NOT NULL,
@@ -10,18 +16,24 @@ export async function migrate(client: Client, migrations: Migration[]): Promise<
     )
   `);
 
-  const applied = await client.execute(`SELECT hash FROM __drizzle_migrations`);
-  const appliedHashes = new Set(applied.rows.map((r) => r.hash as string));
+  const appliedRows = await driver.query("SELECT hash FROM __drizzle_migrations");
+  const appliedHashes = new Set(appliedRows.map((r: any) => r.hash as string));
 
   for (const migration of migrations) {
     if (appliedHashes.has(migration.hash)) continue;
     console.log(`[Auth] Applying migration: ${migration.tag}`);
-    await client.batch([
-      ...migration.sql.map((sql) => ({ sql })),
-      {
-        sql: `INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)`,
-        args: [migration.hash, Date.now()],
-      },
-    ]);
+
+    const statements = [
+      ...migration.sql,
+      `INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('${migration.hash}', ${Date.now()})`,
+    ];
+
+    if (driver.batch) {
+      await driver.batch(statements);
+    } else {
+      for (const sql of statements) {
+        await driver.execute(sql);
+      }
+    }
   }
 }

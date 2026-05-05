@@ -126,7 +126,69 @@ const invitationSchema = z.object({
   inviterId: z.string(),
 });
 
+// ── NEAR SIWN Schemas ────────────────────────────────────────────────
+
+const signedMessageSchema = z.object({
+  accountId: z.string(),
+  publicKey: z.string(),
+  signature: z.string(),
+  state: z.string().optional(),
+});
+
+const nearAccountSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  accountId: z.string(),
+  network: z.string(),
+  publicKey: z.string(),
+  isPrimary: z.boolean(),
+  createdAt: z.date(),
+});
+
+const socialImageSchema = z.object({
+  url: z.string().optional(),
+  ipfs_cid: z.string().optional(),
+});
+
+const profileOutputSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  image: socialImageSchema.optional(),
+  backgroundImage: socialImageSchema.optional(),
+  linktree: z.record(z.string(), z.string()).optional(),
+}).nullable();
+
+const relayedTransactionSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  txHash: z.string(),
+  senderId: z.string(),
+  receiverId: z.string(),
+  network: z.string(),
+  status: z.string(),
+  gasUsed: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string().optional(),
+});
+
+const relayerInfoOutputSchema = z.object({
+  enabled: z.boolean(),
+  accountId: z.string().optional(),
+  mode: z.enum(["ephemeral", "explicit"]).optional(),
+  network: z.enum(["mainnet", "testnet"]).optional(),
+  balance: z.string().optional(),
+  available: z.string().optional(),
+  staked: z.string().optional(),
+  storageUsage: z.string().optional(),
+  storageBytes: z.number().optional(),
+  hasContract: z.boolean().optional(),
+  hasKey: z.boolean().optional(),
+  createdAt: z.string().optional(),
+  lastUsedAt: z.string().optional(),
+});
+
 export const contract = oc.router({
+  // ── Base Auth ──────────────────────────────────────────────────────
   getSession: oc
     .route({ method: "GET", path: "/v1/auth/session" })
     .output(sessionDataSchema)
@@ -232,6 +294,150 @@ export const contract = oc.router({
       }),
     )
     .output(z.object({ sent: z.boolean() }))
+    .errors(Errors),
+
+  // ── NEAR SIWN ──────────────────────────────────────────────────────
+
+  nearNonce: oc
+    .route({ method: "POST", path: "/v1/near/nonce" })
+    .input(
+      z.object({
+        accountId: z.string(),
+        networkId: z.enum(["mainnet", "testnet"]),
+      }),
+    )
+    .output(z.object({ nonce: z.string() }))
+    .errors(Errors),
+
+  nearVerify: oc
+    .route({ method: "POST", path: "/v1/near/verify" })
+    .input(
+      z.object({
+        signedMessage: signedMessageSchema,
+        message: z.string(),
+        recipient: z.string(),
+        nonce: z.string(),
+        accountId: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        token: z.string(),
+        success: z.literal(true),
+        user: z.object({
+          id: z.string(),
+          accountId: z.string(),
+          network: z.enum(["mainnet", "testnet"]),
+        }),
+      }),
+    )
+    .errors(Errors),
+
+  nearProfile: oc
+    .route({ method: "POST", path: "/v1/near/profile" })
+    .input(
+      z.object({
+        accountId: z.string().optional(),
+      }),
+    )
+    .output(profileOutputSchema)
+    .errors(Errors),
+
+  nearLinkAccount: oc
+    .route({ method: "POST", path: "/v1/near/link-account" })
+    .input(
+      z.object({
+        signedMessage: signedMessageSchema,
+        message: z.string(),
+        recipient: z.string(),
+        nonce: z.string(),
+        accountId: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        success: z.boolean(),
+        accountId: z.string(),
+        network: z.string(),
+        message: z.string(),
+      }),
+    )
+    .errors(Errors),
+
+  nearUnlinkAccount: oc
+    .route({ method: "POST", path: "/v1/near/unlink-account" })
+    .input(
+      z.object({
+        accountId: z.string(),
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        success: z.boolean(),
+        accountId: z.string(),
+        network: z.string(),
+        message: z.string(),
+      }),
+    )
+    .errors(Errors),
+
+  nearListAccounts: oc
+    .route({ method: "GET", path: "/v1/near/accounts" })
+    .output(z.object({ accounts: z.array(nearAccountSchema) }))
+    .errors(Errors),
+
+  nearRelay: oc
+    .route({ method: "POST", path: "/v1/near/relay" })
+    .input(
+      z.object({
+        payload: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        txHash: z.string(),
+        status: z.enum(["pending", "completed", "failed"]),
+      }),
+    )
+    .errors(Errors),
+
+  nearRelayStatus: oc
+    .route({ method: "GET", path: "/v1/near/relay-status/{txHash}" })
+    .input(
+      z.object({
+        txHash: z.string(),
+      }),
+    )
+    .output(
+      z.object({
+        status: z.enum(["pending", "completed", "failed"]),
+        gasUsed: z.string().optional(),
+        outcome: z.unknown().optional(),
+      }),
+    )
+    .errors(Errors),
+
+  nearRelayerInfo: oc
+    .route({ method: "GET", path: "/v1/near/relayer-info" })
+    .output(relayerInfoOutputSchema)
+    .errors(Errors),
+
+  nearRelayHistory: oc
+    .route({ method: "GET", path: "/v1/near/relay-history" })
+    .output(z.object({ transactions: z.array(relayedTransactionSchema) }))
+    .errors(Errors),
+
+  nearView: oc
+    .route({ method: "POST", path: "/v1/near/view" })
+    .input(
+      z.object({
+        contractId: z.string(),
+        methodName: z.string(),
+        args: z.record(z.string(), z.any()).optional(),
+      }),
+    )
+    .output(z.object({ result: z.unknown() }))
     .errors(Errors),
 });
 

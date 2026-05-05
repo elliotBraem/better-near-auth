@@ -6,7 +6,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, anonymous, organization, phoneNumber } from "better-auth/plugins";
 import { siwn } from "better-near-auth";
-import type { AuthDatabase } from "./db/layer";
+import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
 const DEV_PREVIEW_DIR = path.join(process.cwd(), ".dev-preview");
@@ -81,7 +81,7 @@ async function createPersonalOrganization(
   }
 
   const existingOrg = await database.query.organization.findFirst({
-    where: (org, { eq, and }) =>
+    where: (org: any, { eq, and }: any) =>
       and(eq(org.slug, user.id), eq(org.metadata, JSON.stringify({ isPersonal: true }))),
   });
 
@@ -153,6 +153,8 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       siwn({
         recipient: config.account,
         relayer: {},
+        apiKey: process.env.FASTNEAR_API_KEY,
+        rpcUrl: process.env.NEAR_RPC_URL,
       }),
       admin({ defaultRole: "user", adminRoles: ["admin"] }),
       anonymous({ emailDomainName: config.account }),

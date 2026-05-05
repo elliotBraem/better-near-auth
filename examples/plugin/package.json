@@ -19,13 +19,15 @@
   "dependencies": {
     "@better-auth/api-key": "^1.6.9",
     "@better-auth/passkey": "^1.6.9",
-    "@libsql/client": "^0.15.7",
     "@orpc/contract": "^1.13.4",
     "@orpc/server": "^1.13.4",
     "better-auth": "^1.6.9",
     "better-near-auth": "catalog:",
     "drizzle-orm": "^0.44.0",
     "every-plugin": "workspace:*"
+  },
+  "optionalDependencies": {
+    "@libsql/client": "^0.15.7"
   },
   "devDependencies": {
     "@effect/language-service": "^0.84.3",
@@ -35,6 +37,7 @@
     "@rspack/core": "^1.6.8",
     "@simplewebauthn/server": "^13.3.0",
     "@types/node": "catalog:",
+    "better-sqlite3": "^11.0.0",
     "dotenv": "^17.2.3",
     "everything-dev": "workspace:*",
     "drizzle-kit": "catalog:",

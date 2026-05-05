@@ -15,6 +15,7 @@ export default {
     secrets: {
       AUTH_DATABASE_URL: process.env.AUTH_DATABASE_URL || "file:./auth.db",
       AUTH_DATABASE_AUTH_TOKEN: process.env.AUTH_DATABASE_AUTH_TOKEN || undefined,
+      AUTH_DATABASE_DRIVER: (process.env.AUTH_DATABASE_DRIVER || "libsql") as "libsql" | "better-sqlite3" | "bun" | "node",
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET || "dev-only-secret-do-not-use-in-production",
     },

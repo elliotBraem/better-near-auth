@@ -1,20 +1,21 @@
-import { type Client, createClient } from "@libsql/client";
-import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
-import * as schema from "./schema";
+import type { DatabaseDriver, AuthDatabase } from "./driver";
 
-type Schema = typeof schema;
+// Re-export for backward compatibility
+export type { DatabaseDriver, AuthDatabase } from "./driver";
 
-export type AuthDatabase = LibSQLDatabase<Schema>;
+/**
+ * @deprecated Use `createDatabaseDriver` from `./driver` instead.
+ * This function is kept for backward compatibility with existing code
+ * that passes `url` and `authToken` directly.
+ */
+export function createAuthDatabase(url: string, authToken?: string): { db: AuthDatabase; client: { close(): void } } {
+  const { createDatabaseDriver } = require("./driver");
+  const driver = createDatabaseDriver(url, { driver: "libsql", authToken });
 
-interface DatabaseWithClient {
-  db: AuthDatabase;
-  client: Client;
+  return {
+    db: driver.db,
+    client: {
+      close: () => driver.close(),
+    },
+  };
 }
-
-export const createAuthDatabase = (url: string, authToken?: string): DatabaseWithClient => {
-  const client = createClient({ url, authToken });
-  const db = drizzle(client, { schema: { ...schema } });
-  return { db, client };
-};
-
-export type Database = AuthDatabase;

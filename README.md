@@ -174,6 +174,7 @@ await authClient.near.disconnect();
 | `getProfile` | `(accountId: string) => Promise<Profile \| null>` | — | Custom profile lookup |
 | `validateLimitedAccessKey` | `(args) => Promise<boolean>` | — | Validate FAK when `requireFullAccessKey` is false |
 | `apiKey` | `string` | `process.env.FASTNEAR_API_KEY` | API key for RPC |
+| `rpcUrl` | `string` | — | Custom RPC URL (e.g., sandbox, private node) |
 | `relayer` | `RelayerConfig` | — | Relayer configuration (see below) |
 
 #### Relayer Configuration
