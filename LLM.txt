@@ -4,20 +4,21 @@
 
 Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) plus a built-in NEP-366 delegate action relayer. It provides:
 
-- **SIWN authentication** — wallet-based sign-in with automatic single-step/two-step flow detection
+- **SIWN authentication** — wallet-based sign-in with single-step/two-step flow
 - **Gasless relay** — server-side relayer broadcasts delegate actions on behalf of authenticated users, paying gas from a relayer account
 - **Ephemeral relayer keypair** — auto-generated ED25519 keypair on startup, private key encrypted with AES-256-GCM in the database, survives server restarts
-- **Profile integration** — FastNear KV primary, NEAR Social fallback
+- **Rotating key store** — support for multiple relayer keys for high-throughput scenarios
+- **Profile integration** — near-kit profile lookup, NEAR Social fallback
+- **near.email** — `.near` accounts automatically get `localpart@near.email`; non-`.near` accounts created without email
+- **Contract view endpoint** — server-side read-only contract calls for authenticated users
 
 ## Dependencies
 
 | Package | Purpose |
 |---|---|
-| `@fastnear/wallet` | Multi-wallet connector (replaces @hot-labs/near-connect) |
-| `@fastnear/api` | RPC reads, sendTx, account queries (replaces near-kit) |
-| `@noble/ed25519` | ED25519 keypair generation + signing for relayer |
-| `borsh` | Borsh serialization for delegate actions + transactions (NEP-366) |
-| `near-sign-verify` | NEP-413 sign/verify |
+| `near-kit` | NEAR Protocol SDK: RPC, transactions, wallet, NEP-413 verify, delegate actions, key stores |
+| `@hot-labs/near-connect` | Browser wallet connector (NEAR Connect) |
+| `@scure/base` | Hex encode/decode for nonce transport |
 | `nanostores` | Client state management |
 | `zod` | Validation |
 
@@ -25,19 +26,20 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 
 ```
 ┌─ Web App ─────────────────────────────────────────┐
-│  siwnClient({ recipient, networkId })              │
+│  siwnClient({ recipient, networkId, apiKey })      │
 │  authClient.near.buildSignedDelegateAction(...)    │
 │  authClient.near.relayTransaction(...)             │
 └──────────────────┬────────────────────────────────┘
-                   │ signed delegate action (FAK)
+                   │ delegate action payload (base64)
                    ▼
 ┌─ Better Auth Server ──────────────────────────────┐
-│  /near/relay — validates session + whitelist,     │
-│                 wraps in tx, signs with relayer    │
-│                 key, broadcasts via FastNear RPC    │
+│  /near/relay — validates session + whitelist,      │
+│                 wraps in tx, signs with relayer     │
+│                 key, broadcasts via near-kit        │
 │  /near/relay-status/:txHash                        │
 │  /near/relayer-info                                │
 │  /near/nonce, /near/verify, /near/profile, etc.   │
+│  /near/view — server-side contract reads           │
 └──────────────────┬─────────────────────────────────┘
                    │ broadcast_tx_commit
                    ▼
@@ -48,33 +50,33 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 
 ```typescript
 siwn({
-  // SIWN options
   recipient: string;                    // NEP-413 recipient (required)
-  anonymous?: boolean;                  // allow anonymous sign-ins (default: true)
-  emailDomainName?: string;
-  requireFullAccessKey?: boolean;       // default: true
+  requireFullAccessKey?: boolean;       // default: false
   getNonce?: () => Promise<Uint8Array>;
-  validateNonce?: (nonce: Uint8Array) => boolean;
-  validateRecipient?: (recipient: string) => boolean;
-  validateMessage?: (message: string) => boolean;
   getProfile?: (accountId: string) => Promise<Profile | null>;
   validateLimitedAccessKey?: (args: { accountId, publicKey, recipient? }) => Promise<boolean>;
 
-  // FastNear
-  fastnearApiKey?: string;              // or process.env.FASTNEAR_API_KEY
+  // API key for RPC (near-kit compatible providers)
+  apiKey?: string;                      // or process.env.FASTNEAR_API_KEY
 
   // Relayer
   relayer?: {
     accountId?: string;                  // explicit mode (production)
-    privateKey?: string;                 // explicit mode (base64)
-    relayTarget?: string;                // RPC URL (default: FastNear RPC)
-    whitelistedContracts?: string[];     // restrict relay targets
-    maxGasPerTransaction?: string;       // default "300 Tgas"
-    maxDepositPerTransaction?: string;   // default "0"
+    privateKey?: string;                 // single key (base64 ed25519:...)
+    privateKeys?: string[];              // multiple keys for RotatingKeyStore
+    whitelistedContracts?: string[];
+    maxGasPerTransaction?: string;
+    maxDepositPerTransaction?: string;
   };
   // When accountId + privateKey omitted → ephemeral mode
 })
 ```
+
+## Email Handling
+
+- `.near` accounts: `efiz.near` → `efiz@near.email` (automatic)
+- Non-`.near` accounts: no email set; users add email via other Better Auth plugins
+- The `anonymous` and `emailDomainName` options have been removed
 
 ## Relayer Modes
 
@@ -84,7 +86,7 @@ When `relayer` is provided without `accountId`/`privateKey`:
 
 1. On startup, checks DB for existing `relayerKey` record
 2. If found: decrypts private key using `BETTER_AUTH_SECRET` as KEK (HKDF-SHA256 → AES-256-GCM), recovers same accountId
-3. If not found: generates ED25519 keypair, derives implicit accountId (hex of public key), encrypts + stores in DB, logs accountId
+3. If not found: generates ED25519 keypair via `near-kit`'s `generateKey()`, derives implicit accountId (hex of public key), encrypts + stores in DB, logs accountId
 4. Private key lives only in process memory — never in env vars or config files
 
 Startup log:
@@ -96,7 +98,11 @@ Startup log:
 
 ### Explicit (production)
 
-When `accountId` + `privateKey` are provided in config — for named, persistent relayer accounts like `relayer.myapp.near`.
+When `accountId` + `privateKey`/`privateKeys` are provided in config — for named, persistent relayer accounts like `relayer.myapp.near`.
+
+### Rotating Keys
+
+When `privateKeys` array is provided with multiple keys, a `RotatingKeyStore` is used to cycle through keys round-robin, eliminating nonce collisions for high-throughput relayers.
 
 ## Database Schema
 
@@ -144,7 +150,7 @@ When `accountId` + `privateKey` are provided in config — for named, persistent
 | Method | Path | Description |
 |---|---|---|
 | POST | `/near/nonce` | Generate nonce for signing |
-| POST | `/near/verify` | Verify NEP-413 signature, create session |
+| POST | `/near/verify` | Verify NEP-413 signed message, create session |
 | POST | `/near/profile` | Get NEAR profile |
 | POST | `/near/link-account` | Link NEAR account to session |
 | POST | `/near/unlink-account` | Unlink NEAR account |
@@ -154,9 +160,16 @@ When `accountId` + `privateKey` are provided in config — for named, persistent
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/near/relay` | Relay a signed delegate action on-chain |
+| POST | `/near/relay` | Relay a delegate action payload on-chain |
 | GET | `/near/relay-status/:txHash` | Check relayed transaction status |
-| GET | `/near/relayer-info` | Get relayer accountId, mode, balance |
+| GET | `/near/relayer-info` | Get relayer accountId, mode, balance, etc. |
+| GET | `/near/relay-history` | List relayed transactions for current user |
+
+### View Endpoint
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/near/view` | Server-side read-only contract call (authenticated) |
 
 ## Client Actions
 
@@ -164,6 +177,7 @@ When `accountId` + `privateKey` are provided in config — for named, persistent
 authClient.near.nonce(params)
 authClient.near.verify(params)
 authClient.near.getProfile(accountId?)
+authClient.near.view({ contractId, methodName, args })
 authClient.near.getAccountId()
 authClient.near.getState()
 authClient.near.disconnect()
@@ -172,30 +186,52 @@ authClient.near.unlink(params)
 authClient.near.listAccounts()
 
 // Relay
-authClient.near.buildSignedDelegateAction({ receiverId, actions })
-authClient.near.relayTransaction({ signedDelegateAction })
+authClient.near.buildSignedDelegateAction(receiverId, (builder, receiverId) => builder.functionCall(...))
+authClient.near.relayTransaction({ payload })
 authClient.near.getRelayStatus(txHash)
+authClient.near.getRelayerInfo()
+authClient.near.relayHistory()
 
-// Sign in
+// Sign in (single popup — handles both wallet connection and signing)
 authClient.signIn.near(callbacks?)
-authClient.requestSignIn.near(callbacks?)
+
+// Access near-kit Near instance directly
+authClient.near.client
 ```
+
+## NEP-413 Verify Flow
+
+The verify endpoint accepts a structured request (not a single `authToken` string):
+
+```typescript
+POST /near/verify
+{
+  signedMessage: { accountId, publicKey, signature },
+  message: "Sign in to example.near",
+  recipient: "example.near",
+  nonce: "<hex-encoded 32 bytes>",
+  accountId: "alice.near"
+}
+```
+
+Server-side verification uses `verifyNep413Signature()` from near-kit with:
+- Built-in 15-minute nonce expiration (from embedded timestamp in nonce)
+- Additional DB-based nonce replay detection as defense-in-depth
+- Access key validation (full access or function call key matching recipient)
 
 ## Delegate Action Flow (NEP-366)
 
 ```
 1. User signs in via SIWN → gets function-call access key (FAK)
 2. FAK is scoped to the recipient contract
-3. Client calls buildSignedDelegateAction({ receiverId, actions })
-   - Queries access key nonce + block height via FastNear RPC
-   - Builds DelegateAction struct
-   - Signs via wallet's signDelegateActions (internal API)
-   - Returns base64 borsh-encoded SignedDelegateAction
-4. Client calls relayTransaction({ signedDelegateAction })
-   - Server validates: session authenticated, sender matches, receiver whitelisted
-   - Server wraps delegate action in Transaction signed with relayer key
-   - Broadcasts via FastNear RPC broadcast_tx_commit
-5. Transaction executes on-chain as if the user sent it
+3. Client calls buildSignedDelegateAction(receiverId, buildActions)
+   - Uses near-kit TransactionBuilder .delegate() method
+   - Returns base64 payload string
+4. Client calls relayTransaction({ payload })
+   - Server decodes payload via decodeSignedDelegateAction()
+   - Validates: session authenticated, sender matches, receiver whitelisted
+   - Wraps delegate action via near-kit .signedDelegateAction().send()
+   - Transaction executes on-chain as if the user sent it
    - Relayer pays gas
    - predecessor_id = user's accountId
 ```
@@ -214,28 +250,21 @@ Profile lookup tries FastNear KV first, falls back to NEAR Social:
 - **Storage**: `encryptedPrivateKey` (base64 of ciphertext) + `iv` (base64 of IV) in `relayerKey` table
 - **Trust model**: Same as Better Auth session tokens — DB access + `BETTER_AUTH_SECRET` = full access
 
-## signDelegateActions Note
+## Wallet Connection (Client)
 
-`@fastnear/wallet` (v0.10.4) implements `signDelegateActions` on all internal wallet adapter types (ParentFrameWallet, SandboxWallet, InjectedWallet) but does NOT export it from the public API surface. The client accesses it via the internal `connectedWallet` object. A public export has been requested — the code will switch to the public API once available.
+Uses near-kit's `fromNearConnect()` adapter with `@hot-labs/near-connect`:
 
-## Wallet Connection
-
-Uses `@fastnear/wallet` public API:
-
-- `nearWallet.connect({ network, contractId })` — opens wallet picker
-- `nearWallet.disconnect()` — disconnects
-- `nearWallet.signMessage({ message, recipient, nonce })` — NEP-413 signing
-- `nearWallet.accountId()` — current account
-- `nearWallet.availableWallets()` — list manifests
-- `nearWallet.selectWallet()` — show selector, returns wallet ID
-- `nearWallet.restore({ network, contractId })` — rehydrate on page load
-- `nearWallet.onConnect(cb)` / `nearWallet.onDisconnect(cb)` — event listeners
+- `connector.connect()` — opens wallet picker
+- `connector.disconnect()` — disconnects
+- `near.signMessage({ message, recipient, nonce })` — NEP-413 signing
+- `near.transaction(accountId).functionCall(...).delegate()` — delegate action signing
+- `connector.getConnectedWallet()` — current account
+- `connector.on("wallet:signIn", cb)` / `connector.on("wallet:signOut", cb)` — event listeners
 
 ## RPC Calls
 
-All on-chain queries and transaction broadcasting use FastNear RPC endpoints:
+All on-chain queries and transaction broadcasting use near-kit's `Near` instance:
 
-- Mainnet: `https://rpc.mainnet.fastnear.com`
-- Testnet: `https://rpc.testnet.fastnear.com`
-
-API key passed as `?apiKey=` query parameter when configured.
+- Configured with `{ network, headers: apiKey ? { Authorization: "Bearer ..." } : undefined }`
+- `near.accountExists()`, `near.getAccessKey()`, `near.getAccount()`, `near.view()`, `near.getTransactionStatus()`
+- Transaction broadcast handled internally by near-kit's `.send()` method

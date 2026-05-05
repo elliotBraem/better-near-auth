@@ -153,7 +153,7 @@ export default function SignInForm() {
 
         <div className="mt-6 sm:mt-8 text-center">
           <p className="text-xs sm:text-sm text-muted-foreground">
-            This demo uses FastNear wallet for NEAR connectivity.
+            This demo uses HOT Wallet for NEAR connectivity.
           </p>
         </div>
       </div>

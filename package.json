@@ -14,10 +14,6 @@
     "./client": {
       "import": "./dist/client.js",
       "types": "./dist/client.d.ts"
-    },
-    "./rpc": {
-      "import": "./dist/rpc.js",
-      "types": "./dist/rpc.d.ts"
     }
   },
   "scripts": {
@@ -62,13 +58,11 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@fastnear/wallet": "workspace:*",
-    "@fastnear/borsh": "workspace:*",
-    "@fastnear/borsh-schema": "workspace:*",
-    "@noble/curves": "^2.0.0",
+    "@hot-labs/near-connect": "github:azbang/near-connect#v0.11.3",
+    "@scure/base": "^2.2.0",
     "nanostores": "^1.1.0",
-    "near-sign-verify": "^0.4.5",
-    "zod": "^4.3.5"
+    "near-kit": "^0.14.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
@@ -83,10 +77,5 @@
     "dist/",
     "README.md",
     "LICENSE"
-  ],
-  "pnpm": {
-    "overrides": {
-      "@fastnear/near-connect": "^0.11.0"
-    }
-  }
+  ]
 }

@@ -1,5 +1,5 @@
 import { authClient } from "@/lib/auth-client";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "./ui/skeleton";
 import type { Profile } from "better-near-auth";
 import Markdown from "react-markdown";
@@ -19,38 +19,24 @@ export function NearProfile({
   showName = true,
   className = "",
 }: NearProfileProps) {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const profileResponse = await authClient.near.getProfile(accountId);
-        setProfile(profileResponse.data || null);
-      } catch (err) {
-        console.error("Failed to fetch NEAR profile:", err);
-        setError("Failed to load profile");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [accountId]);
+  const { data: profile, isLoading, error } = useQuery<Profile | null>({
+    queryKey: ["near-profile", accountId],
+    queryFn: async () => {
+      const res = await authClient.near.getProfile(accountId);
+      return res.data || null;
+    },
+    enabled: !!accountId,
+  });
 
   const displayName = profile?.name;
   const avatarUrl =
-    profile?.image?.url || profile?.image?.ipfs_cid
+    profile?.image?.url ?? (profile?.image?.ipfs_cid
       ? `https://ipfs.near.social/ipfs/${profile.image.ipfs_cid}`
-      : null;
+      : null);
   const backgroundUrl =
-    profile?.backgroundImage?.url || profile?.backgroundImage?.ipfs_cid
+    profile?.backgroundImage?.url ?? (profile?.backgroundImage?.ipfs_cid
       ? `https://ipfs.near.social/ipfs/${profile.backgroundImage.ipfs_cid}`
-      : null;
+      : null);
 
   if (isLoading) {
     if (variant === "card") {
@@ -123,7 +109,6 @@ export function NearProfile({
       <div
         className={`w-full bg-card rounded-lg border overflow-hidden ${className}`}
       >
-        {/* Background Image Header */}
         <div className="relative h-32 bg-gradient-to-r from-blue-500 to-purple-600">
           {backgroundUrl && (
             <img
@@ -135,7 +120,6 @@ export function NearProfile({
               }}
             />
           )}
-          {/* Avatar positioned over background */}
           <div className="absolute -bottom-6 left-6">
             <div className="h-12 w-12 rounded-full overflow-hidden bg-background border-4 border-background">
               {avatarUrl ? (
@@ -156,7 +140,6 @@ export function NearProfile({
           </div>
         </div>
 
-        {/* Profile Content */}
         <div className="pt-8 px-6 pb-6">
           <h3 className="text-lg font-semibold mb-1">{displayName}</h3>
           {accountId && displayName !== accountId && (
@@ -169,7 +152,6 @@ export function NearProfile({
             </p>
           )}
 
-          {/* Social Links */}
           {profile?.linktree && Object.keys(profile.linktree).length > 0 && (
             <div className="flex flex-wrap gap-2">
               {Object.entries(profile.linktree).map(([platform, url]) => (
@@ -190,7 +172,6 @@ export function NearProfile({
     );
   }
 
-  // Badge variant (default)
   return (
     <div
       className={`flex items-center justify-start space-x-2 w-24 ${className}`}

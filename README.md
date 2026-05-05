@@ -13,14 +13,14 @@
 
 </div>
 
-This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets following [NEP-413](https://github.com/near/NEPs/blob/master/neps/nep-0413.md) and adds a built-in [NEP-366](https://github.com/near/NEPs/blob/master/neps/nep-0366.md) delegate action relayer so authenticated users can call on-chain contracts gaslessly. It uses [FastNear](https://fastnear.com) for wallet connection, RPC queries, and transaction broadcasting.
+This [Better Auth](https://better-auth.com) plugin enables secure authentication via NEAR wallets following [NEP-413](https://github.com/near/NEPs/blob/master/neps/nep-0413.md) and adds a built-in [NEP-366](https://github.com/near/NEPs/blob/master/neps/nep-0366.md) delegate action relayer so authenticated users can call on-chain contracts gaslessly. It uses [near-kit](https://github.com/elliotBraem/near-kit) for RPC queries and transaction broadcasting, and [@hot-labs/near-connect](https://github.com/azbang/near-connect) for wallet connection.
 
 ## Features
 
 - **SIWN authentication** — wallet-based sign-in with automatic single-step/two-step flow detection
 - **Gasless relay** — server relays signed delegate actions on-chain, paying gas from a relayer account
 - **Ephemeral relayer keypair** — auto-generated ED25519 keypair on first startup, private key encrypted with AES-256-GCM in the database, persists across restarts
-- **Profile integration** — FastNear KV primary, NEAR Social fallback
+- **Profile integration** — near-kit profile lookup primary, NEAR Social fallback
 
 ## Installation
 
@@ -43,7 +43,6 @@ npm install better-near-auth
         plugins: [
             siwn({
                 recipient: "myapp.com",
-                anonymous: true,
 
                 // Optional: enable gasless relay
                 relayer: {
@@ -120,19 +119,7 @@ export function LoginButton() {
 }
 ```
 
-**Supported wallets for single-step flow:** Meteor Wallet, Intear Wallet, NEAR CLI, HOT Wallet, MyNearWallet, and more.
-
-### Manual Two-Step Flow (Optional)
-
-```ts
-await authClient.requestSignIn.near({
-  onSuccess: () => console.log("Wallet connected"),
-});
-
-await authClient.signIn.near({
-  onSuccess: () => console.log("Signed in!"),
-});
-```
+**Supported wallets:** HOT Wallet, Meteor Wallet, Intear Wallet, MyNearWallet, and more.
 
 ### Gasless Relay
 
@@ -140,20 +127,19 @@ Once the relayer is configured on the server, authenticated users can call on-ch
 
 ```ts
 // 1. Build a signed delegate action using the wallet's FAK
-const signedAction = await authClient.near.buildSignedDelegateAction({
-  receiverId: "myapp.near",
-  actions: [{
-    type: "FunctionCall",
-    methodName: "some_method",
-    args: new TextEncoder().encode(JSON.stringify({ key: "value" })),
-    gas: "30000000000000",
-    deposit: "0",
-  }],
-});
+import { Gas } from "near-kit";
+
+const signedAction = await authClient.near.buildSignedDelegateAction(
+  "myapp.near",
+  (builder, receiverId) => builder.functionCall(receiverId, "some_method", { key: "value" }, {
+    gas: Gas.Tgas(30),
+    attachedDeposit: BigInt(0),
+  })
+);
 
 // 2. Relay it — the server pays gas
 const result = await authClient.near.relayTransaction({
-  signedDelegateAction: signedAction,
+  payload: signedAction,
 });
 
 console.log("Tx hash:", result.txHash);
@@ -183,16 +169,11 @@ await authClient.near.disconnect();
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `recipient` | `string` | — | NEP-413 recipient identifier (required) |
-| `anonymous` | `boolean` | `true` | Allow anonymous sign-ins |
-| `emailDomainName` | `string` | recipient | Email domain for non-anonymous accounts |
-| `requireFullAccessKey` | `boolean` | `true` | Require full access keys |
+| `requireFullAccessKey` | `boolean` | `false` | Require full access keys |
 | `getNonce` | `() => Promise<Uint8Array>` | — | Custom nonce generation |
-| `validateNonce` | `(nonce: Uint8Array) => boolean` | — | Custom nonce validation |
-| `validateRecipient` | `(recipient: string) => boolean` | — | Custom recipient validation |
-| `validateMessage` | `(message: string) => boolean` | — | Custom message validation |
 | `getProfile` | `(accountId: string) => Promise<Profile \| null>` | — | Custom profile lookup |
 | `validateLimitedAccessKey` | `(args) => Promise<boolean>` | — | Validate FAK when `requireFullAccessKey` is false |
-| `fastnearApiKey` | `string` | `process.env.FASTNEAR_API_KEY` | FastNear API key |
+| `apiKey` | `string` | `process.env.FASTNEAR_API_KEY` | API key for RPC |
 | `relayer` | `RelayerConfig` | — | Relayer configuration (see below) |
 
 #### Relayer Configuration
@@ -201,10 +182,9 @@ await authClient.near.disconnect();
 |---|---|---|---|
 | `accountId` | `string` | — | Named relayer account (explicit mode) |
 | `privateKey` | `string` | — | Base64 private key (explicit mode) |
-| `relayTarget` | `string` | FastNear RPC | RPC URL for broadcasting |
 | `whitelistedContracts` | `string[]` | — | Restrict relay to these contracts |
-| `maxGasPerTransaction` | `string` | `"300 Tgas"` | Max gas per relayed tx |
-| `maxDepositPerTransaction` | `string` | `"0"` | Max deposit per relayed tx |
+| `maxGasPerTransaction` | `string` | — | Max gas per relayed tx |
+| `maxDepositPerTransaction` | `string` | — | Max deposit per relayed tx |
 
 When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral mode**: an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
 
@@ -213,7 +193,7 @@ When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `recipient` | `string` | — | NEP-413 recipient (must match server) |
-| `networkId` | `string` | `"mainnet"` | NEAR network |
+| `networkId` | `"mainnet" \| "testnet"` | `"mainnet"` | NEAR network |
 
 ## Schema
 
@@ -261,7 +241,7 @@ When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral
 **SIWN**
 - `nonce(params)` — Request a nonce from the server
 - `verify(params)` — Verify an auth token with the server
-- `getProfile(accountId?)` — Get user profile (FastNear KV → NEAR Social fallback)
+- `getProfile(accountId?)` — Get user profile (near-kit profile lookup → NEAR Social fallback)
 - `getAccountId()` — Currently connected account ID
 - `getState()` — Current wallet state
 - `disconnect()` — Disconnect wallet and clear cached data
@@ -270,15 +250,14 @@ When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral
 - `listAccounts()` — List all linked NEAR accounts
 
 **Relay**
-- `buildSignedDelegateAction({ receiverId, actions })` — Build + sign a delegate action via wallet FAK
-- `relayTransaction({ signedDelegateAction })` — Submit a signed delegate action to the relayer
+- `buildSignedDelegateAction(receiverId, buildActions)` — Build + sign a delegate action via wallet FAK
+- `relayTransaction({ payload })` — Submit a signed delegate action to the relayer
 - `getRelayStatus(txHash)` — Check relayed transaction status
-
-### `authClient.requestSignIn`
-- `near(callbacks?)` — Connect wallet and cache nonce (two-step flow)
+- `getRelayerInfo()` — Get relayer account info, mode, and balance
+- `relayHistory()` — List relayed transactions for current user
 
 ### `authClient.signIn`
-- `near(callbacks?)` — Sign message and authenticate (single-step or two-step)
+- `near(callbacks?)` — Connect wallet, sign message, and authenticate (single popup)
 
 ### Callback Interface
 
@@ -293,11 +272,8 @@ interface AuthCallbacks {
 
 | Code | Description |
 |---|---|
-| `SIGNER_NOT_AVAILABLE` | NEAR wallet not available |
-| `WALLET_NOT_CONNECTED` | Wallet not connected before signing |
-| `ACCOUNT_MISMATCH` | Cached nonce doesn't match current account |
-| `UNAUTHORIZED_NONCE_REPLAY` | Nonce already used |
-| `UNAUTHORIZED_INVALID_SIGNATURE` | Invalid signature verification |
+| `UNAUTHORIZED_NONCE_REPLAY` | Nonce already used (replay attack detected) |
+| `UNAUTHORIZED` | Generic auth failure (invalid signature, account mismatch, etc.) |
 
 ### Server Endpoints
 
@@ -312,13 +288,15 @@ interface AuthCallbacks {
 | POST | `/near/relay` | Relay a signed delegate action on-chain |
 | GET | `/near/relay-status/:txHash` | Check relayed transaction status |
 | GET | `/near/relayer-info` | Get relayer accountId, mode, balance |
+| GET | `/near/relay-history` | List relayed transactions for current user |
+| POST | `/near/view` | Server-side read-only contract call (authenticated) |
 
 ## Advanced Configuration
 
 ```ts title="advanced-auth.ts"
 import { betterAuth } from "better-auth";
 import { siwn } from "better-near-auth";
-import { generateNonce } from "near-sign-verify";
+import { generateNonce } from "near-kit";
 
 const usedNonces = new Set<string>();
 
@@ -326,26 +304,9 @@ export const auth = betterAuth({
   plugins: [
     siwn({
       recipient: "myapp.com",
-      anonymous: false,
-      emailDomainName: "myapp.com",
       requireFullAccessKey: false,
 
       getNonce: async () => generateNonce(),
-
-      validateNonce: (nonce: Uint8Array) => {
-        const nonceHex = Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('');
-        if (usedNonces.has(nonceHex)) return false;
-        usedNonces.add(nonceHex);
-        return true;
-      },
-
-      validateRecipient: (recipient: string) => {
-        return ["myapp.com", "staging.myapp.com"].includes(recipient);
-      },
-
-      validateMessage: (message: string) => {
-        return message.includes("Sign in to") && message.length > 10;
-      },
 
       getProfile: async (accountId) => {
         try {
@@ -363,7 +324,7 @@ export const auth = betterAuth({
         return recipient ? allowed.includes(recipient) : true;
       },
 
-      fastnearApiKey: process.env.FASTNEAR_API_KEY,
+      apiKey: process.env.FASTNEAR_API_KEY,
 
       relayer: {
         accountId: "relayer.myapp.near",
@@ -389,7 +350,7 @@ The plugin detects the network from the account ID:
 ### NEP-413 Compliance
 - Proper nonce handling prevents replay attacks
 - Message format and recipient validation
-- 15-minute server-side nonce expiration, 5-minute client-side cache
+- 15-minute server-side nonce expiration with DB replay detection
 
 ### Relayer Key Security
 - Ephemeral private key encrypted at rest with AES-256-GCM
@@ -406,8 +367,6 @@ The plugin detects the network from the account ID:
 
 | Issue | Solution |
 |---|---|
-| "Wallet not connected" | Call `requestSignIn.near()` before `signIn.near()` |
-| "No valid nonce found" | Ensure `requestSignIn.near()` completed; client nonces expire after 5 min |
 | "Invalid or expired nonce" | Server nonces expire after 15 min; check clock sync |
 | "Account ID mismatch" | Verify signed message account ID matches wallet |
 | "Network ID mismatch" | Ensure networkId matches the account's network |
@@ -454,7 +413,7 @@ pnpm test
 - [NEAR Protocol](https://near.org)
 - [NEP-413 Specification](https://github.com/near/NEPs/blob/master/neps/nep-0413.md)
 - [NEP-366 Delegate Actions](https://github.com/near/NEPs/blob/master/neps/nep-0366.md)
-- [FastNear](https://fastnear.com)
-- [near-sign-verify](https://github.com/elliotBraem/near-sign-verify)
+- [near-kit](https://github.com/elliotBraem/near-kit)
+- [@hot-labs/near-connect](https://github.com/azbang/near-connect)
 - [Example Implementation](https://better-near-auth.near.page)
 - [Contributing Guide](./CONTRIBUTING.md)

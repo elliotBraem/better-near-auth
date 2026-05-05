@@ -1,12 +1,12 @@
-import * as nearWallet from "@fastnear/wallet";
-import type { SignDelegateActionsResponse, SignedMessage } from "@fastnear/wallet";
-type NearWallet = typeof nearWallet;
+import { Near, fromNearConnect, generateNonce, TransactionBuilder } from "near-kit";
+import type { Near as NearType, SignedMessage } from "near-kit";
+import { NearConnector } from "@hot-labs/near-connect";
+import type { EventMap } from "@hot-labs/near-connect";
+import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
-import { sign, generateNonce } from "near-sign-verify";
 import type { siwn } from "./index.js";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type NearActionInput, type RelayResponseT, type RelayStatusResponseT, type NearAccount } from "./types.js";
-import { base64ToBytes, bytesToBase64, serializeSignedDelegateAction } from "./utils.js";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -16,15 +16,13 @@ export interface AuthCallbacks {
 export interface SIWNClientConfig {
 	recipient: string;
 	networkId?: "mainnet" | "testnet";
-	fastnearApiKey?: string;
 }
 
-export interface CachedNonceData {
-	nonce: string;
+interface SignWithWalletResult {
+	signedMessage: SignedMessage;
 	accountId: string;
-	publicKey?: string | null;
-	networkId: string;
-	timestamp: number;
+	publicKey: string;
+	nonceHex: string;
 }
 
 export interface SIWNClientActions {
@@ -32,19 +30,19 @@ export interface SIWNClientActions {
 		nonce: (params: NonceRequestT) => Promise<BetterFetchResponse<NonceResponseT>>;
 		verify: (params: VerifyRequestT) => Promise<BetterFetchResponse<VerifyResponseT>>;
 		getProfile: (accountId?: AccountId) => Promise<BetterFetchResponse<ProfileResponseT>>;
+		view: (params: ViewContractRequestT) => Promise<BetterFetchResponse<ViewContractResponseT>>;
 		getAccountId: () => string | null;
 		getState: () => { accountId: string | null; publicKey: string | null; networkId: string } | null;
 		disconnect: () => Promise<void>;
 		link: (callbacks?: AuthCallbacks) => Promise<void>;
 		unlink: (params: { accountId: string; network?: "mainnet" | "testnet" }) => Promise<BetterFetchResponse<{ success: boolean; message: string }>>;
 		listAccounts: () => Promise<BetterFetchResponse<{ accounts: NearAccount[] }>>;
-		buildSignedDelegateAction: (params: { receiverId: string; actions: NearActionInput[] }) => Promise<string>;
-		relayTransaction: (params: { signedDelegateAction: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
+		buildSignedDelegateAction: (receiverId: string, buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder) => Promise<string>;
+		relayTransaction: (params: { payload: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
 		getRelayStatus: (txHash: string) => Promise<BetterFetchResponse<RelayStatusResponseT>>;
-		wallet: NearWallet;
-	};
-	requestSignIn: {
-		near: (callbacks?: AuthCallbacks) => Promise<void>;
+		getRelayerInfo: () => Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>>;
+		relayHistory: () => Promise<BetterFetchResponse<RelayHistoryResponseT>>;
+		client: NearType;
 	};
 	signIn: {
 		near: (callbacks?: AuthCallbacks) => Promise<void>;
@@ -56,20 +54,21 @@ export interface SIWNClientPlugin extends BetterAuthClientPlugin {
 	$InferServerPlugin: ReturnType<typeof siwn>;
 	getAtoms: ($fetch: BetterFetch) => {
 		nearState: ReturnType<typeof atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>>;
-		cachedNonce: ReturnType<typeof atom<CachedNonceData | null>>;
 	};
 	getActions: ($fetch: BetterFetch, $store: ClientStore, options: BetterAuthClientOptions | undefined) => SIWNClientActions;
 }
 
 export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
-	const cachedNonce = atom<CachedNonceData | null>(null);
 	const nearState = atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>(null);
 
 	const network = config.networkId || "mainnet";
 
-	const clearNonce = () => {
-		cachedNonce.set(null);
-	};
+	const connector = new NearConnector({ network });
+
+	const near = new Near({
+		network,
+		wallet: fromNearConnect(connector),
+	});
 
 	const handleAccountConnection = async (accountId: string, publicKey?: string | null) => {
 		if (!accountId) return;
@@ -80,81 +79,109 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		});
 	};
 
-	nearWallet.onConnect(async (result) => {
-		if (result?.accountId) {
-			await handleAccountConnection(result.accountId, result.publicKey);
+	connector.on("wallet:signIn", async (data: EventMap["wallet:signIn"]) => {
+		const accountId = data.accounts?.[0]?.accountId;
+		const publicKey = data.accounts?.[0]?.publicKey;
+		if (accountId) {
+			await handleAccountConnection(accountId, publicKey);
 		}
 	});
 
-	nearWallet.onDisconnect(() => {
+	connector.on("wallet:signOut", () => {
 		nearState.set(null);
-		clearNonce();
 	});
 
-	nearWallet.restore({ network, contractId: config.recipient }).then((result) => {
-		if (result?.accountId) {
-			handleAccountConnection(result.accountId, result.publicKey);
+	connector.getConnectedWallet().then(({ accounts }) => {
+		const account = accounts?.[0];
+		if (account?.accountId && !nearState.get()) {
+			nearState.set({
+				accountId: account.accountId,
+				publicKey: account.publicKey ?? null,
+				networkId: network,
+			});
 		}
 	}).catch(() => {});
 
+	const signWithWallet = async (): Promise<SignWithWalletResult> => {
+		const nonceBytes = generateNonce();
+		const nonceHex = hex.encode(nonceBytes);
+		const message = `Sign in to ${config.recipient}`;
+
+		let connectedWallet: Awaited<ReturnType<typeof connector.getConnectedWallet>> | null = null;
+		try {
+			connectedWallet = await connector.getConnectedWallet();
+		} catch {}
+
+		if (connectedWallet?.accounts?.length) {
+			const signedMessage = await near.signMessage({
+				message,
+				recipient: config.recipient,
+				nonce: nonceBytes,
+			});
+
+			if (!signedMessage?.accountId) {
+				throw new Error("Wallet not connected");
+			}
+
+			return {
+				signedMessage,
+				accountId: signedMessage.accountId,
+				publicKey: signedMessage.publicKey,
+				nonceHex,
+			};
+		}
+
+		const result: { value: { signedMessage: SignedMessage; accountId: string; publicKey: string } | null } = { value: null };
+		const handler = (data: EventMap["wallet:signInAndSignMessage"]) => {
+			const account = data.accounts?.[0];
+			if (account?.signedMessage) {
+				result.value = {
+					signedMessage: account.signedMessage,
+					accountId: account.accountId,
+					publicKey: account.signedMessage.publicKey,
+				};
+			}
+		};
+
+		connector.on("wallet:signInAndSignMessage", handler);
+
+		try {
+			await connector.connect({
+				signMessageParams: {
+					message,
+					recipient: config.recipient,
+					nonce: nonceBytes,
+				},
+			});
+		} finally {
+			connector.off("wallet:signInAndSignMessage", handler);
+		}
+
+		if (!result.value) {
+			throw new Error("Wallet not connected");
+		}
+
+		return {
+			signedMessage: result.value.signedMessage,
+			accountId: result.value.accountId,
+			publicKey: result.value.publicKey,
+			nonceHex,
+		};
+	};
+
 	const buildSignedDelegateActionInternal = async (
 		receiverId: string,
-		actions: NearActionInput[],
+		buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder,
 	): Promise<string> => {
-		if (!nearWallet.isConnected()) {
+		const state = nearState.get();
+		if (!state?.accountId) {
 			throw new Error("No wallet connected — cannot sign delegate action");
 		}
 
-		const walletActions = actions.map(a => {
-			if (a.type === "FunctionCall") {
-				return {
-					type: "FunctionCall" as const,
-					methodName: a.methodName,
-					args: a.args,
-					gas: a.gas,
-					deposit: a.deposit,
-				};
-			}
-			return {
-				type: "Transfer" as const,
-				deposit: a.deposit,
-			};
-		});
+		const builder = buildActions(near.transaction(state.accountId), receiverId);
 
-		const result: SignDelegateActionsResponse = await nearWallet.signDelegateActions({
-			delegateActions: [{
-				receiverId,
-				actions: walletActions,
-			}],
-			network,
-		});
-
-		const signedResult = result.signedDelegateActions?.[0];
-		if (!signedResult?.signedDelegate) {
-			throw new Error("Wallet did not return a signed delegate action");
-		}
-
-		const signedDelegate = signedResult.signedDelegate;
-
-		if (typeof signedDelegate.serialize === "function") {
-			return bytesToBase64(signedDelegate.serialize());
-		}
-
-		return bytesToBase64(serializeSignedDelegateAction(signedDelegate));
-	};
-
-	const buildAuthToken = async (
-		signedMessage: SignedMessage,
-		message: string,
-		nonceBytes: Uint8Array,
-	): Promise<string> => {
-		return await sign(message, {
-			signer: {
-				signMessage: async () => signedMessage,
-			} as any,
-			recipient: config.recipient,
-			nonce: nonceBytes,
-		});
+		const { payload } = await builder.delegate();
+		return payload;
 	};
 
 	return {
@@ -163,30 +190,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 		getAtoms: (_$fetch) => ({
 			nearState,
-			cachedNonce,
 		}),
 
 		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined): SIWNClientActions => {
-			const fetchNonce = async (accountId: string): Promise<string> => {
-				const state = nearState.get();
-				const nonceRequest: NonceRequestT = {
-					accountId,
-					networkId: (state?.networkId || network) as "mainnet" | "testnet",
-				};
-				const nonceResponse: BetterFetchResponse<NonceResponseT> = await $fetch("/near/nonce", {
-					method: "POST",
-					body: nonceRequest,
-				});
-				if (nonceResponse.error) {
-					throw new Error(nonceResponse.error.message || "Failed to get nonce");
-				}
-				const nonce = nonceResponse?.data?.nonce;
-				if (!nonce) {
-					throw new Error("No nonce received from server");
-				}
-				return nonce;
-			};
-
 			return {
 				near: {
 					nonce: async (params: NonceRequestT, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<NonceResponseT>> => {
@@ -210,44 +216,38 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							...fetchOptions
 						});
 					},
+					view: async (params: ViewContractRequestT, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<ViewContractResponseT>> => {
+						return await $fetch("/near/view", {
+							method: "POST",
+							body: params,
+							...fetchOptions
+						});
+					},
 					getAccountId: () => {
 						const state = nearState.get();
 						return state?.accountId || null;
 					},
 					getState: () => nearState.get(),
 					disconnect: async () => {
-						await nearWallet.disconnect();
+						await connector.disconnect();
 						nearState.set(null);
-						clearNonce();
 					},
 					link: async (
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-							const state = nearState.get();
-							const accountId = state?.accountId;
-							if (!accountId) {
-								const error = new Error("Wallet not connected. Please connect your wallet first.") as Error & { code?: string };
-								error.code = "WALLET_NOT_CONNECTED";
-								throw error;
-							}
+							const { signedMessage, accountId, nonceHex } = await signWithWallet();
+							const message = `Sign in to ${config.recipient}`;
 
-							const nonce = await fetchNonce(accountId);
-							const message = `Sign in to ${config.recipient}\n\nAccount ID: ${accountId}\nNonce: ${nonce}`;
-							const nonceBytes = base64ToBytes(nonce);
-
-							const signedMessage = await nearWallet.signMessage({
-								message,
-								recipient: config.recipient,
-								nonce: nonceBytes,
-							});
-
-							const authToken = await buildAuthToken(signedMessage as SignedMessage, message, nonceBytes);
+							await handleAccountConnection(accountId, signedMessage.publicKey);
 
 							const linkResponse = await $fetch<{ success: boolean; accountId: string; network: string; message: string }>("/near/link-account", {
 								method: "POST",
 								body: {
-									authToken,
+									signedMessage,
+									message,
+									recipient: config.recipient,
+									nonce: nonceHex,
 									accountId,
 								}
 							});
@@ -279,14 +279,14 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					listAccounts: async (): Promise<BetterFetchResponse<{ accounts: NearAccount[] }>> => {
 						return await $fetch("/near/list-accounts", { method: "GET" });
 					},
-					buildSignedDelegateAction: async (params: {
-						receiverId: string;
-						actions: NearActionInput[];
-					}): Promise<string> => {
-						return buildSignedDelegateActionInternal(params.receiverId, params.actions);
+					buildSignedDelegateAction: async (
+						receiverId: string,
+						buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder,
+					): Promise<string> => {
+						return buildSignedDelegateActionInternal(receiverId, buildActions);
 					},
 					relayTransaction: async (params: {
-						signedDelegateAction: string;
+						payload: string;
 					}): Promise<BetterFetchResponse<RelayResponseT>> => {
 						return await $fetch("/near/relay", {
 							method: "POST",
@@ -298,85 +298,35 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							method: "GET",
 						});
 					},
-					wallet: nearWallet,
-				},
-				requestSignIn: {
-					near: async (
-						callbacks?: AuthCallbacks
-					): Promise<void> => {
-						try {
-							clearNonce();
-
-							const connectResult = await nearWallet.connect({ network, contractId: config.recipient });
-
-							const accountId = connectResult?.accountId || nearWallet.accountId();
-							if (!accountId) {
-								throw new Error("Failed to get account information after wallet connection");
-							}
-
-							await handleAccountConnection(accountId, connectResult?.publicKey);
-
-							const nonce = await fetchNonce(accountId);
-
-							const state = nearState.get();
-							const cachedData: CachedNonceData = {
-								nonce,
-								accountId,
-								publicKey: state?.publicKey,
-								networkId: network,
-								timestamp: Date.now()
-							};
-							cachedNonce.set(cachedData);
-
-							callbacks?.onSuccess?.();
-						} catch (error) {
-							const err = error instanceof Error ? error : new Error(String(error));
-							clearNonce();
-							callbacks?.onError?.(err);
-						}
-					}
+					getRelayerInfo: async (): Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>> => {
+						return await $fetch("/near/relayer-info", {
+							method: "GET",
+						});
+					},
+					relayHistory: async (): Promise<BetterFetchResponse<RelayHistoryResponseT>> => {
+						return await $fetch("/near/relay-history", {
+							method: "GET",
+						});
+					},
+					client: near,
 				},
 				signIn: {
 					near: async (
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
 						try {
-							const nonceBytes = generateNonce();
-							const nonceBase64 = bytesToBase64(nonceBytes);
-							const message = `Sign in to ${config.recipient}\n\nNonce: ${nonceBase64}`;
+							const { signedMessage, accountId, nonceHex } = await signWithWallet();
+							const message = `Sign in to ${config.recipient}`;
 
-							const connectResult = await nearWallet.connect({
-								network,
-								contractId: config.recipient,
-								signMessageParams: {
-									message,
-									recipient: config.recipient,
-									nonce: nonceBytes,
-								},
-							});
-
-							if (!connectResult?.accountId) {
-								throw new Error("Wallet not connected");
-							}
-
-							if (!connectResult.signedMessage) {
-								throw new Error("Wallet did not sign message during sign-in");
-							}
-
-							const accountId = connectResult.accountId;
-							const publicKey = connectResult.signedMessage.publicKey || connectResult.publicKey;
-							await handleAccountConnection(accountId, publicKey);
-
-							const authToken = await buildAuthToken(
-								connectResult.signedMessage,
-								message,
-								nonceBytes,
-							);
+							await handleAccountConnection(accountId, signedMessage.publicKey);
 
 							const verifyResponse: BetterFetchResponse<VerifyResponseT> = await $fetch("/near/verify", {
 								method: "POST",
 								body: {
-									authToken,
+									signedMessage,
+									message,
+									recipient: config.recipient,
+									nonce: nonceHex,
 									accountId,
 								}
 							});
@@ -392,7 +342,6 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							callbacks?.onSuccess?.();
 						} catch (error) {
 							const err = error instanceof Error ? error : new Error(String(error));
-							clearNonce();
 							callbacks?.onError?.(err);
 						}
 					}

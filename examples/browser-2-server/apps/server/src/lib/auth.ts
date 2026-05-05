@@ -35,7 +35,7 @@ export const auth = betterAuth({
     siwn({
       recipient: "better-near-auth.near",
       relayer: {},
-      fastnearApiKey: process.env.FASTNEAR_API_KEY,
+      apiKey: process.env.FASTNEAR_API_KEY,
     }),
   ],
   account: {
