@@ -1,0 +1,87 @@
+# Better-Near-Auth — Skill Spec
+
+Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) and a built-in NEP-366 delegate action relayer. It provides wallet-based authentication for web applications and enables gasless on-chain transactions on behalf of authenticated users.
+
+## Domains
+
+| Domain | Description | Skills |
+| ------ | ----------- | ------ |
+| SIWN authentication | Server-side NEAR wallet sign-in: plugin setup, NEP-413 flow, account linking, profile lookup | siwn |
+| Gasless relay | Delegate action relay: ephemeral/explicit config, NEP-366 flow, whitelisting, limits | relay |
+| Client integration | Client-side plugin: wallet connection, authClient.near actions, sign-in flow | client |
+
+## Skill Inventory
+
+| Skill | Type | Domain | What it covers | Failure modes |
+| ------ | ---- | ------ | -------------- | ------------- |
+| siwn | core | siwn | Plugin setup, nonce/verify, account linking, profiles | 4 |
+| relay | core | relay | Relayer modes, delegate actions, whitelisting, gas limits | 4 |
+| client | core | client | siwnClient config, wallet actions, sign-in, delegate building | 3 |
+
+## Failure Mode Inventory
+
+### siwn (4 failure modes)
+
+| # | Mistake | Priority | Source | Cross-skill? |
+|---|---------|----------|--------|--------------|
+| 1 | Recipient mismatch between server and client | CRITICAL | src/index.ts:225, src/client.ts:17 | client |
+| 2 | Sending raw nonce bytes instead of hex-encoded string | HIGH | src/types.ts:53-58, src/client.ts:106-109 | client |
+| 3 | Forgetting to generate DB schema after adding plugin | HIGH | README.md:56-60 | — |
+| 4 | Network detected from wrong account ID format | MEDIUM | src/profile.ts:6-8, src/index.ts:546-552 | client |
+
+### relay (4 failure modes)
+
+| # | Mistake | Priority | Source | Cross-skill? |
+|---|---------|----------|--------|--------------|
+| 1 | Not funding the ephemeral relayer account | CRITICAL | src/index.ts:179-181, maintainer interview | — |
+| 2 | Omitting whitelistedContracts in production | CRITICAL | src/index.ts:891-898, maintainer interview | — |
+| 3 | Constructing transactions with wrong builder pattern | HIGH | src/client.ts:172-185, maintainer interview | client |
+| 4 | Missing BETTER_AUTH_SECRET for ephemeral key encryption | HIGH | src/utils.ts:21-41, src/index.ts:134 | — |
+
+### client (3 failure modes)
+
+| # | Mistake | Priority | Source | Cross-skill? |
+|---|---------|----------|--------|--------------|
+| 1 | Calling buildSignedDelegateAction without connected wallet | HIGH | src/client.ts:176-179 | — |
+| 2 | Using authClient.near.verify directly instead of signIn.near | MEDIUM | src/client.ts:314-348 | — |
+| 3 | Not listening to wallet disconnect events | MEDIUM | src/client.ts:62,82-92 | — |
+
+## Tensions
+
+| Tension | Skills | Agent implication |
+| ------- | ------ | ----------------- |
+| Ephemeral simplicity vs production reliability | relay | Agents may default to ephemeral without warning about funding requirements |
+| Whitelist security vs development flexibility | relay | Agents may copy quickstart without whitelistedContracts into production |
+| Type safety with better-auth peer dependency | siwn ↔ client | Agents may write code that compiles but fails at runtime due to config mismatch |
+
+## Cross-References
+
+| From | To | Reason |
+| ---- | -- | ------ |
+| siwn | client | Client sign-in calls server nonce/verify; understanding both prevents mismatch |
+| relay | client | Client builds delegate actions submitted to relay; server validation logic prevents rejections |
+| client | siwn | Client recipient must match server recipient; loading server skill ensures consistency |
+
+## Subsystems & Reference Candidates
+
+| Skill | Subsystems | Reference candidates |
+| ----- | ---------- | -------------------- |
+| siwn | — | — |
+| relay | Ephemeral mode, Explicit mode (single key), Explicit mode (rotating keys) | — |
+| client | — | — |
+
+## Recommended Skill File Structure
+
+- **Core skills:** siwn, relay, client (all framework-agnostic)
+- **Framework skills:** None — library is framework-agnostic
+- **Lifecycle skills:** None — covered within individual skills
+- **Composition skills:** None — type safety with better-auth is noted as a cross-reference
+- **Reference files:** None — API surface is small enough to fit in each skill
+
+## Composition Opportunities
+
+| Library | Integration points | Composition skill needed? |
+| ------- | ------------------ | ------------------------ |
+| better-auth | Peer dependency; plugin registration, DB adapter | No — covered within each skill |
+| near-kit | Internal dependency; TransactionBuilder, Near, verify | No — usage patterns shown inline |
+| @hot-labs/near-connect | Internal dependency; wallet connector | No — handled by client skill |
