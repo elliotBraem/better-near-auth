@@ -28,8 +28,7 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
   variables: z.object({}),
 
   secrets: z.object({
-    API_DATABASE_URL: z.string().default("file:./api.db"),
-    API_DATABASE_AUTH_TOKEN: z.string().optional(),
+    API_DATABASE_URL: z.string().default("pglite:.bos/api/:memory:"),
   }),
 
   context: z.object({

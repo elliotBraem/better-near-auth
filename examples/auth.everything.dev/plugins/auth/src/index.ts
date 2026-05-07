@@ -66,7 +66,7 @@ export default createPlugin({
   }),
 
   secrets: z.object({
-    AUTH_DATABASE_URL: z.string().default(":memory:"),
+    AUTH_DATABASE_URL: z.string().default("pglite:.bos/auth/:memory:"),
     BETTER_AUTH_SECRET: z.string(),
   }),
 

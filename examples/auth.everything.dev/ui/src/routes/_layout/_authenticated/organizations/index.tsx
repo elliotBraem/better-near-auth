@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { getAuthClient, type Organization, type SessionData } from "@/app";
-import { Badge, Button, Card, CardContent, UnderConstruction } from "@/components";
+import { Badge, Button, Card, CardContent } from "@/components";
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
   head: () => ({
@@ -62,11 +62,7 @@ function OrganizationsList() {
                 Switch contexts, create new organizations, and open team-specific member and API key
                 management flows.
               </p>
-              <UnderConstruction
-                label="organizations"
-                sourceFile="ui/src/routes/_layout/_authenticated/organizations/index.tsx"
-                className="w-full max-w-sm mt-3"
-              />
+
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild>
@@ -113,10 +109,10 @@ function OrganizationsList() {
                         <img
                           src={org.logo}
                           alt=""
-                          className="w-10 h-10 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] object-cover"
+                          className="w-10 h-10 border border-border rounded object-cover"
                         />
                       ) : (
-                        <div className="w-10 h-10 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] flex items-center justify-center text-sm">
+                        <div className="w-10 h-10 border border-border rounded flex items-center justify-center text-sm">
                           {org.name.charAt(0).toUpperCase()}
                         </div>
                       )}

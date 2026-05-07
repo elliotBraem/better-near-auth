@@ -14,10 +14,11 @@ export async function createDatabaseDriver(url: string): Promise<DatabaseDriver>
   if (url.startsWith("pglite:") || url === ":memory:") {
     const { drizzle } = await import("drizzle-orm/pglite");
     const dataDir = url === ":memory:" ? ":memory:" : url.replace("pglite:", "");
-    if (dataDir !== ":memory:") {
-      mkdirSync(dirname(dataDir), { recursive: true });
+    const actualDir = dataDir.endsWith("/:memory:") ? ":memory:" : dataDir;
+    if (actualDir !== ":memory:") {
+      mkdirSync(dirname(actualDir), { recursive: true });
     }
-    const db = drizzle(dataDir, { schema });
+    const db = drizzle(actualDir, { schema });
     return {
       db,
       close: async () => {},

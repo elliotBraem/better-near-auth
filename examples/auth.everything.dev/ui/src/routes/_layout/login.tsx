@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { getAuthClient } from "@/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UnderConstruction } from "@/components/under-construction";
+
 import { sessionQueryOptions } from "@/lib/session";
 
 type SearchParams = {
@@ -283,11 +283,6 @@ function LoginPage() {
       case "passkey":
         return (
           <div className="space-y-6">
-            <UnderConstruction
-              label="Passkey"
-              sourceFile="ui/src/routes/_layout/login.tsx"
-              className="mx-auto w-full max-w-xs"
-            />
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               Use Face ID, Touch ID, or security key
             </p>
@@ -315,11 +310,6 @@ function LoginPage() {
       case "email":
         return (
           <div className="space-y-6">
-            <UnderConstruction
-              label="Email"
-              sourceFile="ui/src/routes/_layout/login.tsx"
-              className="mx-auto w-full max-w-xs"
-            />
             <Input
               type="email"
               value={email}
@@ -359,11 +349,6 @@ function LoginPage() {
       case "phone":
         return (
           <div className="space-y-6">
-            <UnderConstruction
-              label="Phone"
-              sourceFile="ui/src/routes/_layout/login.tsx"
-              className="mx-auto w-full max-w-xs"
-            />
             {!otpSent ? (
               <>
                 <Input
@@ -411,11 +396,6 @@ function LoginPage() {
       case "github":
         return (
           <div className="space-y-6">
-            <UnderConstruction
-              label="GitHub"
-              sourceFile="ui/src/routes/_layout/login.tsx"
-              className="mx-auto w-full max-w-xs"
-            />
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               Sign in with your GitHub account
             </p>
@@ -430,7 +410,7 @@ function LoginPage() {
   return (
     <div className="min-h-[70vh] w-full flex items-start justify-center px-6 pt-[15vh] animate-fade-in">
       <div className="w-full max-w-sm space-y-8">
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {(["anonymous", "near", "github", "passkey", "email", "phone"] as AuthMethod[]).map(
             (method) => (
               <Button
@@ -439,6 +419,7 @@ function LoginPage() {
                 size="sm"
                 onClick={() => setAuthMethod(method)}
                 disabled={isPending}
+                className="w-full capitalize"
               >
                 {method}
               </Button>

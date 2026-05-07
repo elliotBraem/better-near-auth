@@ -26,11 +26,14 @@ import {
   Badge,
   Button,
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from "@/components";
 import { Input } from "@/components/ui/input";
 import { sessionQueryOptions } from "@/lib/session";
@@ -125,25 +128,72 @@ function DashboardPage() {
     enabled: !!session?.user,
   });
 
+  const { data: relayerData, isLoading: relayerLoading } = useQuery<RelayerData>({
+    queryKey: ["relayer-info"],
+    queryFn: async () => {
+      const response = await getAuthClient().near.getRelayerInfo();
+      return response.data as RelayerData;
+    },
+  });
+
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-6 space-y-4 sm:space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-        <ProfileCard user={user} nearAccountId={nearAccountId} linkedProviders={linkedProviders} />
-        <RelayerCard />
-        <AccountLinkingCard linkedAccounts={linkedAccounts} />
-        <GuestbookCard initialGreeting={greeting} />
-        <SessionInfoCard user={user} nearAccountId={nearAccountId} linkedAccounts={linkedAccounts} privateData={privateData} />
-        <ExploreCard />
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Welcome back, {user?.name || nearAccountId || "User"}
+          </p>
+        </div>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Transaction Feed</CardTitle>
-          <CardDescription>Live-updating relay history</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RelayFeed />
-        </CardContent>
-      </Card>
+
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="relayer">Relayer</TabsTrigger>
+          <TabsTrigger value="accounts">My Accounts</TabsTrigger>
+          <TabsTrigger value="explorer">Profile Explorer</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ProfileCard user={user} nearAccountId={nearAccountId} linkedProviders={linkedProviders} />
+            <SessionInfoCard user={user} nearAccountId={nearAccountId} linkedAccounts={linkedAccounts} privateData={privateData} />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Linked Accounts" value={String(linkedAccounts.length)} icon={<Link2 className="h-4 w-4" />} />
+            <StatCard label="Organizations" value={String(session?.user?.organizations?.length || 0)} icon={<ShieldCheck className="h-4 w-4" />} />
+            <StatCard label="Relayer" value={relayerData?.enabled ? "Active" : "Inactive"} icon={<Zap className="h-4 w-4" />} />
+            <StatCard label="Session" value={user ? "Valid" : "Expired"} icon={<Clock className="h-4 w-4" />} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="relayer" className="space-y-6 pt-4">
+          <RelayerCard />
+          <GuestbookCard initialGreeting={greeting} />
+          <RelayFeedCard />
+        </TabsContent>
+
+        <TabsContent value="accounts" className="space-y-6 pt-4">
+          <AccountLinkingCard linkedAccounts={linkedAccounts} />
+        </TabsContent>
+
+        <TabsContent value="explorer" className="space-y-6 pt-4">
+          <ExploreCard />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function StatCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="border border-border rounded-lg p-4 bg-card">
+      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+        {icon}
+        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="text-lg font-semibold">{value}</div>
     </div>
   );
 }
@@ -323,11 +373,6 @@ function RelayerCard() {
           <Wallet className="h-5 w-5" />
           Relayer
         </CardTitle>
-        <CardAction>
-          <Button variant="ghost" size="icon" onClick={() => refetch()} title="Refresh">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
@@ -365,18 +410,18 @@ function RelayerCard() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="border rounded-md p-3">
+          <div className="border border-border rounded-md p-3">
             <div className="text-xs text-muted-foreground">Total</div>
             <div className="text-sm font-medium">{formatNear(data.balance ?? "0")} NEAR</div>
           </div>
-          <div className="border rounded-md p-3">
+          <div className="border border-border rounded-md p-3">
             <div className="text-xs text-muted-foreground">Available</div>
             <div className="text-sm font-medium">{formatNear(data.available ?? "0")} NEAR</div>
           </div>
         </div>
 
         {!isFunded && (
-          <div className="border border-dashed rounded-lg p-4 text-center space-y-2">
+          <div className="border border-dashed border-border rounded-lg p-4 text-center space-y-2">
             <p className="text-sm text-muted-foreground">Fund this account to enable gasless relay</p>
             <code className="text-xs font-mono break-all select-all bg-muted px-2 py-1 rounded block">
               {data.accountId}
@@ -395,11 +440,7 @@ function RelayerCard() {
   );
 }
 
-function AccountLinkingCard({
-  linkedAccounts,
-}: {
-  linkedAccounts: any[];
-}) {
+function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
   const queryClient = useQueryClient();
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
@@ -409,8 +450,7 @@ function AccountLinkingCard({
   const walletAccountId = getAuthClient().near.getAccountId();
   const accounts = linkedAccounts;
 
-  const invalidateAccounts = () =>
-    queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
+  const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
 
   const handleLinkSocial = async (providerId: "google" | "github") => {
     if (providerId === "google") setIsLinkingGoogle(true);
@@ -494,97 +534,117 @@ function AccountLinkingCard({
   const canUnlinkAccount = (account: any) => account !== primaryAccount && accounts.length > 1;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Focus className="h-5 w-5" />
-          Connected Accounts
-        </CardTitle>
-        <CardDescription>Manage your linked authentication providers</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {primaryAccount && (
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm flex items-center gap-2">
-              Primary Account
-              <Badge variant="secondary" className="text-xs">Can&apos;t be unlinked</Badge>
-            </h4>
-            <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{getProviderConfig(primaryAccount.providerId).icon}</span>
-                <div>
-                  <span className="font-medium">{getProviderConfig(primaryAccount.providerId).name}</span>
-                  <span className="text-sm text-muted-foreground ml-2">{primaryAccount.accountId}</span>
-                </div>
-              </div>
-              <span className="text-xs text-muted-foreground">Primary</span>
-            </div>
-          </div>
-        )}
-
-        {secondaryAccounts.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="font-medium text-sm">Secondary Accounts</h4>
-            {secondaryAccounts.map((account) => (
-              <div key={account.providerId || account.accountId} className="flex items-center justify-between p-3 border rounded-lg">
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Focus className="h-5 w-5" />
+            Connected Accounts
+          </CardTitle>
+          <CardDescription>Manage your linked authentication providers</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {primaryAccount && (
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                Primary Account
+                <Badge variant="secondary" className="text-xs">Can&apos;t be unlinked</Badge>
+              </h4>
+              <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/30">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">{getProviderConfig(account.providerId).icon}</span>
+                  <span className="text-lg">{getProviderConfig(primaryAccount.providerId).icon}</span>
                   <div>
-                    <span className="font-medium">{getProviderConfig(account.providerId).name}</span>
-                    <span className="text-sm text-muted-foreground ml-2">{account.accountId}</span>
+                    <span className="font-medium">{getProviderConfig(primaryAccount.providerId).name}</span>
+                    <span className="text-sm text-muted-foreground ml-2">{primaryAccount.accountId}</span>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    account.providerId === "siwn"
-                      ? handleUnlinkNearAccount(account)
-                      : handleUnlinkAccount(account.providerId)
-                  }
-                  disabled={isUnlinking === (account.providerId || account.accountId) || !canUnlinkAccount(account)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  {isUnlinking === (account.providerId || account.accountId) ? "Unlinking..." : "Unlink"}
-                </Button>
+                <span className="text-xs text-muted-foreground">Primary</span>
               </div>
-            ))}
+            </div>
+          )}
+
+          {secondaryAccounts.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="font-medium text-sm">Secondary Accounts</h4>
+              {secondaryAccounts.map((account) => (
+                <div key={account.providerId || account.accountId} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{getProviderConfig(account.providerId).icon}</span>
+                    <div>
+                      <span className="font-medium">{getProviderConfig(account.providerId).name}</span>
+                      <span className="text-sm text-muted-foreground ml-2">{account.accountId}</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      account.providerId === "siwn"
+                        ? handleUnlinkNearAccount(account)
+                        : handleUnlinkAccount(account.providerId)
+                    }
+                    disabled={isUnlinking === (account.providerId || account.accountId) || !canUnlinkAccount(account)}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    {isUnlinking === (account.providerId || account.accountId) ? "Unlinking..." : "Unlink"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h4 className="font-medium text-sm">Add New Account</h4>
+            {!isProviderLinked("google") && (
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => handleLinkSocial("google")} disabled={isLinkingGoogle}>
+                <span className="mr-2">🔵</span>
+                {isLinkingGoogle ? "Linking Google..." : "Link Google Account"}
+              </Button>
+            )}
+            {!isProviderLinked("github") && (
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => handleLinkSocial("github")} disabled={isLinkingGitHub}>
+                <span className="mr-2">⚫</span>
+                {isLinkingGitHub ? "Linking GitHub..." : "Link GitHub Account"}
+              </Button>
+            )}
+            {!isProviderLinked("siwn") && (
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={handleNearAction} disabled={isProcessingNear}>
+                <span className="mr-2">🔗</span>
+                {isProcessingNear
+                  ? walletAccountId
+                    ? "Linking NEAR..."
+                    : "Connecting Wallet..."
+                  : `Link NEAR Account${walletAccountId ? ` (${walletAccountId})` : ""}`}
+              </Button>
+            )}
           </div>
-        )}
 
-        <div className="space-y-2">
-          <h4 className="font-medium text-sm">Add New Account</h4>
-          {!isProviderLinked("google") && (
-            <Button type="button" variant="outline" className="w-full justify-start" onClick={() => handleLinkSocial("google")} disabled={isLinkingGoogle}>
-              <span className="mr-2">🔵</span>
-              {isLinkingGoogle ? "Linking Google..." : "Link Google Account"}
-            </Button>
+          {accounts.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No accounts linked yet. Add an account to enable cross-platform authentication.
+            </p>
           )}
-          {!isProviderLinked("github") && (
-            <Button type="button" variant="outline" className="w-full justify-start" onClick={() => handleLinkSocial("github")} disabled={isLinkingGitHub}>
-              <span className="mr-2">⚫</span>
-              {isLinkingGitHub ? "Linking GitHub..." : "Link GitHub Account"}
-            </Button>
-          )}
-          {!isProviderLinked("siwn") && (
-            <Button type="button" variant="outline" className="w-full justify-start" onClick={handleNearAction} disabled={isProcessingNear}>
-              <span className="mr-2">🔗</span>
-              {isProcessingNear
-                ? walletAccountId
-                  ? "Linking NEAR..."
-                  : "Connecting Wallet..."
-                : `Link NEAR Account${walletAccountId ? ` (${walletAccountId})` : ""}`}
-            </Button>
-          )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {accounts.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No accounts linked yet. Add an account to enable cross-platform authentication.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      {accounts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">NEAR Social Profiles</CardTitle>
+            <CardDescription>Profiles for your linked NEAR accounts</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {accounts
+              .filter((a) => a.providerId === "siwn" || a.accountId?.includes(".near"))
+              .map((account: any) => (
+                <div key={account.accountId} className="border border-border rounded-lg p-4">
+                  <NearProfile accountId={account.accountId} variant="card" showAvatar showName />
+                </div>
+              ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -725,25 +785,15 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Guestbook</CardTitle>
+          <CardTitle>Guestbook Demo</CardTitle>
           <div className="flex gap-1">
             <Button variant={sendMode === "relay" ? "default" : "outline"} size="sm" onClick={() => setSendMode("relay")}>
               <Zap className="h-3.5 w-3.5 mr-1" />
               Gasless
-              {sendMode === "relay" && (
-                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
-                  Relay
-                </Badge>
-              )}
             </Button>
             <Button variant={sendMode === "direct" ? "default" : "outline"} size="sm" onClick={() => setSendMode("direct")}>
               <Wallet className="h-3.5 w-3.5 mr-1" />
               Direct
-              {sendMode === "direct" && (
-                <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
-                  You Pay Gas
-                </Badge>
-              )}
             </Button>
           </div>
         </div>
@@ -775,7 +825,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
         </form>
 
         {sendMode === "relay" && relayStatus !== "idle" && (
-          <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
+          <div className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/50">
             {relayStatus === "pending" && (
               <>
                 <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
@@ -822,6 +872,20 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   );
 }
 
+function RelayFeedCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Transaction Feed</CardTitle>
+        <CardDescription>Live-updating relay history</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <RelayFeed />
+      </CardContent>
+    </Card>
+  );
+}
+
 function SessionInfoCard({
   user,
   nearAccountId,
@@ -838,79 +902,62 @@ function SessionInfoCard({
   const socialAccountCount = providerCount - nearAccountCount;
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" />
-            Server-Only Data
-          </CardTitle>
-          <CardDescription>This data is only accessible to authenticated users via your server session</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="border rounded-md p-4">
-            <p className="text-sm">{privateData?.message ?? "Loading..."}</p>
-          </div>
-          {privateData && (
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-1.5">
-                  <Key className="h-3.5 w-3.5" /> Session ID
-                </span>
-                <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                  {privateData.sessionId?.slice(0, 12)}...
-                </code>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5" /> Expires
-                </span>
-                <span className="text-xs">
-                  {privateData.expiresAt ? new Date(privateData.expiresAt).toLocaleString() : "N/A"}
-                </span>
-              </div>
-            </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShieldCheck className="h-4 w-4" />
+          Session
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">User</span>
+          <span className="font-medium">{user?.name || nearAccountId || "Unknown"}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Email</span>
+          <span className="text-xs">{user?.email || "N/A"}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">NEAR Account</span>
+          {nearAccountId ? (
+            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{nearAccountId}</code>
+          ) : (
+            <span className="text-xs text-muted-foreground">None</span>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Link2 className="h-4 w-4" />
-            Session Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">User</span>
-            <span className="font-medium">{user?.name || nearAccountId || "Unknown"}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Email</span>
-            <span className="text-xs">{user?.email || "N/A"}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">NEAR Account</span>
-            {nearAccountId ? (
-              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{nearAccountId}</code>
-            ) : (
-              <span className="text-xs text-muted-foreground">None</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Linked Providers</span>
+          <div className="flex gap-1">
+            {nearAccountCount > 0 && <Badge variant="secondary" className="text-xs">NEAR</Badge>}
+            {socialAccountCount > 0 && (
+              <Badge variant="secondary" className="text-xs">{socialAccountCount} OAuth</Badge>
             )}
+            {providerCount === 0 && <span className="text-xs text-muted-foreground">None</span>}
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Linked Providers</span>
-            <div className="flex gap-1">
-              {nearAccountCount > 0 && <Badge variant="secondary" className="text-xs">NEAR</Badge>}
-              {socialAccountCount > 0 && (
-                <Badge variant="secondary" className="text-xs">{socialAccountCount} OAuth</Badge>
-              )}
-              {providerCount === 0 && <span className="text-xs text-muted-foreground">None</span>}
+        </div>
+        {privateData && (
+          <div className="border-t border-border pt-3 space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Key className="h-3.5 w-3.5" /> Session ID
+              </span>
+              <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                {privateData.sessionId?.slice(0, 12)}...
+              </code>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" /> Expires
+              </span>
+              <span className="text-xs">
+                {privateData.expiresAt ? new Date(privateData.expiresAt).toLocaleString() : "N/A"}
+              </span>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -938,9 +985,9 @@ function ExploreCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Search className="h-5 w-5" />
-          Explore
+          Profile Explorer
         </CardTitle>
-        <CardDescription>Browse NEAR Social profiles</CardDescription>
+        <CardDescription>Browse NEAR Social profiles by account ID</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form onSubmit={onSearch} className="flex gap-2">

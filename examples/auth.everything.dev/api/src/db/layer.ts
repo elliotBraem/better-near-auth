@@ -3,11 +3,11 @@ import { createDatabase, type Database } from "./index";
 
 export class DatabaseTag extends Context.Tag("Database")<DatabaseTag, Database>() {}
 
-export const DatabaseLive = (url: string, authToken?: string) =>
+export const DatabaseLive = (url: string) =>
   Layer.scoped(
     DatabaseTag,
     Effect.acquireRelease(
-      Effect.sync(() => createDatabase(url, authToken)),
-      (acquired) => Effect.sync(() => acquired.client.close()),
-    ).pipe(Effect.map((acquired) => acquired.db)),
+      Effect.promise(() => createDatabase(url)),
+      (driver) => Effect.promise(() => driver.close()),
+    ).pipe(Effect.map((driver) => driver.db)),
   );

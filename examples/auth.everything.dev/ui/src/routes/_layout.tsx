@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
-import { Building2, Globe, Home, Settings } from "lucide-react";
+import { Building2, Home, Settings } from "lucide-react";
 import { getAppName } from "@/app";
 import builtOn from "@/assets/built_on.png";
 import builtOnRev from "@/assets/built_on_rev.png";
@@ -20,7 +20,6 @@ export const Route = createFileRoute("/_layout")({
 
 const authenticatedSidebarItems = [
   { icon: Home, label: "home", to: "/" as const },
-  { icon: Globe, label: "apps", to: "/apps" as const },
   { icon: Building2, label: "organizations", to: "/organizations" as const },
   { icon: Settings, label: "settings", to: "/settings" as const },
 ];
@@ -45,7 +44,7 @@ function Layout() {
                 <Link
                   to="/"
                   aria-label={`${appName} home`}
-                  className="mb-3 flex items-center justify-center w-10 h-10 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-card shadow-sm transition-shadow duration-200 hover:shadow-md"
+                  className="mb-3 flex items-center justify-center w-10 h-10 border border-border rounded-md bg-card shadow-sm transition-colors duration-200 hover:bg-muted"
                 >
                   <svg
                     viewBox="0 0 24 24"
@@ -64,7 +63,7 @@ function Layout() {
             {authenticatedSidebarItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item);
-              const className = `flex items-center justify-center w-10 h-10 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] shadow-sm transition-all duration-200 ease-out hover:shadow-md ${active ? "bg-foreground text-background" : "bg-card text-foreground hover:bg-muted"}`;
+              const className = `flex items-center justify-center w-10 h-10 rounded-md border border-border transition-all duration-200 ease-out ${active ? "bg-foreground text-background shadow-sm" : "bg-card text-foreground hover:bg-muted shadow-sm"}`;
 
               return (
                 <Tooltip key={item.label}>
@@ -93,7 +92,7 @@ function Layout() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono min-w-0">
                   <Link
                     aria-label={`${appName} home`}
-                    className="sm:hidden flex items-center justify-center w-8 h-8 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-card shadow-sm transition-shadow duration-200 hover:shadow-md"
+                    className="sm:hidden flex items-center justify-center w-8 h-8 border border-border rounded-md bg-card shadow-sm transition-colors duration-200 hover:bg-muted"
                     to="/"
                   >
                     <svg
