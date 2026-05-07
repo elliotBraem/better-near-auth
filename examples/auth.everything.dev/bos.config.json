@@ -29,7 +29,7 @@
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
-      "development": "local:auth",
+      "development": "local:plugins/auth",
       "production": "https://elliot-braem-2920-everything-dev-auth-plugin-ever-299e2985c-ze.zephyrcloud.app",
       "integrity": "sha384-LU0jmOg3U/H/3PXfs05RTawrIwv0p43CMD5uzeeKFFyMrEeW5wJBAxmaPLmcqDyD",
       "variables": {

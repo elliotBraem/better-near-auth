@@ -20,6 +20,18 @@ export const contract = oc.router({
       }),
     )
     .errors({ UNAUTHORIZED }),
+
+  privateData: oc
+    .route({ method: "GET", path: "/private" })
+    .output(
+      z.object({
+        message: z.string(),
+        userId: z.string(),
+        sessionId: z.string().nullable(),
+        expiresAt: z.string().nullable(),
+      }),
+    )
+    .errors({ UNAUTHORIZED }),
 });
 
 export type ContractType = typeof contract;

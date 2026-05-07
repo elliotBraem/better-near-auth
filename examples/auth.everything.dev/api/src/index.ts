@@ -20,6 +20,10 @@ export interface AuthContext {
   reqHeaders?: Record<string, string>;
 }
 
+function createHeaders(reqHeaders?: Record<string, string>): Headers {
+  return new Headers(Object.entries(reqHeaders ?? {}) as [string, string][]);
+}
+
 export default createPlugin.withPlugins<ApiPluginsClient>()({
   variables: z.object({}),
 
@@ -55,7 +59,7 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
 
   shutdown: () => Effect.log("[API] Shutdown"),
 
-  createRouter: (_services, builder) => {
+  createRouter: (services, builder) => {
     const requireAuth = builder.middleware(async ({ context, next }) => {
       if (!context.user || !context.userId) {
         throw new ORPCError("UNAUTHORIZED", {
@@ -87,6 +91,15 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
         emailConfigured: !!process.env.EMAIL_PROVIDER,
         smsConfigured: !!process.env.SMS_PROVIDER,
       })),
+
+      privateData: builder.privateData.use(requireAuth).handler(async ({ context }) => {
+        return {
+          message: "This data is only accessible to authenticated users via your server session",
+          userId: context.userId,
+          sessionId: null,
+          expiresAt: null,
+        };
+      }),
     };
   },
 });

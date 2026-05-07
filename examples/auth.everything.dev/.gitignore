@@ -296,6 +296,7 @@ fabric.properties
 
 # db
 /**/*.db
+:memory:
 
 .turbo
 .bos

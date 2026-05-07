@@ -27,7 +27,7 @@
     "@rspack/core": "^1.6.8",
     "@types/node": "^25.0.3",
     "dotenv": "^17.2.3",
-    "everything-dev": "^1.8.2",
+    "everything-dev": "^1.8.10",
     "every-plugin": "^2.4.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.17",
