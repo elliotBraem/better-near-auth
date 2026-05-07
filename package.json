@@ -36,7 +36,8 @@
     "authentication",
     "blockchain",
     "web3",
-    "plugin"
+    "plugin",
+    "tanstack-intent"
   ],
   "author": "efiz.near",
   "license": "MIT",
@@ -67,6 +68,7 @@
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.30.0",
+    "@tanstack/intent": "^0.0.40",
     "@types/bun": "latest",
     "@types/node": "^25.0.9",
     "better-auth": "^1.6.9",
@@ -76,6 +78,8 @@
   "files": [
     "dist/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "skills",
+    "!skills/_artifacts"
   ]
 }
