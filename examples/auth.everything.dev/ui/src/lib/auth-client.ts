@@ -10,7 +10,7 @@ import {
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
 import { siwnClient } from "better-near-auth/client";
 import { getAccount, getHostUrl, getNetworkId, getRuntimeConfig } from "@/app";
-import type { createAuthInstance } from "../../../plugins/auth/src/auth-export";
+import type { createAuthInstance } from "../auth-types.gen";
 
 export function isAuthAvailable(): boolean {
   return getRuntimeConfig().authAvailable !== false;

@@ -101,7 +101,7 @@
     "zod": "4.3.6",
     "@opentelemetry/api": "^1.9.0",
     "every-plugin": "^2.5.4",
-    "everything-dev": "^1.8.13"
+    "everything-dev": "^1.9.0"
   },
   "overrides": {
     "axios": "1.13.6",
