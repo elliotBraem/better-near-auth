@@ -1,5 +1,6 @@
 import { oc } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
+import type { InferContractRouterInputs, InferContractRouterOutputs } from "@orpc/contract";
 
 const Errors = {
   UNAUTHORIZED: {
@@ -96,7 +97,7 @@ const requestContextSchema = z.object({
     .optional(),
 });
 
-const apiKeySchema = z.object({
+export const apiKeySchema = z.object({
   id: z.string(),
   name: z.string().nullable(),
   prefix: z.string().nullable(),
@@ -552,3 +553,8 @@ export const contract = oc.router({
 });
 
 export type ContractType = typeof contract;
+
+export type InferOutput<K extends keyof InferContractRouterOutputs<ContractType>> =
+  InferContractRouterOutputs<ContractType>[K];
+export type InferInput<K extends keyof InferContractRouterInputs<ContractType>> =
+  InferContractRouterInputs<ContractType>[K];

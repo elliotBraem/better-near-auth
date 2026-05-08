@@ -215,8 +215,7 @@ All runtime configuration lives in `bos.config.json`:
       "production": "https://...",
       "variables": {
         "account": "dev.everything.near",
-        "hostUrl": "http://localhost:3000",
-        "uiUrl": "http://localhost:3003"
+        "domain": "http://localhost:3000"
       },
       "secrets": ["AUTH_DATABASE_URL", "BETTER_AUTH_SECRET"]
     }

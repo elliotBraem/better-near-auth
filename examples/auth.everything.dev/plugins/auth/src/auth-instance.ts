@@ -1,5 +1,3 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
@@ -10,41 +8,15 @@ import type {} from "zod/v4/core";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
-const DEV_PREVIEW_DIR = path.join(process.cwd(), ".dev-preview");
-const EMAIL_PREVIEW_FILE = path.join(DEV_PREVIEW_DIR, "emails.jsonl");
-const SMS_PREVIEW_FILE = path.join(DEV_PREVIEW_DIR, "sms.jsonl");
-
-function ensureDevPreviewDir() {
-  if (!fs.existsSync(DEV_PREVIEW_DIR)) {
-    fs.mkdirSync(DEV_PREVIEW_DIR, { recursive: true });
-  }
-}
-
 async function sendEmail({
   to,
   subject,
   text,
-  html,
 }: {
   to: string;
   subject: string;
   text: string;
-  html?: string;
 }) {
-  ensureDevPreviewDir();
-
-  const entry = {
-    type: "email",
-    timestamp: new Date().toISOString(),
-    to,
-    subject,
-    text,
-    html,
-    previewUrl: null as string | null,
-  };
-
-  fs.appendFileSync(EMAIL_PREVIEW_FILE, `${JSON.stringify(entry)}\n`);
-
   console.log(`\n📧 [Email Preview] ============================================`);
   console.log(`To: ${to}`);
   console.log(`Subject: ${subject}`);
@@ -54,18 +26,6 @@ async function sendEmail({
 }
 
 async function sendSMS({ phoneNumber, code }: { phoneNumber: string; code: string }) {
-  ensureDevPreviewDir();
-
-  const entry = {
-    type: "sms",
-    timestamp: new Date().toISOString(),
-    phoneNumber,
-    code,
-    message: `Your verification code is: ${code}`,
-  };
-
-  fs.appendFileSync(SMS_PREVIEW_FILE, `${JSON.stringify(entry)}\n`);
-
   console.log(`\n📱 [SMS Preview] ================================================`);
   console.log(`To: ${phoneNumber}`);
   console.log(`Code: ${code}`);
@@ -114,51 +74,42 @@ async function createPersonalOrganization(
     createdAt: new Date(),
   });
 
-  console.log(`[Auth] Created personal organization ${personalOrg.id} for user ${user.id}`);
   return personalOrg;
 }
 
 export interface AuthConfig {
+  secret: string;
+  baseUrl: string;
   account: string;
-  hostUrl: string;
-  uiUrl?: string;
+  corsOrigins?: string[];
   githubClientId?: string;
   githubClientSecret?: string;
+  fastnearApiKey?: string;
+  nearRpcUrl?: string;
+  isProduction?: boolean;
 }
 
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) {
-    throw new Error(
-      "BETTER_AUTH_SECRET environment variable is required. Set it before starting the server.",
-    );
-  }
-
-  const baseUrl = process.env.BETTER_AUTH_URL || config.hostUrl;
-
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: schema,
     }),
-    trustedOrigins: process.env.CORS_ORIGIN?.split(",").map((o: string) => o.trim()) ?? [
-      config.hostUrl,
-      ...(config.uiUrl ? [config.uiUrl] : []),
-    ],
-    secret,
-    baseURL: baseUrl,
+    trustedOrigins: config.corsOrigins ?? [config.baseUrl],
+    secret: config.secret,
+    baseURL: config.baseUrl,
     socialProviders: {
       github: {
-        clientId: config.githubClientId || process.env.GITHUB_CLIENT_ID!,
-        clientSecret: config.githubClientSecret || process.env.GITHUB_CLIENT_SECRET!,
+        clientId: config.githubClientId ?? "",
+        clientSecret: config.githubClientSecret ?? "",
       },
     },
     plugins: [
       siwn({
         recipient: config.account,
         relayer: {},
-        apiKey: process.env.FASTNEAR_API_KEY,
-        rpcUrl: process.env.NEAR_RPC_URL,
+        apiKey: config.fastnearApiKey,
+        rpcUrl: config.nearRpcUrl,
       }),
       admin({ defaultRole: "user", adminRoles: ["admin"] }),
       anonymous({ emailDomainName: config.account }),
@@ -174,7 +125,7 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       passkey(),
       organization({
         async sendInvitationEmail(data) {
-          const inviteLink = `${baseUrl}/accept-invitation/${data.id}`;
+          const inviteLink = `${config.baseUrl}/accept-invitation/${data.id}`;
           await sendEmail({
             to: data.email,
             subject: `Invitation to join ${data.organization.name}`,
@@ -187,8 +138,8 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
-      sendResetPassword: async ({ user, url }, _request) => {
-        void sendEmail({
+      sendResetPassword: async ({ user, url }) => {
+        await sendEmail({
           to: user.email,
           subject: "Reset your password",
           text: `Click the link to reset your password: ${url}`,
@@ -196,8 +147,8 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       },
     },
     emailVerification: {
-      sendVerificationEmail: async ({ user, url }, _request) => {
-        void sendEmail({
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendEmail({
           to: user.email,
           subject: "Verify your email address",
           text: `Click the link to verify your email: ${url}`,
@@ -206,9 +157,6 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       sendOnSignUp: true,
       sendOnSignIn: true,
       autoSignInAfterVerification: true,
-      async afterEmailVerification(user, _request) {
-        console.log(`${user.email} has been successfully verified!`);
-      },
     },
     databaseHooks: {
       user: {
@@ -232,14 +180,14 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
     },
     session: {
       cookieCache: {
-        enabled: process.env.NODE_ENV === "production",
+        enabled: config.isProduction ?? false,
         maxAge: 5 * 60,
       },
     },
     advanced: {
       defaultCookieAttributes: {
         sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
+        secure: config.isProduction ?? false,
         httpOnly: true,
       },
     },

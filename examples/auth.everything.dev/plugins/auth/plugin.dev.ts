@@ -9,8 +9,7 @@ export default {
   config: {
     variables: {
       account: process.env.ACCOUNT || "dev.everything.near",
-      hostUrl: process.env.HOST_URL || "http://localhost:3000",
-      uiUrl: process.env.UI_URL || "http://localhost:3003",
+      domain: process.env.DOMAIN || "http://localhost:3000",
       githubClientId: process.env.GITHUB_CLIENT_ID,
       githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
     },

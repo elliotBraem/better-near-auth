@@ -130,8 +130,9 @@ describe("NEAR SIWN Sandbox Integration", () => {
 
         const auth = pluginModules.createAuthInstance(
           {
+            secret: process.env.BETTER_AUTH_SECRET!,
+            baseUrl: "http://localhost:3000",
             account: "test.near",
-            hostUrl: "http://localhost:3000",
           },
           driver.db,
         );
@@ -211,14 +212,14 @@ describe("NEAR SIWN Sandbox Integration", () => {
 
         const auth = pluginModules.createAuthInstance(
           {
+            secret: process.env.BETTER_AUTH_SECRET!,
+            baseUrl: "http://localhost:3000",
             account: TEST_RECIPIENT,
-            hostUrl: "http://localhost:3000",
           },
           driver.db,
         );
 
         // Get nonce
-        // @ts-expect-error better-near-auth plugin API types are not augmented
         const nonceRes = await auth.api.getSiwnNonce({
           body: { accountId: TEST_ACCOUNT, networkId: "testnet" },
         });
@@ -239,7 +240,6 @@ describe("NEAR SIWN Sandbox Integration", () => {
         });
 
         // Verify
-        // @ts-expect-error better-near-auth plugin API types are not augmented
         const verifyRes = await auth.api.verifySiwnMessage({
           body: {
             signedMessage,
@@ -258,7 +258,6 @@ describe("NEAR SIWN Sandbox Integration", () => {
         const headers = new Headers();
         headers.set("Authorization", `Bearer ${verifyRes.token}`);
 
-        // @ts-expect-error better-near-auth plugin API types are not augmented
         const accountsRes = await auth.api.listNearAccounts({ headers });
         expect(accountsRes.accounts.length).toBe(1);
         expect(accountsRes.accounts[0].accountId).toBe(TEST_ACCOUNT);

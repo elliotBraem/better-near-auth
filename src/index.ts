@@ -131,8 +131,8 @@ async function initRelayer(
 	});
 
 	if (existing) {
-		const kek = secret || process.env.BETTER_AUTH_SECRET || "";
-		const privateKeyBytes = await decryptPrivateKey(existing.encryptedPrivateKey, existing.iv, kek);
+		if (!secret) throw new Error("BETTER_AUTH_SECRET required for relayer key decryption");
+		const privateKeyBytes = await decryptPrivateKey(existing.encryptedPrivateKey, existing.iv, secret);
 		const keyPair = parseKey(`ed25519:${base58.encode(privateKeyBytes)}`);
 		const accountId = bytesToHex(keyPair.publicKey.data);
 
@@ -153,7 +153,7 @@ async function initRelayer(
 	}
 
 	const keyPair = generateKey();
-	const kek = secret || process.env.BETTER_AUTH_SECRET || "";
+	if (!secret) throw new Error("BETTER_AUTH_SECRET required for relayer key encryption");
 	const privateKeyBytes = keyPair.secretKey.startsWith("ed25519:")
 		? base58.decode(keyPair.secretKey.slice(8))
 		: new Uint8Array(0);
@@ -161,7 +161,7 @@ async function initRelayer(
 	const publicKeyBase58 = keyPair.publicKey.toString().replace("ed25519:", "");
 	const accountId = bytesToHex(keyPair.publicKey.data);
 
-	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, kek);
+	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, secret);
 
 	await adapter.create({
 			model: "relayerKey",

@@ -35,9 +35,8 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `account` | `string` | — | Your app account identifier (used for NEAR SIWN recipient) |
-| `hostUrl` | `string` | — | Base URL of the auth server (e.g. `https://auth.example.com`) |
-| `uiUrl` | `string` | — | Optional. Base URL of your frontend (for CORS/trusted origins) |
+| `account` | `string` | — | Optional. Your app account identifier (used for NEAR SIWN recipient) |
+| `domain` | `string` | — | Optional. Base URL of the auth server |
 | `githubClientId` | `string` | — | Optional. GitHub OAuth client ID |
 | `githubClientSecret` | `string` | — | Optional. GitHub OAuth client secret |
 
@@ -45,7 +44,7 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 
 | Secret | Type | Default | Description |
 |--------|------|---------|-------------|
-| `AUTH_DATABASE_URL` | `string` | `pglite:./.local/auth.db` | PostgreSQL connection string or pglite path |
+| `AUTH_DATABASE_URL` | `string` | — | PostgreSQL connection string or pglite path |
 | `BETTER_AUTH_SECRET` | `string` | — | Secret key for Better Auth session signing |
 
 ### Plugin Context
@@ -56,17 +55,16 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 
 ### Environment Variables
 
-The plugin also reads these from `process.env` at runtime:
+The plugin itself does **not** read `process.env`. The host passes all configuration via `variables` and `secrets`. In development, `plugin.dev.ts` can supply defaults from environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `BETTER_AUTH_URL` | Overrides `hostUrl` for Better Auth base URL |
-| `CORS_ORIGIN` | Comma-separated list of additional trusted origins |
-| `GITHUB_CLIENT_ID` | Fallback for GitHub OAuth client ID |
-| `GITHUB_CLIENT_SECRET` | Fallback for GitHub OAuth client secret |
-| `FASTNEAR_API_KEY` | API key for FastNEAR (NEAR profile lookups) |
-| `NEAR_RPC_URL` | Custom NEAR RPC endpoint (e.g. sandbox, private node) |
-| `NODE_ENV` | Enables cookie cache when `production` |
+| `ACCOUNT` | App account identifier (dev fallback) |
+| `DOMAIN` | Base URL of the auth server (dev fallback) |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID (dev fallback) |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret (dev fallback) |
+| `AUTH_DATABASE_URL` | Database URL (dev fallback) |
+| `BETTER_AUTH_SECRET` | Session signing secret (dev fallback) |
 
 ## Database
 
@@ -88,7 +86,7 @@ AUTH_DATABASE_URL=postgres://user:pass@host:5432/dbname
 - Sign-in with verified email
 
 ### Phone Number
-- OTP via SMS (preview mode writes to `.dev-preview/sms.jsonl`)
+- OTP via SMS (preview mode logs to console)
 - Auto-creates temp email from phone number
 
 ### GitHub OAuth
@@ -156,7 +154,7 @@ export default {
   config: {
     variables: {
       account: "myapp.near",
-      hostUrl: "http://localhost:3000",
+      domain: "http://localhost:3000",
     },
     secrets: {
       AUTH_DATABASE_URL: "pglite:./.local/auth.db",
