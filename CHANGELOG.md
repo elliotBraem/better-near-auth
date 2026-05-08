@@ -1,5 +1,18 @@
 # better-near-auth
 
+## 1.2.0
+
+### Minor Changes
+
+- [#20](https://github.com/elliotBraem/better-near-auth/pull/20) [`99392f0`](https://github.com/elliotBraem/better-near-auth/commit/99392f01ab0880d3c2f2dbb4826049e9918e1454) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add TanStack Intent agent skills for SIWN authentication, gasless relay, and client integration. Skills ship inside the npm package and are auto-discovered by `@tanstack/intent` consumers. Includes CI workflow for skill validation and staleness checks.
+
+### Patch Changes
+
+- [#21](https://github.com/elliotBraem/better-near-auth/pull/21) [`ef7af0e`](https://github.com/elliotBraem/better-near-auth/commit/ef7af0e5b6f8d31bd71ca5eb2e9c94327f78f35a) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Fix Drizzle adapter error when creating ephemeral relayer key
+
+  - Removed explicit `id` field from `relayerKey` creation in `initRelayer()` to resolve the Drizzle Adapter warning/error: "You are trying to create a record with an id. This is not allowed as we handle id generation for you."
+  - Updated `relayNearTransaction` to query `relayerKey` by `network` instead of the removed hardcoded `id`.
+
 ## 1.1.0
 
 ### Minor Changes
