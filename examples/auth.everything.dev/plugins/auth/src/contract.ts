@@ -105,7 +105,7 @@ const apiKeySchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
   metadata: z.unknown().nullable(),
-  permissions: z.unknown().nullable(),
+  permissions: z.record(z.string(), z.array(z.string())).nullable(),
 });
 
 const memberSchema = z.object({
@@ -114,6 +114,17 @@ const memberSchema = z.object({
   organizationId: z.string(),
   role: z.string(),
   createdAt: z.date(),
+});
+
+const memberWithUserSchema = memberSchema.extend({
+  user: z
+    .object({
+      id: z.string(),
+      name: z.string().nullable(),
+      email: z.string().nullable(),
+      image: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 const invitationSchema = z.object({
@@ -220,46 +231,46 @@ export const contract = oc.router({
     )
     .errors(Errors),
 
-  listApiKeys: oc
-    .route({ method: "GET", path: "/v1/auth/api-keys" })
-    .input(
-      z.object({
-        organizationId: z.string().optional(),
-      }),
+  // ── Organization ─────────────────────────────────────────────────────
+
+  getOrganization: oc
+    .route({ method: "GET", path: "/v1/auth/organizations/{id}" })
+    .input(z.object({ id: z.string() }))
+    .output(
+      z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          slug: z.string(),
+          logo: z.string().nullable().optional(),
+          metadata: z.unknown().nullable(),
+          createdAt: z.date(),
+        })
+        .nullable(),
     )
-    .output(z.array(apiKeySchema))
     .errors(Errors),
 
-  createApiKey: oc
-    .route({ method: "POST", path: "/v1/auth/api-keys" })
-    .input(
-      z.object({
-        name: z.string().optional(),
-        prefix: z.string().optional(),
-        expiresAt: z.date().optional(),
-        permissions: z.unknown().optional(),
-        metadata: z.unknown().optional(),
-        rateLimit: z
-          .object({
-            timeWindow: z.number().optional(),
-            max: z.number().optional(),
-          })
-          .optional(),
-        organizationId: z.string().optional(),
-      }),
-    )
-    .output(apiKeySchema.extend({ key: z.string() }))
-    .errors(Errors),
-
-  deleteApiKey: oc
-    .route({ method: "DELETE", path: "/v1/auth/api-keys/{id}" })
+  updateOrganization: oc
+    .route({ method: "PATCH", path: "/v1/auth/organizations/{id}" })
     .input(
       z.object({
         id: z.string(),
+        name: z.string().optional(),
+        slug: z.string().optional(),
+        logo: z.string().nullable().optional(),
+        metadata: z.unknown().optional(),
       }),
     )
+    .output(organizationInfoSchema)
+    .errors(Errors),
+
+  deleteOrganization: oc
+    .route({ method: "DELETE", path: "/v1/auth/organizations/{id}" })
+    .input(z.object({ id: z.string() }))
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
+
+  // ── Members ──────────────────────────────────────────────────────────
 
   listMembers: oc
     .route({ method: "GET", path: "/v1/auth/members" })
@@ -268,8 +279,33 @@ export const contract = oc.router({
         organizationId: z.string(),
       }),
     )
-    .output(z.array(memberSchema))
+    .output(z.array(memberWithUserSchema))
     .errors(Errors),
+
+  removeMember: oc
+    .route({ method: "DELETE", path: "/v1/auth/members/{id}" })
+    .input(
+      z.object({
+        id: z.string(),
+        organizationId: z.string(),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  updateMemberRole: oc
+    .route({ method: "PATCH", path: "/v1/auth/members/{id}/role" })
+    .input(
+      z.object({
+        id: z.string(),
+        organizationId: z.string(),
+        role: z.enum(["owner", "admin", "member"]),
+      }),
+    )
+    .output(memberWithUserSchema)
+    .errors(Errors),
+
+  // ── Invitations ──────────────────────────────────────────────────────
 
   listInvitations: oc
     .route({ method: "GET", path: "/v1/auth/invitations" })
@@ -299,6 +335,75 @@ export const contract = oc.router({
       }),
     )
     .output(z.object({ sent: z.boolean() }))
+    .errors(Errors),
+
+  acceptInvitation: oc
+    .route({ method: "POST", path: "/v1/auth/invitations/{id}/accept" })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  rejectInvitation: oc
+    .route({ method: "POST", path: "/v1/auth/invitations/{id}/reject" })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  // ── API Keys ───────────────────────────────────────────────────────
+
+  listApiKeys: oc
+    .route({ method: "GET", path: "/v1/auth/api-keys" })
+    .input(
+      z.object({
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(z.array(apiKeySchema))
+    .errors(Errors),
+
+  createApiKey: oc
+    .route({ method: "POST", path: "/v1/auth/api-keys" })
+    .input(
+      z.object({
+        name: z.string().optional(),
+        prefix: z.string().optional(),
+        expiresAt: z.date().optional(),
+        permissions: z.record(z.string(), z.array(z.string())).optional(),
+        metadata: z.unknown().optional(),
+        rateLimit: z
+          .object({
+            timeWindow: z.number().optional(),
+            max: z.number().optional(),
+          })
+          .optional(),
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(apiKeySchema.extend({ key: z.string() }))
+    .errors(Errors),
+
+  updateApiKey: oc
+    .route({ method: "PATCH", path: "/v1/auth/api-keys/{id}" })
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().optional(),
+        permissions: z.record(z.string(), z.array(z.string())).optional(),
+        metadata: z.unknown().optional(),
+        expiresAt: z.date().optional(),
+      }),
+    )
+    .output(apiKeySchema)
+    .errors(Errors),
+
+  deleteApiKey: oc
+    .route({ method: "DELETE", path: "/v1/auth/api-keys/{id}" })
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
   // ── NEAR SIWN ──────────────────────────────────────────────────────

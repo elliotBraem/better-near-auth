@@ -295,7 +295,8 @@ fabric.properties
 .near/data
 
 # db
-/**/*.db
+/**/\*.db
+:memory:
 
 .turbo
 .bos

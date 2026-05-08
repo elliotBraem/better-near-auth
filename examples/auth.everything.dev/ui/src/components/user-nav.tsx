@@ -1,8 +1,8 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { getAuthClient, type Organization } from "@/app";
-import { Button } from "@/components/ui/button";
+import { Button, OrgSwitcher } from "@/components";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +15,7 @@ import { sessionQueryOptions } from "@/lib/session";
 
 export function UserNav() {
   const auth = getAuthClient();
+  const queryClient = useQueryClient();
   const { data: session } = useQuery(sessionQueryOptions());
   const user = session?.user;
   const { data: organizations } = useQuery({
@@ -58,19 +59,19 @@ export function UserNav() {
     );
   }
 
+  const handleOrgSwitch = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["session"] });
+    await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+  };
+
   return (
     <div className="flex items-center gap-2">
-      {activeOrg && (
-        <Button
-          asChild
-          variant="ghost"
-          size="sm"
-          className="hidden sm:flex max-w-[120px] text-xs text-muted-foreground"
-        >
-          <Link to="/home">
-            <span className="truncate">{activeOrg.name}</span>
-          </Link>
-        </Button>
+      {organizations && organizations.length > 0 && (
+        <OrgSwitcher
+          organizations={organizations}
+          activeOrgId={activeOrgId}
+          onSwitch={handleOrgSwitch}
+        />
       )}
 
       <DropdownMenu>
@@ -91,6 +92,16 @@ export function UserNav() {
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <Link to="/home">workspace</Link>
+          </DropdownMenuItem>
+          {activeOrg && (
+            <DropdownMenuItem asChild>
+              <Link to="/organizations/$slug" params={{ slug: activeOrg.slug }}>
+                {activeOrg.name}
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem asChild>
+            <Link to="/settings">settings</Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

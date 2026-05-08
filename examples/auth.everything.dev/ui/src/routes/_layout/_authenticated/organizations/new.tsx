@@ -30,10 +30,10 @@ function NewOrganization() {
     },
     onSuccess: async (data) => {
       toast.success(`Organization "${data?.name}" created`);
-      if (data?.id) {
+      if (data?.slug) {
         await router.navigate({
-          to: "/organizations/$id",
-          params: { id: data.id },
+          to: "/organizations/$slug",
+          params: { slug: data.slug },
         });
       }
     },

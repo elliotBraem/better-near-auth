@@ -419,7 +419,7 @@ function LoginPage() {
                 size="sm"
                 onClick={() => setAuthMethod(method)}
                 disabled={isPending}
-                className="w-full capitalize"
+                className={`w-full capitalize ${method === "anonymous" ? "col-span-2" : ""}`}
               >
                 {method}
               </Button>

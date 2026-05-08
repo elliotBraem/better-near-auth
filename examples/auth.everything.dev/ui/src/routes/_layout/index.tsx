@@ -149,18 +149,18 @@ function HomeComponent() {
                   ),
                   table: ({ children }) => (
                     <div className="overflow-x-auto mb-3 sm:mb-4">
-                      <table className="min-w-full border-collapse border border-border text-xs sm:text-sm lg:text-base">
+                      <table className="min-w-full border-collapse border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] text-xs sm:text-sm lg:text-base">
                         {children}
                       </table>
                     </div>
                   ),
                   th: ({ children }) => (
-                    <th className="border border-border bg-muted px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-left font-medium text-xs sm:text-sm lg:text-base">
+                    <th className="border border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-left font-medium text-xs sm:text-sm lg:text-base">
                       {children}
                     </th>
                   ),
                   td: ({ children }) => (
-                    <td className="border border-border px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-xs sm:text-sm lg:text-base">
+                    <td className="border border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 text-xs sm:text-sm lg:text-base">
                       {children}
                     </td>
                   ),

@@ -52,6 +52,7 @@ next-env.d.ts
 
 # Other
 dev-dist
+:memory:
 
 .wrangler
 .dev.vars*

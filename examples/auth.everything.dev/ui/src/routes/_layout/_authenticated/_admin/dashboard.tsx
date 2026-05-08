@@ -59,7 +59,7 @@ function ServerSection() {
   const statusQuery = useQuery({
     queryKey: ["opencode", "serverStatus"],
     queryFn: async () => {
-      const { data } = await apiClient.opencode.serverStatus();
+      const { data } = await (apiClient as any).opencode.serverStatus();
       return data;
     },
     refetchInterval: 15000,
@@ -67,7 +67,7 @@ function ServerSection() {
 
   const startMutation = useMutation({
     mutationFn: async () => {
-      const { data } = await apiClient.opencode.startServer();
+      const { data } = await (apiClient as any).opencode.startServer();
       return data;
     },
     onSuccess: () => {
@@ -145,7 +145,7 @@ function PromptSection() {
 
   const createSessionMutation = useMutation({
     mutationFn: async (title?: string) => {
-      const { data } = await apiClient.opencode.createSession({ title });
+      const { data } = await (apiClient as any).opencode.createSession({ title });
       return data;
     },
     onSuccess: (data) => {
@@ -156,7 +156,7 @@ function PromptSection() {
 
   const sendPromptMutation = useMutation({
     mutationFn: async ({ sid, msg }: { sid: string; msg: string }) => {
-      const { data } = await apiClient.opencode.sendPrompt({
+      const { data } = await (apiClient as any).opencode.sendPrompt({
         sessionId: sid,
         message: msg,
       });
@@ -196,9 +196,9 @@ function PromptSection() {
       </div>
 
       {messages.length > 0 && (
-        <div className="space-y-1.5 max-h-72 overflow-y-auto border border-border/50 rounded-md p-3">
+        <div className="space-y-1.5 max-h-72 overflow-y-auto border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-3">
           {messages.map((m, i) => (
-            <div key={i} className="text-sm">
+            <div key={`${m.role}-${i}`} className="text-sm">
               <span className="text-xs text-muted-foreground font-mono mr-2">
                 {m.role === "user" ? ">" : "<"}
               </span>

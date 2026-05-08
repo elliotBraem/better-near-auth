@@ -229,18 +229,16 @@ export default createPlugin({
         if (user?.id) {
           const memberships = await services.db.query.member.findMany({
             where: eq(schema.member.userId, user.id),
+            with: { organization: true },
           });
 
           for (const m of memberships) {
-            const org = await services.db.query.organization.findFirst({
-              where: eq(schema.organization.id, m.organizationId),
-            });
-            if (org) {
+            if (m.organization) {
               organizations.push({
-                id: org.id,
+                id: m.organization.id,
                 role: m.role,
-                name: org.name,
-                slug: org.slug,
+                name: m.organization.name,
+                slug: m.organization.slug,
               });
             }
           }
@@ -248,36 +246,28 @@ export default createPlugin({
           const activeOrgId = session?.session?.activeOrganizationId;
 
           if (activeOrgId) {
-            const org = await services.db.query.organization.findFirst({
-              where: eq(schema.organization.id, activeOrgId),
-            });
+            const activeMembership = memberships.find(
+              (m) => m.organization?.id === activeOrgId,
+            );
 
-            if (org) {
-              const membership = await services.db.query.member.findFirst({
-                where: and(
-                  eq(schema.member.userId, user.id),
-                  eq(schema.member.organizationId, activeOrgId),
-                ),
-              });
-
-              if (membership) {
-                organizationContext = {
-                  activeOrganizationId: activeOrgId,
-                  organization: {
-                    id: org.id,
-                    name: org.name,
-                    slug: org.slug,
-                    logo: org.logo,
-                    metadata: tryJsonParse(org.metadata) as Record<string, unknown> | undefined,
-                  },
-                  member: {
-                    id: membership.id,
-                    role: membership.role,
-                  },
-                  isPersonal: org.slug === user.id,
-                  hasOrganization: true,
-                };
-              }
+            if (activeMembership?.organization) {
+              const org = activeMembership.organization;
+              organizationContext = {
+                activeOrganizationId: activeOrgId,
+                organization: {
+                  id: org.id,
+                  name: org.name,
+                  slug: org.slug,
+                  logo: org.logo,
+                  metadata: tryJsonParse(org.metadata) as Record<string, unknown> | undefined,
+                },
+                member: {
+                  id: activeMembership.id,
+                  role: activeMembership.role,
+                },
+                isPersonal: org.slug === user.id,
+                hasOrganization: true,
+              };
             }
           }
         }
@@ -302,6 +292,100 @@ export default createPlugin({
           organizations: organizations.length > 0 ? organizations : undefined,
         };
       }),
+
+      getOrganization: builder.getOrganization
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const org = await services.db.query.organization.findFirst({
+            where: eq(schema.organization.id, input.id),
+          });
+          if (!org) {
+            throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
+          }
+          const membership = await services.db.query.member.findFirst({
+            where: and(
+              eq(schema.member.userId, context.userId),
+              eq(schema.member.organizationId, input.id),
+            ),
+          });
+          if (!membership) {
+            throw new ORPCError("FORBIDDEN", { message: "Not a member of this organization" });
+          }
+          return {
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            logo: org.logo,
+            metadata: tryJsonParse(org.metadata),
+            createdAt: org.createdAt,
+          };
+        }),
+
+      updateOrganization: builder.updateOrganization
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const membership = await services.db.query.member.findFirst({
+            where: and(
+              eq(schema.member.userId, context.userId),
+              eq(schema.member.organizationId, input.id),
+            ),
+          });
+          if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+            throw new ORPCError("FORBIDDEN", { message: "Insufficient permissions" });
+          }
+
+          const [updated] = await services.db
+            .update(schema.organization)
+            .set({
+              name: input.name,
+              slug: input.slug,
+              logo: input.logo,
+              metadata:
+                input.metadata !== undefined
+                  ? typeof input.metadata === "string"
+                    ? input.metadata
+                    : JSON.stringify(input.metadata)
+                  : undefined,
+            })
+            .where(eq(schema.organization.id, input.id))
+            .returning();
+
+          if (!updated) {
+            throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
+          }
+
+          return {
+            id: updated.id,
+            name: updated.name,
+            slug: updated.slug,
+            logo: updated.logo,
+            metadata: tryJsonParse(updated.metadata) as Record<string, unknown> | undefined,
+          };
+        }),
+
+      deleteOrganization: builder.deleteOrganization
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const membership = await services.db.query.member.findFirst({
+            where: and(
+              eq(schema.member.userId, context.userId),
+              eq(schema.member.organizationId, input.id),
+            ),
+          });
+          if (!membership || membership.role !== "owner") {
+            throw new ORPCError("FORBIDDEN", { message: "Only the owner can delete the organization" });
+          }
+
+          const org = await services.db.query.organization.findFirst({
+            where: eq(schema.organization.id, input.id),
+          });
+          if (org?.slug === context.userId) {
+            throw new ORPCError("BAD_REQUEST", { message: "Cannot delete personal organization" });
+          }
+
+          await services.db.delete(schema.organization).where(eq(schema.organization.id, input.id));
+          return { success: true };
+        }),
 
       getActiveMember: builder.getActiveMember
         .use(requireAuth)
@@ -359,10 +443,7 @@ export default createPlugin({
             headers: createHeaders(context.reqHeaders),
             body: {
               ...input,
-              permissions:
-                input.permissions && typeof input.permissions === "object"
-                  ? (input.permissions as Record<string, string[]>)
-                  : undefined,
+              permissions: input.permissions,
             },
           }),
         );
@@ -377,6 +458,33 @@ export default createPlugin({
           metadata: unknown;
           permissions: unknown;
           key: string;
+        };
+        return r;
+      }),
+
+      updateApiKey: builder.updateApiKey.use(requireAuth).handler(async ({ input, context }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.updateApiKey({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              keyId: input.id,
+              name: input.name,
+              permissions: input.permissions,
+              metadata: input.metadata,
+              expiresAt: input.expiresAt,
+            },
+          }),
+        );
+        const r = result as {
+          id: string;
+          name: string | null;
+          prefix: string | null;
+          start: string | null;
+          expiresAt: Date | null;
+          createdAt: Date;
+          updatedAt: Date;
+          metadata: unknown;
+          permissions: unknown;
         };
         return r;
       }),
@@ -396,10 +504,134 @@ export default createPlugin({
       }),
 
       listMembers: builder.listMembers.use(requireAuth).handler(async ({ input }) => {
-        return await services.db.query.member.findMany({
+        const members = await services.db.query.member.findMany({
           where: eq(schema.member.organizationId, input.organizationId),
+          with: { user: true },
         });
+        return members.map((m) => ({
+          id: m.id,
+          userId: m.userId,
+          organizationId: m.organizationId,
+          role: m.role,
+          createdAt: m.createdAt,
+          user: m.user
+            ? {
+                id: m.user.id,
+                name: m.user.name,
+                email: m.user.email,
+                image: m.user.image,
+              }
+            : null,
+        }));
       }),
+
+      removeMember: builder.removeMember.use(requireAuth).handler(async ({ input, context }) => {
+        const myMembership = await services.db.query.member.findFirst({
+          where: and(
+            eq(schema.member.userId, context.userId),
+            eq(schema.member.organizationId, input.organizationId),
+          ),
+        });
+        if (!myMembership || (myMembership.role !== "owner" && myMembership.role !== "admin")) {
+          throw new ORPCError("FORBIDDEN", { message: "Insufficient permissions" });
+        }
+
+        const targetMember = await services.db.query.member.findFirst({
+          where: and(
+            eq(schema.member.id, input.id),
+            eq(schema.member.organizationId, input.organizationId),
+          ),
+        });
+        if (!targetMember) {
+          throw new ORPCError("NOT_FOUND", { message: "Member not found" });
+        }
+
+        if (targetMember.userId === context.userId && targetMember.role === "owner") {
+          const otherOwners = await services.db.query.member.findMany({
+            where: and(
+              eq(schema.member.organizationId, input.organizationId),
+              eq(schema.member.role, "owner"),
+            ),
+          });
+          if (otherOwners.length <= 1) {
+            throw new ORPCError("BAD_REQUEST", { message: "Cannot remove the last owner" });
+          }
+        }
+
+        if (targetMember.role !== "member" && myMembership.role !== "owner") {
+          throw new ORPCError("FORBIDDEN", { message: "Only owners can remove admins" });
+        }
+
+        await services.db.delete(schema.member).where(eq(schema.member.id, input.id));
+        return { success: true };
+      }),
+
+      updateMemberRole: builder.updateMemberRole
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const myMembership = await services.db.query.member.findFirst({
+            where: and(
+              eq(schema.member.userId, context.userId),
+              eq(schema.member.organizationId, input.organizationId),
+            ),
+          });
+          if (!myMembership || (myMembership.role !== "owner" && myMembership.role !== "admin")) {
+            throw new ORPCError("FORBIDDEN", { message: "Insufficient permissions" });
+          }
+
+          const targetMember = await services.db.query.member.findFirst({
+            where: and(
+              eq(schema.member.id, input.id),
+              eq(schema.member.organizationId, input.organizationId),
+            ),
+            with: { user: true },
+          });
+          if (!targetMember) {
+            throw new ORPCError("NOT_FOUND", { message: "Member not found" });
+          }
+
+          if (input.role === "owner" && myMembership.role !== "owner") {
+            throw new ORPCError("FORBIDDEN", { message: "Only owners can assign owner role" });
+          }
+
+          if (targetMember.role === "owner" && input.role !== "owner") {
+            const otherOwners = await services.db.query.member.findMany({
+              where: and(
+                eq(schema.member.organizationId, input.organizationId),
+                eq(schema.member.role, "owner"),
+              ),
+            });
+            if (otherOwners.length <= 1) {
+              throw new ORPCError("BAD_REQUEST", { message: "Cannot demote the last owner" });
+            }
+          }
+
+          await services.db
+            .update(schema.member)
+            .set({ role: input.role })
+            .where(eq(schema.member.id, input.id));
+
+          const updated = await services.db.query.member.findFirst({
+            where: eq(schema.member.id, input.id),
+            with: { user: true },
+          });
+
+          return {
+            id: updated!.id,
+            userId: updated!.userId,
+            organizationId: updated!.organizationId,
+            role: updated!.role,
+            createdAt: updated!.createdAt,
+            user: updated!.user
+              ? {
+                  id: updated!.user.id,
+                  name: updated!.user.name,
+                  email: updated!.user.email,
+                  image: updated!.user.image,
+                }
+              : null,
+          };
+        }),
 
       listInvitations: builder.listInvitations.use(requireAuth).handler(async ({ input }) => {
         return await services.db.query.invitation.findMany({
@@ -447,6 +679,26 @@ export default createPlugin({
 
           return { sent: true };
         }),
+
+      acceptInvitation: builder.acceptInvitation.use(requireAuth).handler(async ({ input, context }) => {
+        await safeAuthApi(() =>
+          services.auth.api.acceptInvitation({
+            headers: createHeaders(context.reqHeaders),
+            body: { invitationId: input.id },
+          }),
+        );
+        return { success: true };
+      }),
+
+      rejectInvitation: builder.rejectInvitation.use(requireAuth).handler(async ({ input, context }) => {
+        await safeAuthApi(() =>
+          services.auth.api.rejectInvitation({
+            headers: createHeaders(context.reqHeaders),
+            body: { invitationId: input.id },
+          }),
+        );
+        return { success: true };
+      }),
 
       // ── NEAR SIWN Endpoints ─────────────────────────────────────────────
 

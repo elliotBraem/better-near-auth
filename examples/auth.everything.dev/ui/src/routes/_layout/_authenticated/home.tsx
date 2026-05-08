@@ -1,27 +1,26 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
-import { toast } from "sonner";
-import { Gas } from "near-kit";
+import { createFileRoute } from "@tanstack/react-router";
 import {
-  User,
-  ExternalLink,
-  Unlink,
-  ShieldCheck,
+  Check,
+  CheckCircle2,
   Clock,
+  Copy,
+  ExternalLink,
+  Focus,
   Key,
   Link2,
-  Focus,
-  CheckCircle2,
   Loader2,
-  Zap,
-  Wallet,
-  Copy,
-  Check,
-  RefreshCw,
   Search,
+  ShieldCheck,
+  Unlink,
+  User,
+  Wallet,
+  Zap,
 } from "lucide-react";
-import { getAuthClient, type SessionData } from "@/app";
+import { Gas } from "near-kit";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { getAuthClient, type Organization, type SessionData } from "@/app";
 import {
   Badge,
   Button,
@@ -35,12 +34,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components";
-import { Input } from "@/components/ui/input";
-import { sessionQueryOptions } from "@/lib/session";
-import { useApiClient } from "@/lib/use-api-client";
-import { getNearAccountId, getLinkedProviders, getProviderConfig } from "@/lib/auth-utils";
 import { NearProfile } from "@/components/near-profile";
 import RelayFeed from "@/components/relay-feed";
+import { Input } from "@/components/ui/input";
+import { getLinkedProviders, getNearAccountId, getProviderConfig } from "@/lib/auth-utils";
+import { sessionQueryOptions } from "@/lib/session";
+import { useApiClient } from "@/lib/use-api-client";
 
 const GUESTBOOK_CONTRACT = "hello.near-examples.near";
 type SendMode = "relay" | "direct";
@@ -110,6 +109,15 @@ function DashboardPage() {
 
   const apiClient = useApiClient();
 
+  const { data: organizations = [] } = useQuery({
+    queryKey: ["organizations"],
+    queryFn: async () => {
+      const { data } = await getAuthClient().organization.list();
+      return (data || []) as Organization[];
+    },
+    staleTime: 30 * 1000,
+  });
+
   const { data: privateData } = useQuery({
     queryKey: ["private-data"],
     queryFn: () => apiClient.privateData(),
@@ -128,7 +136,7 @@ function DashboardPage() {
     enabled: !!session?.user,
   });
 
-  const { data: relayerData, isLoading: relayerLoading } = useQuery<RelayerData>({
+  const { data: relayerData } = useQuery<RelayerData>({
     queryKey: ["relayer-info"],
     queryFn: async () => {
       const response = await getAuthClient().near.getRelayerInfo();
@@ -157,14 +165,39 @@ function DashboardPage() {
 
         <TabsContent value="overview" className="space-y-6 pt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ProfileCard user={user} nearAccountId={nearAccountId} linkedProviders={linkedProviders} />
-            <SessionInfoCard user={user} nearAccountId={nearAccountId} linkedAccounts={linkedAccounts} privateData={privateData} />
+            <ProfileCard
+              user={user}
+              nearAccountId={nearAccountId}
+              linkedProviders={linkedProviders}
+            />
+            <SessionInfoCard
+              user={user}
+              nearAccountId={nearAccountId}
+              linkedAccounts={linkedAccounts}
+              privateData={privateData}
+            />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Linked Accounts" value={String(linkedAccounts.length)} icon={<Link2 className="h-4 w-4" />} />
-            <StatCard label="Organizations" value={String(session?.user?.organizations?.length || 0)} icon={<ShieldCheck className="h-4 w-4" />} />
-            <StatCard label="Relayer" value={relayerData?.enabled ? "Active" : "Inactive"} icon={<Zap className="h-4 w-4" />} />
-            <StatCard label="Session" value={user ? "Valid" : "Expired"} icon={<Clock className="h-4 w-4" />} />
+            <StatCard
+              label="Linked Accounts"
+              value={String(linkedAccounts.length)}
+              icon={<Link2 className="h-4 w-4" />}
+            />
+            <StatCard
+              label="Organizations"
+              value={String(organizations.length)}
+              icon={<ShieldCheck className="h-4 w-4" />}
+            />
+            <StatCard
+              label="Relayer"
+              value={relayerData?.enabled ? "Active" : "Inactive"}
+              icon={<Zap className="h-4 w-4" />}
+            />
+            <StatCard
+              label="Session"
+              value={user ? "Valid" : "Expired"}
+              icon={<Clock className="h-4 w-4" />}
+            />
           </div>
         </TabsContent>
 
@@ -175,7 +208,7 @@ function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="accounts" className="space-y-6 pt-4">
-          <AccountLinkingCard linkedAccounts={linkedAccounts} />
+          <AccountLinkingCard linkedAccounts={linkedAccounts} user={user} />
         </TabsContent>
 
         <TabsContent value="explorer" className="space-y-6 pt-4">
@@ -188,7 +221,7 @@ function DashboardPage() {
 
 function StatCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
-    <div className="border border-border rounded-lg p-4 bg-card">
+    <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-4 bg-card">
       <div className="flex items-center gap-2 text-muted-foreground mb-2">
         {icon}
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
@@ -226,7 +259,11 @@ function ProfileCard({
         <div className="flex items-start gap-4">
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center shrink-0">
             {user?.image ? (
-              <img src={user.image} alt="Profile" className="h-full w-full rounded-full object-cover" />
+              <img
+                src={user.image}
+                alt="Profile"
+                className="h-full w-full rounded-full object-cover"
+              />
             ) : (
               <span className="text-lg font-medium text-muted-foreground">{initial}</span>
             )}
@@ -255,7 +292,12 @@ function ProfileCard({
             <code className="text-xs font-mono bg-muted px-2 py-1 rounded">{nearAccountId}</code>
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
-                <a href={`/profile/${nearAccountId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                <a
+                  href={`/profile/${nearAccountId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1"
+                >
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
@@ -301,7 +343,7 @@ function ProfileCard({
 function RelayerCard() {
   const [copied, setCopied] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery<RelayerData>({
+  const { data, isLoading } = useQuery<RelayerData>({
     queryKey: ["relayer-info"],
     queryFn: async () => {
       const response = await getAuthClient().near.getRelayerInfo();
@@ -387,22 +429,38 @@ function RelayerCard() {
         <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Ephemeral keypair — private key encrypted in your database</span>
+            <span className="text-sm font-medium">
+              Ephemeral keypair — private key encrypted in your database
+            </span>
           </div>
           <p className="text-xs text-muted-foreground pl-[22px]">
-            Auto-generated ED25519 keypair. AES-256-GCM encrypted with BETTER_AUTH_SECRET via HKDF. Stored only in SQLite.
+            Auto-generated ED25519 keypair. AES-256-GCM encrypted with BETTER_AUTH_SECRET via HKDF.
+            Stored only in SQLite.
           </p>
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account</span>
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Account
+          </span>
           <div className="flex items-center gap-2">
-            <code className="text-sm font-mono bg-muted px-2 py-1 rounded">{truncateAccountId(data.accountId)}</code>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(data.accountId!)}>
+            <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+              {truncateAccountId(data.accountId)}
+            </code>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => handleCopy(data.accountId!)}
+            >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-              <a href={relayerExplorerUrl(data.accountId)} target="_blank" rel="noopener noreferrer">
+              <a
+                href={relayerExplorerUrl(data.accountId)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </Button>
@@ -410,19 +468,21 @@ function RelayerCard() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="border border-border rounded-md p-3">
+          <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-3">
             <div className="text-xs text-muted-foreground">Total</div>
             <div className="text-sm font-medium">{formatNear(data.balance ?? "0")} NEAR</div>
           </div>
-          <div className="border border-border rounded-md p-3">
+          <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-3">
             <div className="text-xs text-muted-foreground">Available</div>
             <div className="text-sm font-medium">{formatNear(data.available ?? "0")} NEAR</div>
           </div>
         </div>
 
         {!isFunded && (
-          <div className="border border-dashed border-border rounded-lg p-4 text-center space-y-2">
-            <p className="text-sm text-muted-foreground">Fund this account to enable gasless relay</p>
+          <div className="border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg p-4 text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Fund this account to enable gasless relay
+            </p>
             <code className="text-xs font-mono break-all select-all bg-muted px-2 py-1 rounded block">
               {data.accountId}
             </code>
@@ -432,7 +492,9 @@ function RelayerCard() {
         {(data.createdAt || data.lastUsedAt) && (
           <div className="space-y-1 text-xs text-muted-foreground">
             {data.createdAt && <div>Created: {new Date(data.createdAt).toLocaleDateString()}</div>}
-            {data.lastUsedAt && <div>Last used: {new Date(data.lastUsedAt).toLocaleDateString()}</div>}
+            {data.lastUsedAt && (
+              <div>Last used: {new Date(data.lastUsedAt).toLocaleDateString()}</div>
+            )}
           </div>
         )}
       </CardContent>
@@ -440,26 +502,36 @@ function RelayerCard() {
   );
 }
 
-function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
+function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; user: any }) {
   const queryClient = useQueryClient();
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
   const [isProcessingNear, setIsProcessingNear] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState<string | null>(null);
+  const [recentlyLinked, setRecentlyLinked] = useState<{ provider: string; accountId: string } | null>(null);
 
+  const isAnonymous = user?.isAnonymous ?? false;
   const walletAccountId = getAuthClient().near.getAccountId();
   const accounts = linkedAccounts;
 
-  const invalidateAccounts = () => queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
+  const invalidateAccounts = () => {
+    queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
+    queryClient.invalidateQueries({ queryKey: ["session"] });
+  };
 
   const handleLinkSocial = async (providerId: "google" | "github") => {
     if (providerId === "google") setIsLinkingGoogle(true);
     else setIsLinkingGitHub(true);
     try {
       await getAuthClient().linkSocial({ provider: providerId, callbackURL: window.location.href });
+      toast.success(`${providerId === "google" ? "Google" : "GitHub"} account linked successfully`);
+      invalidateAccounts();
+      setRecentlyLinked({ provider: providerId, accountId: providerId });
+      setTimeout(() => setRecentlyLinked(null), 5000);
     } catch (error) {
       console.error(`Failed to link ${providerId}:`, error);
       toast.error(`Failed to link ${providerId === "google" ? "Google" : "GitHub"} account`);
+    } finally {
       if (providerId === "google") setIsLinkingGoogle(false);
       else setIsLinkingGitHub(false);
     }
@@ -469,10 +541,13 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
     setIsProcessingNear(true);
     try {
       await getAuthClient().near.link({
-        onSuccess: () => {
-          toast.success("NEAR account linked successfully");
+        onSuccess: (ctx: any) => {
+          const linkedAccountId = ctx?.data?.accountId || walletAccountId || "NEAR account";
+          toast.success(`NEAR account "${linkedAccountId}" linked successfully${isAnonymous ? " — your session is now persistent" : ""}`);
           invalidateAccounts();
           setIsProcessingNear(false);
+          setRecentlyLinked({ provider: "siwn", accountId: linkedAccountId });
+          setTimeout(() => setRecentlyLinked(null), 5000);
         },
         onError: async (error: any) => {
           console.error("NEAR link error:", error);
@@ -530,7 +605,8 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
 
   const primaryAccount = accounts.find((acc) => acc.providerId === "siwn") || accounts[0];
   const secondaryAccounts = accounts.filter((acc) => acc !== primaryAccount);
-  const isProviderLinked = (providerId: string) => accounts.some((a) => a.providerId === providerId);
+  const isProviderLinked = (providerId: string) =>
+    accounts.some((a) => a.providerId === providerId);
   const canUnlinkAccount = (account: any) => account !== primaryAccount && accounts.length > 1;
 
   return (
@@ -544,18 +620,42 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
           <CardDescription>Manage your linked authentication providers</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isAnonymous && (
+            <div className="border-2 border-dashed border-[rgb(180,50,40)] dark:border-[rgb(200,80,70)] bg-destructive/5 p-3 text-sm text-muted-foreground">
+              <strong className="text-foreground">Temporary session.</strong> Link an account to make your data persistent and recoverable.
+            </div>
+          )}
+
+          {recentlyLinked && (
+            <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-green-50 dark:bg-green-900/20 p-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-green-600 dark:text-green-400 font-medium">✓ Linked successfully:</span>
+                <span className="font-mono">{recentlyLinked.accountId}</span>
+                <span className="text-muted-foreground">({getProviderConfig(recentlyLinked.provider).name})</span>
+              </div>
+            </div>
+          )}
+
           {primaryAccount && (
             <div className="space-y-2">
               <h4 className="font-medium text-sm flex items-center gap-2">
                 Primary Account
-                <Badge variant="secondary" className="text-xs">Can&apos;t be unlinked</Badge>
+                <Badge variant="secondary" className="text-xs">
+                  Can&apos;t be unlinked
+                </Badge>
               </h4>
-              <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/30">
+              <div className="flex items-center justify-between p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">{getProviderConfig(primaryAccount.providerId).icon}</span>
+                  <span className="text-lg">
+                    {getProviderConfig(primaryAccount.providerId).icon}
+                  </span>
                   <div>
-                    <span className="font-medium">{getProviderConfig(primaryAccount.providerId).name}</span>
-                    <span className="text-sm text-muted-foreground ml-2">{primaryAccount.accountId}</span>
+                    <span className="font-medium">
+                      {getProviderConfig(primaryAccount.providerId).name}
+                    </span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      {primaryAccount.accountId}
+                    </span>
                   </div>
                 </div>
                 <span className="text-xs text-muted-foreground">Primary</span>
@@ -567,12 +667,19 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
             <div className="space-y-2">
               <h4 className="font-medium text-sm">Secondary Accounts</h4>
               {secondaryAccounts.map((account) => (
-                <div key={account.providerId || account.accountId} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                <div
+                  key={account.providerId || account.accountId}
+                  className="flex items-center justify-between p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]"
+                >
                   <div className="flex items-center gap-3">
                     <span className="text-lg">{getProviderConfig(account.providerId).icon}</span>
                     <div>
-                      <span className="font-medium">{getProviderConfig(account.providerId).name}</span>
-                      <span className="text-sm text-muted-foreground ml-2">{account.accountId}</span>
+                      <span className="font-medium">
+                        {getProviderConfig(account.providerId).name}
+                      </span>
+                      <span className="text-sm text-muted-foreground ml-2">
+                        {account.accountId}
+                      </span>
                     </div>
                   </div>
                   <Button
@@ -583,10 +690,15 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
                         ? handleUnlinkNearAccount(account)
                         : handleUnlinkAccount(account.providerId)
                     }
-                    disabled={isUnlinking === (account.providerId || account.accountId) || !canUnlinkAccount(account)}
+                    disabled={
+                      isUnlinking === (account.providerId || account.accountId) ||
+                      !canUnlinkAccount(account)
+                    }
                     className="text-destructive hover:text-destructive"
                   >
-                    {isUnlinking === (account.providerId || account.accountId) ? "Unlinking..." : "Unlink"}
+                    {isUnlinking === (account.providerId || account.accountId)
+                      ? "Unlinking..."
+                      : "Unlink"}
                   </Button>
                 </div>
               ))}
@@ -596,19 +708,37 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
           <div className="space-y-2">
             <h4 className="font-medium text-sm">Add New Account</h4>
             {!isProviderLinked("google") && (
-              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => handleLinkSocial("google")} disabled={isLinkingGoogle}>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => handleLinkSocial("google")}
+                disabled={isLinkingGoogle}
+              >
                 <span className="mr-2">🔵</span>
                 {isLinkingGoogle ? "Linking Google..." : "Link Google Account"}
               </Button>
             )}
             {!isProviderLinked("github") && (
-              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => handleLinkSocial("github")} disabled={isLinkingGitHub}>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => handleLinkSocial("github")}
+                disabled={isLinkingGitHub}
+              >
                 <span className="mr-2">⚫</span>
                 {isLinkingGitHub ? "Linking GitHub..." : "Link GitHub Account"}
               </Button>
             )}
             {!isProviderLinked("siwn") && (
-              <Button type="button" variant="outline" className="w-full justify-start" onClick={handleNearAction} disabled={isProcessingNear}>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleNearAction}
+                disabled={isProcessingNear}
+              >
                 <span className="mr-2">🔗</span>
                 {isProcessingNear
                   ? walletAccountId
@@ -637,7 +767,10 @@ function AccountLinkingCard({ linkedAccounts }: { linkedAccounts: any[] }) {
             {accounts
               .filter((a) => a.providerId === "siwn" || a.accountId?.includes(".near"))
               .map((account: any) => (
-                <div key={account.accountId} className="border border-border rounded-lg p-4">
+                <div
+                  key={account.accountId}
+                  className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-4"
+                >
                   <NearProfile accountId={account.accountId} variant="card" showAvatar showName />
                 </div>
               ))}
@@ -655,8 +788,10 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   const [relayTxHash, setRelayTxHash] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const network = (getAuthClient().near.getState()?.networkId || "mainnet") as "mainnet" | "testnet";
-  const queryKey = ["greeting", network];
+  const network = (getAuthClient().near.getState()?.networkId || "mainnet") as
+    | "mainnet"
+    | "testnet";
+  const queryKey = useMemo(() => ["greeting", network] as const, [network]);
 
   const { data: greeting } = useQuery({
     queryKey,
@@ -713,10 +848,12 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
             {
               gas: Gas.Tgas(30),
               attachedDeposit: BigInt(0),
-            }
-          )
+            },
+          ),
       );
-      const relayResult = await getAuthClient().near.relayTransaction({ payload: signedDelegateAction });
+      const relayResult = await getAuthClient().near.relayTransaction({
+        payload: signedDelegateAction,
+      });
       if (relayResult.error) throw new Error(relayResult.error.message || "Relay failed");
       return relayResult.data;
     },
@@ -744,8 +881,8 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
     mutationFn: async (text: string) => {
       const accountId = getAuthClient().near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
-      return getAuthClient().near.client
-        .transaction(accountId)
+      return getAuthClient()
+        .near.client.transaction(accountId)
         .functionCall(
           GUESTBOOK_CONTRACT,
           "set_greeting",
@@ -753,7 +890,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
           {
             gas: Gas.Tgas(30),
             attachedDeposit: BigInt(0),
-          }
+          },
         )
         .send({ waitUntil: "FINAL" });
     },
@@ -787,11 +924,19 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
         <div className="flex items-center justify-between">
           <CardTitle>Guestbook Demo</CardTitle>
           <div className="flex gap-1">
-            <Button variant={sendMode === "relay" ? "default" : "outline"} size="sm" onClick={() => setSendMode("relay")}>
+            <Button
+              variant={sendMode === "relay" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSendMode("relay")}
+            >
               <Zap className="h-3.5 w-3.5 mr-1" />
               Gasless
             </Button>
-            <Button variant={sendMode === "direct" ? "default" : "outline"} size="sm" onClick={() => setSendMode("direct")}>
+            <Button
+              variant={sendMode === "direct" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSendMode("direct")}
+            >
               <Wallet className="h-3.5 w-3.5 mr-1" />
               Direct
             </Button>
@@ -825,7 +970,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
         </form>
 
         {sendMode === "relay" && relayStatus !== "idle" && (
-          <div className="flex items-center gap-2 p-3 border border-border rounded-lg bg-muted/50">
+          <div className="flex items-center gap-2 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/50">
             {relayStatus === "pending" && (
               <>
                 <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
@@ -849,7 +994,9 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
                 )}
               </>
             )}
-            {relayStatus === "failed" && <span className="text-sm text-destructive">Relay failed — try direct mode</span>}
+            {relayStatus === "failed" && (
+              <span className="text-sm text-destructive">Relay failed — try direct mode</span>
+            )}
           </div>
         )}
 
@@ -921,7 +1068,9 @@ function SessionInfoCard({
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">NEAR Account</span>
           {nearAccountId ? (
-            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{nearAccountId}</code>
+            <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+              {nearAccountId}
+            </code>
           ) : (
             <span className="text-xs text-muted-foreground">None</span>
           )}
@@ -929,9 +1078,15 @@ function SessionInfoCard({
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Linked Providers</span>
           <div className="flex gap-1">
-            {nearAccountCount > 0 && <Badge variant="secondary" className="text-xs">NEAR</Badge>}
+            {nearAccountCount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                NEAR
+              </Badge>
+            )}
             {socialAccountCount > 0 && (
-              <Badge variant="secondary" className="text-xs">{socialAccountCount} OAuth</Badge>
+              <Badge variant="secondary" className="text-xs">
+                {socialAccountCount} OAuth
+              </Badge>
             )}
             {providerCount === 0 && <span className="text-xs text-muted-foreground">None</span>}
           </div>
@@ -965,7 +1120,11 @@ function ExploreCard() {
   const [searchId, setSearchId] = useState("");
   const [queryId, setQueryId] = useState<string | undefined>(undefined);
 
-  const { data: profile, isLoading, error } = useQuery({
+  const {
+    data: profile,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["near-profile", queryId],
     queryFn: async () => {
       const res = await getAuthClient().near.getProfile(queryId);
@@ -1005,8 +1164,16 @@ function ExploreCard() {
 
         {queryId && (
           <div className="space-y-3">
-            {isLoading && <div className="p-4 text-center text-sm text-muted-foreground">Loading profile...</div>}
-            {error && <div className="p-4 text-center text-sm text-muted-foreground">Failed to load profile for {queryId}</div>}
+            {isLoading && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Loading profile...
+              </div>
+            )}
+            {error && (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Failed to load profile for {queryId}
+              </div>
+            )}
             {!isLoading && !error && profile && (
               <div className="space-y-3">
                 <NearProfile accountId={queryId} variant="card" showAvatar showName />
@@ -1023,7 +1190,8 @@ function ExploreCard() {
             )}
             {!isLoading && !error && !profile && (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                No NEAR Social profile found for <code className="font-mono bg-muted px-1.5 py-0.5 rounded">{queryId}</code>
+                No NEAR Social profile found for{" "}
+                <code className="font-mono bg-muted px-1.5 py-0.5 rounded">{queryId}</code>
               </div>
             )}
           </div>
