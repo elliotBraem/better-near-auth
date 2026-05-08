@@ -71,7 +71,7 @@ jobs:
 
       - name: Publish config to FastKV
         working-directory: examples/auth.everything.dev
-        run: bos publish
+        run: bun run publish
 
       - name: Commit updated files
         uses: stefanzweifel/git-auto-commit-action@v5
