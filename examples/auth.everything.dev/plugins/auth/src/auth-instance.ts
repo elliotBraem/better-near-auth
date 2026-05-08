@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
+import type { Auth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, anonymous, organization, phoneNumber } from "better-auth/plugins";
 import { siwn } from "better-near-auth";
@@ -125,7 +126,7 @@ export interface AuthConfig {
   githubClientSecret?: string;
 }
 
-export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
+export function createAuthInstance(config: AuthConfig, db: AuthDatabase): Auth {
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) {
     throw new Error(
