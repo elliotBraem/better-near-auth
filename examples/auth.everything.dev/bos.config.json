@@ -25,13 +25,15 @@
       "development": "local:api",
       "production": "https://elliot-braem-3007-api-everything-dev-nearbuilders-d7ff0d192-ze.zephyrcloud.app",
       "integrity": "sha384-F/9XCsnI1OXvDAqCr19AgiZk143Lri7grrqhApt17kIQKz5VFqpEu1XduDm/gBgw",
-      "secrets": []
+      "secrets": [
+        "API_DATABASE_URL"
+      ]
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-2920-everything-dev-auth-plugin-ever-299e2985c-ze.zephyrcloud.app",
-      "integrity": "sha384-LU0jmOg3U/H/3PXfs05RTawrIwv0p43CMD5uzeeKFFyMrEeW5wJBAxmaPLmcqDyD",
+      "production": "https://elliot-braem-3137-everything-dev-auth-plugin-bett-5d380b592-ze.zephyrcloud.app",
+      "integrity": "sha384-jmrWhl5xocFIk6wdy+VoS9PfIZnb51SHS3zLzVK1rKsFP1Nc3nGBYgf+RdFQTGso",
       "variables": {
         "account": "dev.everything.near",
         "hostUrl": "http://localhost:3000",

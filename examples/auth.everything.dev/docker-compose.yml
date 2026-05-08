@@ -1,0 +1,35 @@
+x-pg-common: &pg-common
+  image: postgres:17-alpine
+  environment: &pg-env
+    POSTGRES_USER: everythingdev
+    POSTGRES_PASSWORD: everythingdev
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U everythingdev"]
+    interval: 3s
+    timeout: 3s
+    retries: 5
+
+services:
+  postgres-api:
+    <<: *pg-common
+    environment:
+      <<: *pg-env
+      POSTGRES_DB: api_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_api_data:/var/lib/postgresql/data
+
+  postgres-auth:
+    <<: *pg-common
+    environment:
+      <<: *pg-env
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_auth_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_api_data:
+  postgres_auth_data:
