@@ -1,7 +1,7 @@
 {
   "extends": "bos://dev.everything.near/everything.dev",
   "account": "auth.everything.near",
-  "domain": "auth.everything.dev",
+  "domain": "everything.dev",
   "testnet": "dev.allthethings.testnet",
   "staging": {
     "domain": "staging.dev.everything.dev"
@@ -34,10 +34,6 @@
       "development": "local:plugins/auth",
       "production": "https://elliot-braem-3211-everything-dev-auth-plugin-bett-cb0b26277-ze.zephyrcloud.app",
       "integrity": "sha384-jmrWhl5xocFIk6wdy+VoS9PfIZnb51SHS3zLzVK1rKsFP1Nc3nGBYgf+RdFQTGso",
-      "variables": {
-        "account": "dev.everything.near",
-        "domain": "http://localhost:3000"
-      },
       "secrets": [
         "AUTH_DATABASE_URL",
         "BETTER_AUTH_SECRET"
