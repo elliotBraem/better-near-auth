@@ -46,6 +46,7 @@ lerna-debug.log*
 
 # local db
 *.db*
+:memory:
 
 # typescript
 *.tsbuildinfo

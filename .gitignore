@@ -41,6 +41,9 @@ temp
 
 bun.lock
 
+# SQLite in-memory databases
+:memory:
+
 # Examples
 examples/*/node_modules
 examples/*/.turbo

@@ -164,17 +164,16 @@ async function initRelayer(
 	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, kek);
 
 	await adapter.create({
-		model: "relayerKey",
-		data: {
-			id: `relayer:${network}`,
-			accountId,
-			encryptedPrivateKey: encrypted,
-			iv,
-			publicKey: `ed25519:${publicKeyBase58}`,
-			network,
-			createdAt: new Date(),
-		},
-	});
+			model: "relayerKey",
+			data: {
+				accountId,
+				encryptedPrivateKey: encrypted,
+				iv,
+				publicKey: `ed25519:${publicKeyBase58}`,
+				network,
+				createdAt: new Date(),
+			},
+		});
 
 	console.log(`[siwn] Relayer created in EPHEMERAL mode: ${accountId} (${network})`);
 	console.log(`[siwn] Fund this account with NEAR to enable gasless relay`);
@@ -938,13 +937,13 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 							},
 						});
 
-						if (rState.mode === "ephemeral") {
-							await ctx.context.adapter.update({
-								model: "relayerKey",
-								where: [{ field: "id", operator: "eq", value: `relayer:${network}` }],
-								update: { lastUsedAt: new Date() },
-							});
-						}
+					if (rState.mode === "ephemeral") {
+						await ctx.context.adapter.update({
+							model: "relayerKey",
+							where: [{ field: "network", operator: "eq", value: network }],
+							update: { lastUsedAt: new Date() },
+						});
+					}
 
 						return ctx.json(RelayResponse.parse({
 							txHash: result.txHash,

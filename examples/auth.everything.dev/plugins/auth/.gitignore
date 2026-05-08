@@ -1,0 +1,6 @@
+# Auth plugin local artifacts
+auth-local.db
+test-auth.db
+:memory:
+.local/
+types/

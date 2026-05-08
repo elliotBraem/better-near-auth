@@ -1,0 +1,91 @@
+{
+  "extends": "bos://dev.everything.near/everything.dev",
+  "account": "auth.everything.near",
+  "domain": "auth.everything.dev",
+  "testnet": "dev.allthethings.testnet",
+  "staging": {
+    "domain": "staging.dev.everything.dev"
+  },
+  "repository": "https://github.com/nearbuilders/everything-dev",
+  "app": {
+    "host": {
+      "development": "local:host",
+      "production": "https://elliot-braem-3032-host-everything-dev-nearbuilder-dac3244c0-ze.zephyrcloud.app",
+      "integrity": "sha384-AMT2ZD4BwjlCfWQKXq1m6fAwWYYa1/jQ85wXI6BmzRty+0aBy5xAnA3h/35ieI77"
+    },
+    "ui": {
+      "name": "ui",
+      "development": "local:ui",
+      "production": "https://elliot-braem-3005-ui-everything-dev-nearbuilders-0d84931b3-ze.zephyrcloud.app",
+      "integrity": "sha384-MKR+b2RadDVd/bFyjvYIZ/9JH9kZDaTeYXoKpyIb158e7pVyiFOihgx4cQC7zfCr",
+      "ssr": "https://elliot-braem-3006-ui-everything-dev-nearbuilders-f084c8b94-ze.zephyrcloud.app"
+    },
+    "api": {
+      "name": "api",
+      "development": "local:api",
+      "production": "https://elliot-braem-3007-api-everything-dev-nearbuilders-d7ff0d192-ze.zephyrcloud.app",
+      "integrity": "sha384-F/9XCsnI1OXvDAqCr19AgiZk143Lri7grrqhApt17kIQKz5VFqpEu1XduDm/gBgw",
+      "secrets": [
+        "API_DATABASE_URL"
+      ]
+    },
+    "auth": {
+      "name": "everything-dev_auth-plugin",
+      "development": "local:plugins/auth",
+      "production": "https://elliot-braem-3137-everything-dev-auth-plugin-bett-5d380b592-ze.zephyrcloud.app",
+      "integrity": "sha384-jmrWhl5xocFIk6wdy+VoS9PfIZnb51SHS3zLzVK1rKsFP1Nc3nGBYgf+RdFQTGso",
+      "variables": {
+        "account": "dev.everything.near",
+        "hostUrl": "http://localhost:3000",
+        "uiUrl": "http://localhost:3003"
+      },
+      "secrets": [
+        "AUTH_DATABASE_URL",
+        "BETTER_AUTH_SECRET"
+      ]
+    }
+  },
+  "plugins": {
+    "template": {
+      "development": "local:plugins/_template",
+      "routes": [
+        "ui/src/routes/_layout/_authenticated/settings.tsx"
+      ],
+      "production": "https://elliot-braem-3046-every-plugin-template-everythin-610bdef21-ze.zephyrcloud.app",
+      "integrity": "sha384-VysgUgcUzQIdp3LuhHJ4Ib9TtVSBVaKXImEJEJMOtSBzpfsQ1fxzPw558wdx0rgn"
+    }
+  },
+  "shared": {
+    "ui": {
+      "effect": {
+        "version": "3.21.0",
+        "requiredVersion": "^3.21.0",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "zod": {
+        "version": "4.3.6",
+        "requiredVersion": "^4.3.6",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@orpc/contract": {
+        "version": "1.13.14",
+        "requiredVersion": "^1.13.14",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "better-auth": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      }
+    },
+    "plugins": {}
+  }
+}
