@@ -23,7 +23,6 @@ Useful public paths:
 - /
 - /about
 - /apps
-- /opencode
 - /README.md
 - /skill.md
 - /manifest.json

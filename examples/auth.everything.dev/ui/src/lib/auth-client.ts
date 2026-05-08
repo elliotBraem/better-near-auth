@@ -9,22 +9,19 @@ import {
 } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
 import { siwnClient } from "better-near-auth/client";
-import { getAccount, getHostUrl, getNetworkId, getRuntimeConfig } from "@/app";
+import type { ClientRuntimeConfig } from "@/app";
+import { getAccount, getHostUrl, getNetworkId } from "@/app";
 import type { createAuthInstance } from "../auth-types.gen";
 
-export function isAuthAvailable(): boolean {
-  return getRuntimeConfig().authAvailable !== false;
-}
-
-function createAuthClient() {
+function createAuthClient(config?: Partial<ClientRuntimeConfig>) {
   return createBetterAuthClient({
-    baseURL: getHostUrl(),
+    baseURL: getHostUrl(config),
     fetchOptions: { credentials: "include" },
     plugins: [
       inferAdditionalFields<typeof createAuthInstance>(),
       siwnClient({
-        recipient: getAccount(),
-        networkId: getNetworkId(),
+        recipient: getAccount(config),
+        networkId: getNetworkId(config),
       }),
       adminClient(),
       anonymousClient(),
@@ -38,7 +35,10 @@ function createAuthClient() {
 
 let _authClient: ReturnType<typeof createAuthClient> | undefined;
 
-export function getAuthClient() {
+export function getAuthClient(config?: Partial<ClientRuntimeConfig>) {
+  if (config) {
+    return createAuthClient(config);
+  }
   if (_authClient === undefined) {
     _authClient = createAuthClient();
   }

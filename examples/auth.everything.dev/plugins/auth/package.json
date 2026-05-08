@@ -22,7 +22,7 @@
     "better-auth": "1.6.9",
     "better-near-auth": "^1.1.0",
     "drizzle-orm": "^0.45.1",
-    "every-plugin": "^2.5.4",
+    "every-plugin": "^2.5.5",
     "pg": "^8.12.0",
     "@electric-sql/pglite": "^0.4.5"
   },
@@ -38,7 +38,7 @@
     "@types/node": "^25.0.3",
     "@types/pg": "^8.11.6",
     "dotenv": "^17.2.3",
-    "everything-dev": "^1.8.13",
+    "everything-dev": "^1.9.7",
     "drizzle-kit": "^0.31.8",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.17",

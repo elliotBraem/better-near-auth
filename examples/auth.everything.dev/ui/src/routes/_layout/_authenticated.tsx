@@ -15,8 +15,11 @@ interface AuthContext {
 export const Route = createFileRoute("/_layout/_authenticated")({
   beforeLoad: async ({ context, location }) => {
     const { queryClient } = context;
+    const runtimeConfig = context.runtimeConfig;
 
-    const session = await queryClient.ensureQueryData(sessionQueryOptions(context.session));
+    const session = await queryClient.ensureQueryData(
+      sessionQueryOptions(context.session, runtimeConfig),
+    );
 
     if (!session?.user) {
       throw redirect({
@@ -47,7 +50,7 @@ export const Route = createFileRoute("/_layout/_authenticated")({
     await queryClient.ensureQueryData({
       queryKey: ["organizations"],
       queryFn: async () => {
-        const { data } = await getAuthClient().organization.list();
+        const { data } = await getAuthClient(runtimeConfig).organization.list();
         return (data || []) as Organization[];
       },
       staleTime: 30 * 1000,

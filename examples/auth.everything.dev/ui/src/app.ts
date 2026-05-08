@@ -35,7 +35,7 @@ import type { ApiClient } from "./lib/api-client";
 export type { ApiClient } from "./lib/api-client";
 export { createApiClient } from "./lib/api-client";
 export type { AuthClient, Organization, Passkey, SessionData } from "./lib/auth-client";
-export { getAuthClient, isAuthAvailable } from "./lib/auth-client";
+export { getAuthClient } from "./lib/auth-client";
 
 export function getAppName(config?: Parameters<typeof getAccount>[0]): string {
   return getActiveRuntime(config)?.title ?? getAccount(config);

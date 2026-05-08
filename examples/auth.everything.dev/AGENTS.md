@@ -66,7 +66,7 @@ bos info      # Show configuration
 
 ## Architecture
 
-This is a **Module Federation monorepo** with runtime-loaded configuration. The host is **remote** — it is not in this repository. You work on `/ui`, `/api`, and `/plugins` (auth, registry, projects, opencode, etc.).
+This is a **Module Federation monorepo** with runtime-loaded configuration. The host is **remote** — it is not in this repository. You work on `/ui`, `/api`, and `/plugins` (auth, registry, projects, etc.).
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -147,8 +147,7 @@ Business logic is organized into independent plugins loaded via Module Federatio
 - **`plugins/auth/`** — Authentication and authorization (Better-Auth, NEAR SIWN, organizations, API keys)
 - **`plugins/registry/`** — FastKV app discovery, metadata publish/relay (no database)
 - **`plugins/projects/`** — Project and organization management
-- **`plugins/opencode/`** — AI dev loop integration
-- **`plugins/_template/`** — Scaffold for creating new plugins
+ - **`plugins/_template/`** — Scaffold for creating new plugins
 
 Each plugin is self-contained with its own:
 - `contract.ts` — oRPC route definitions and Zod schemas

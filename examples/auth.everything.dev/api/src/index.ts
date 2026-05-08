@@ -4,6 +4,8 @@ import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { AuthClient } from "./auth-client.gen";
 import { contract } from "./contract";
+import { createDatabase } from "./db";
+import { migrate } from "./db/migrator";
 import type { PluginsClient } from "./plugins-client.gen";
 
 type ApiPluginsClient = PluginsClient & { auth: AuthClient };
@@ -47,13 +49,22 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
 
   contract,
 
-  initialize: (_config, plugins) =>
-    Effect.sync(() => {
+  initialize: (config, plugins) =>
+    Effect.gen(function* () {
+      const driver = yield* Effect.acquireRelease(
+        Effect.promise(() => createDatabase(config.secrets.API_DATABASE_URL)),
+        (driver) => Effect.promise(() => driver.close()),
+      );
+
+      const migrations = yield* Effect.promise(() => import("virtual:drizzle-migrations.sql"));
+      yield* Effect.promise(() => migrate(driver.db, migrations.default));
+      console.log("[API] Migrations applied");
+
       const { auth, ...restPlugins } = plugins;
       console.log("[API] Services Initialized");
       console.log("[API] Auth client available:", Boolean(auth));
       console.log("[API] Plugins available:", Object.keys(restPlugins).join(", ") || "none");
-      return { auth, plugins: restPlugins };
+      return { auth, plugins: restPlugins, db: driver.db, driver };
     }),
 
   shutdown: () => Effect.log("[API] Shutdown"),
