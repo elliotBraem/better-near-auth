@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.2.1
+
+### Patch Changes
+
+- [`dda59e4`](https://github.com/elliotBraem/better-near-auth/commit/dda59e40d79bfb20df025d906da813f596f5a688) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Remove process.env fallbacks in initRelayer, add rpcUrl to SIWNPluginOptions, and keep explicit BetterAuthPlugin return type to avoid TS2742 build errors in downstream consumers.
+
 ## 1.2.0
 
 ### Minor Changes
