@@ -1,13 +1,13 @@
+import type { User } from "better-auth/types";
 import { and, eq } from "drizzle-orm";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
-import type { User } from "better-auth/types";
 import type { AuthServices } from "./auth-export";
 import { createAuthInstance } from "./auth-instance";
-import { contract, apiKeySchema } from "./contract";
 import type { InferOutput } from "./contract";
+import { type apiKeySchema, contract } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
 import { migrate } from "./db/migrator";
 import * as schema from "./db/schema";
@@ -95,9 +95,7 @@ export default createPlugin({
           secret: config.secrets.BETTER_AUTH_SECRET,
           baseUrl: config.variables.domain || "http://localhost:3000",
           account: config.variables.account || "dev.everything.near",
-          corsOrigins: config.variables.domain
-            ? [config.variables.domain]
-            : undefined,
+          corsOrigins: config.variables.domain ? [config.variables.domain] : undefined,
           githubClientId: config.variables.githubClientId,
           githubClientSecret: config.variables.githubClientSecret,
         },
@@ -424,7 +422,7 @@ export default createPlugin({
             query: input?.organizationId ? { organizationId: input.organizationId } : undefined,
           }),
         );
-        return ((result as { apiKeys?: Array<z.infer<typeof apiKeySchema>> }).apiKeys ?? []);
+        return (result as { apiKeys?: Array<z.infer<typeof apiKeySchema>> }).apiKeys ?? [];
       }),
 
       createApiKey: builder.createApiKey.use(requireAuth).handler(async ({ input, context }) => {
@@ -632,7 +630,9 @@ export default createPlugin({
 
           const headers = createHeaders(context.reqHeaders);
 
-          const roleParse = z.enum(["member", "owner", "admin"]).safeParse(invitation.role ?? "member");
+          const roleParse = z
+            .enum(["member", "owner", "admin"])
+            .safeParse(invitation.role ?? "member");
           if (!roleParse.success) {
             throw new ORPCError("BAD_REQUEST", { message: "Invalid invitation role" });
           }
@@ -765,7 +765,7 @@ export default createPlugin({
         .use(requireAuth)
         .handler(async ({ input, context }) => {
           const result = await safeAuthApi(() =>
-          services.auth.api.getRelayStatus({
+            services.auth.api.getRelayStatus({
               headers: createHeaders(context.reqHeaders),
               params: { txHash: input.txHash },
             }),

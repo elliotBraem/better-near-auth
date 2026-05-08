@@ -8,15 +8,7 @@ import type {} from "zod/v4/core";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
-async function sendEmail({
-  to,
-  subject,
-  text,
-}: {
-  to: string;
-  subject: string;
-  text: string;
-}) {
+async function sendEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
   console.log(`\n📧 [Email Preview] ============================================`);
   console.log(`To: ${to}`);
   console.log(`Subject: ${subject}`);
