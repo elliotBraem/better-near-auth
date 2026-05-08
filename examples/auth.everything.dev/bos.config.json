@@ -44,16 +44,7 @@
       ]
     }
   },
-  "plugins": {
-    "template": {
-      "development": "local:plugins/_template",
-      "routes": [
-        "ui/src/routes/_layout/_authenticated/settings.tsx"
-      ],
-      "production": "https://elliot-braem-3046-every-plugin-template-everythin-610bdef21-ze.zephyrcloud.app",
-      "integrity": "sha384-VysgUgcUzQIdp3LuhHJ4Ib9TtVSBVaKXImEJEJMOtSBzpfsQ1fxzPw558wdx0rgn"
-    }
-  },
+  "plugins": {},
   "shared": {
     "ui": {
       "effect": {
