@@ -46,7 +46,7 @@
   },
   "scripts": {
     "build": "bun run build:types && rspack build",
-    "build:types": "tsc -p tsconfig.contract.json && tsc -p tsconfig.auth-types.json",
+    "build:types": "tsc -p tsconfig.contract.json",
     "deploy": "bun run build:types && DEPLOY=true rspack build",
     "dev": "bun run build:types && rspack serve",
     "test": "vitest run",
