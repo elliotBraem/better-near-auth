@@ -3,10 +3,10 @@ import * as path from "node:path";
 import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
-import type {} from "zod/v4/core";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, anonymous, organization, phoneNumber } from "better-auth/plugins";
 import { siwn } from "better-near-auth";
+import type {} from "zod/v4/core";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
