@@ -118,7 +118,7 @@ bun run changeset
 # Follow prompts to select packages and describe changes
 ```
 
-The release workflow (`.github/workflows/release.yml`) handles versioning and GitHub releases automatically on merge to main.
+The deploy workflow in the parent repo (`.github/workflows/deploy-example.yml`) handles deploying this example and publishing to FastKV when a new `better-near-auth` version is released.
 
 ### Git Workflow
 

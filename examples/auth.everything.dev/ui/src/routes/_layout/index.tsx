@@ -1,18 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { Clipboard, Github } from "lucide-react";
 import { useState } from "react";
-import { Github, Clipboard } from "lucide-react";
-import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_layout/")({
   component: HomeComponent,
   loader: async () => {
     try {
       const response = await fetch(
-        "https://raw.githubusercontent.com/elliotBraem/better-near-auth/main/README.md"
+        "https://raw.githubusercontent.com/elliotBraem/better-near-auth/main/README.md",
       );
       let content = await response.text();
 
@@ -36,7 +36,7 @@ function HomeComponent() {
   const copyLLMContent = async () => {
     try {
       const response = await fetch(
-        "https://raw.githubusercontent.com/elliotBraem/better-near-auth/main/LLM.txt"
+        "https://raw.githubusercontent.com/elliotBraem/better-near-auth/main/LLM.txt",
       );
       const content = await response.text();
       await navigator.clipboard.writeText(content);
@@ -67,12 +67,7 @@ function HomeComponent() {
                 <Clipboard className="h-4 w-4" />
                 {copied ? "Copied!" : "Copy LLM.txt"}
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className="flex items-center gap-2"
-              >
+              <Button variant="outline" size="sm" asChild className="flex items-center gap-2">
                 <a
                   href="https://github.com/elliotBraem/better-near-auth"
                   target="_blank"

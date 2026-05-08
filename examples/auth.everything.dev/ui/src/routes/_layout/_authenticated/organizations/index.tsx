@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { Building2, Plus, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { getAuthClient, type Organization, type SessionData } from "@/app";
 import { Badge, Button, Card, CardContent, Skeleton } from "@/components";
 
@@ -58,7 +58,9 @@ function OrganizationsList() {
               {activeOrgId && <Badge variant="outline">active set</Badge>}
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Workspace Groups</h1>
+              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+                Workspace Groups
+              </h1>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Switch contexts, create new organizations, and open team-specific member and API key
                 management flows.
@@ -88,8 +90,8 @@ function OrganizationsList() {
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
+          {[1, 2, 3].map((n) => (
+            <Card key={`skeleton-${n}`}>
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-start gap-3">
                   <Skeleton className="h-10 w-10 rounded-none" />

@@ -1,0 +1,71 @@
+name: Deploy Example App
+
+on:
+  release:
+    types: [published]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    name: Deploy auth.everything.dev
+    runs-on: ubuntu-latest
+    env:
+      ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
+      ZE_SERVER_TOKEN: ${{ secrets.ZEPHYR_SERVER_AUTH_TOKEN }}
+      ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
+      BOS_INSTALL_NEAR_CLI: "true"
+      NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.20"
+
+      - name: Get version from release
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update better-near-auth version in example
+        working-directory: examples/auth.everything.dev
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          cat package.json | jq \
+            --arg v "$VERSION" \
+            '.workspaces.catalog["better-near-auth"] = "^" + $v |
+             .dependencies["better-near-auth"] = "^" + $v' \
+            > package.json.tmp
+          mv package.json.tmp package.json
+
+      - name: Install dependencies
+        working-directory: examples/auth.everything.dev
+        run: bun install
+
+      - name: Lint and typecheck
+        working-directory: examples/auth.everything.dev
+        run: |
+          bun lint
+          bun typecheck
+
+      - name: Build and deploy
+        working-directory: examples/auth.everything.dev
+        run: bun run deploy
+
+      - name: Publish config to FastKV
+        working-directory: examples/auth.everything.dev
+        run: bos publish
+
+      - name: Commit updated files
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(deploy-example): update to better-near-auth@${{ steps.get_version.outputs.VERSION }}"
+          file_pattern: |
+            examples/auth.everything.dev/package.json
+            examples/auth.everything.dev/bun.lock
+            examples/auth.everything.dev/bos.config.json

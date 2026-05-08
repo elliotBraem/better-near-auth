@@ -53,7 +53,11 @@ export function ConfirmDialog({
             size="sm"
             onClick={onConfirm}
             disabled={isPending}
-            className={variant === "destructive" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            className={
+              variant === "destructive"
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : ""
+            }
           >
             {isPending ? "..." : confirmLabel}
           </Button>
@@ -71,18 +75,16 @@ export function useConfirmDialog() {
     onConfirm: () => {},
   });
 
-  const confirm = (options: Omit<ConfirmDialogProps, "open" | "onOpenChange" | "onConfirm"> & { onConfirm: () => void }) => {
+  const confirm = (
+    options: Omit<ConfirmDialogProps, "open" | "onOpenChange" | "onConfirm"> & {
+      onConfirm: () => void;
+    },
+  ) => {
     setConfig(options);
     setOpen(true);
   };
 
-  const dialog = (
-    <ConfirmDialog
-      open={open}
-      onOpenChange={setOpen}
-      {...config}
-    />
-  );
+  const dialog = <ConfirmDialog open={open} onOpenChange={setOpen} {...config} />;
 
   return { confirm, dialog };
 }

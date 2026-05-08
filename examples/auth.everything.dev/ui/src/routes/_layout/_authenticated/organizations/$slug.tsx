@@ -11,7 +11,6 @@ import {
   Button,
   Card,
   CardContent,
-  ConfirmDialog,
   Input,
   InvitationCard,
   MemberCard,
@@ -108,24 +107,27 @@ function OrganizationDetail() {
   const orgId = org?.id ?? "";
   const activeOrgId = session?.session?.activeOrganizationId;
   const isActive = orgId === activeOrgId;
-  const members = useQuery({
-    queryKey: orgMembersQueryKey(orgId),
-    queryFn: async (): Promise<OrgMembersResult> =>
-      apiClient.auth.listMembers({ organizationId: orgId }),
-    enabled: !!orgId,
-  }).data ?? [];
-  const invitations = useQuery({
-    queryKey: orgInvitationsQueryKey(orgId),
-    queryFn: async (): Promise<OrgInvitationsResult> =>
-      apiClient.auth.listInvitations({ organizationId: orgId }),
-    enabled: !!orgId,
-  }).data ?? [];
-  const apiKeys = useQuery({
-    queryKey: orgApiKeysQueryKey(orgId),
-    queryFn: async (): Promise<OrgApiKeysResult> =>
-      apiClient.auth.listApiKeys({ organizationId: orgId }),
-    enabled: !!orgId,
-  }).data ?? [];
+  const members =
+    useQuery({
+      queryKey: orgMembersQueryKey(orgId),
+      queryFn: async (): Promise<OrgMembersResult> =>
+        apiClient.auth.listMembers({ organizationId: orgId }),
+      enabled: !!orgId,
+    }).data ?? [];
+  const invitations =
+    useQuery({
+      queryKey: orgInvitationsQueryKey(orgId),
+      queryFn: async (): Promise<OrgInvitationsResult> =>
+        apiClient.auth.listInvitations({ organizationId: orgId }),
+      enabled: !!orgId,
+    }).data ?? [];
+  const apiKeys =
+    useQuery({
+      queryKey: orgApiKeysQueryKey(orgId),
+      queryFn: async (): Promise<OrgApiKeysResult> =>
+        apiClient.auth.listApiKeys({ organizationId: orgId }),
+      enabled: !!orgId,
+    }).data ?? [];
 
   const myMembership = members.find((m) => m.userId === session?.user?.id);
   const canManageMembers = myMembership?.role === "owner" || myMembership?.role === "admin";
@@ -257,17 +259,6 @@ function OrganizationDetail() {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to update organization");
-    },
-  });
-
-  const deleteOrgMutation = useMutation({
-    mutationFn: () => apiClient.auth.deleteOrganization({ id: orgId }),
-    onSuccess: async () => {
-      toast.success("Organization deleted");
-      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete organization");
     },
   });
 
@@ -417,7 +408,7 @@ function OrganizationDetail() {
                 <MemberCard
                   key={member.id}
                   member={member}
-                  canRemove={canManageMembers && member.userId !== session?.user?.id}
+                  canManage={canManageMembers && member.userId !== session?.user?.id}
                   onRemove={() => removeMemberMutation.mutate(member.id)}
                   isRemoving={removeMemberMutation.isPending}
                 />
@@ -467,10 +458,18 @@ function OrganizationDetail() {
                 <InvitationCard
                   key={invitation.id}
                   invitation={invitation}
-                  canManage={canManageMembers}
-                  onCancel={() => cancelInvitationMutation.mutate(invitation.id)}
-                  onResend={() => resendInvitationMutation.mutate(invitation.id)}
-                  isPending={cancelInvitationMutation.isPending || resendInvitationMutation.isPending}
+                  onCancel={
+                    canManageMembers
+                      ? () => cancelInvitationMutation.mutate(invitation.id)
+                      : undefined
+                  }
+                  onResend={
+                    canManageMembers
+                      ? () => resendInvitationMutation.mutate(invitation.id)
+                      : undefined
+                  }
+                  isCancelling={cancelInvitationMutation.isPending}
+                  isResending={resendInvitationMutation.isPending}
                 />
               ))}
             </div>
@@ -514,7 +513,7 @@ function OrganizationDetail() {
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => handleCopyApiKey(key.key || "", "Key copied")}
+                        onClick={() => handleCopyApiKey(key.start || "", "Key copied")}
                         variant="outline"
                         size="sm"
                       >

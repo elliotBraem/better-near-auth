@@ -20,7 +20,7 @@ export interface AuthContext {
   reqHeaders?: Record<string, string>;
 }
 
-function createHeaders(reqHeaders?: Record<string, string>): Headers {
+function _createHeaders(reqHeaders?: Record<string, string>): Headers {
   return new Headers(Object.entries(reqHeaders ?? {}) as [string, string][]);
 }
 
@@ -58,7 +58,7 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
 
   shutdown: () => Effect.log("[API] Shutdown"),
 
-  createRouter: (services, builder) => {
+  createRouter: (_services, builder) => {
     const requireAuth = builder.middleware(async ({ context, next }) => {
       if (!context.user || !context.userId) {
         throw new ORPCError("UNAUTHORIZED", {

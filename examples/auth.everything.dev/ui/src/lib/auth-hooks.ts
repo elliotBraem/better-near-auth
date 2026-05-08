@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { getAuthClient } from "@/app";
 import type { RelayedTransactionT } from "better-near-auth";
+import { getAuthClient } from "@/app";
 
 export function useRelayHistory(session: any) {
   return useQuery({

@@ -508,7 +508,10 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
   const [isProcessingNear, setIsProcessingNear] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState<string | null>(null);
-  const [recentlyLinked, setRecentlyLinked] = useState<{ provider: string; accountId: string } | null>(null);
+  const [recentlyLinked, setRecentlyLinked] = useState<{
+    provider: string;
+    accountId: string;
+  } | null>(null);
 
   const isAnonymous = user?.isAnonymous ?? false;
   const walletAccountId = getAuthClient().near.getAccountId();
@@ -541,9 +544,11 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
     setIsProcessingNear(true);
     try {
       await getAuthClient().near.link({
-        onSuccess: (ctx: any) => {
+        onSuccess: (ctx?: any) => {
           const linkedAccountId = ctx?.data?.accountId || walletAccountId || "NEAR account";
-          toast.success(`NEAR account "${linkedAccountId}" linked successfully${isAnonymous ? " — your session is now persistent" : ""}`);
+          toast.success(
+            `NEAR account "${linkedAccountId}" linked successfully${isAnonymous ? " — your session is now persistent" : ""}`,
+          );
           invalidateAccounts();
           setIsProcessingNear(false);
           setRecentlyLinked({ provider: "siwn", accountId: linkedAccountId });
@@ -622,16 +627,21 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
         <CardContent className="space-y-4">
           {isAnonymous && (
             <div className="border-2 border-dashed border-[rgb(180,50,40)] dark:border-[rgb(200,80,70)] bg-destructive/5 p-3 text-sm text-muted-foreground">
-              <strong className="text-foreground">Temporary session.</strong> Link an account to make your data persistent and recoverable.
+              <strong className="text-foreground">Temporary session.</strong> Link an account to
+              make your data persistent and recoverable.
             </div>
           )}
 
           {recentlyLinked && (
             <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-green-50 dark:bg-green-900/20 p-3 text-sm">
               <div className="flex items-center gap-2">
-                <span className="text-green-600 dark:text-green-400 font-medium">✓ Linked successfully:</span>
+                <span className="text-green-600 dark:text-green-400 font-medium">
+                  ✓ Linked successfully:
+                </span>
                 <span className="font-mono">{recentlyLinked.accountId}</span>
-                <span className="text-muted-foreground">({getProviderConfig(recentlyLinked.provider).name})</span>
+                <span className="text-muted-foreground">
+                  ({getProviderConfig(recentlyLinked.provider).name})
+                </span>
               </div>
             </div>
           )}

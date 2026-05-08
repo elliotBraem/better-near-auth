@@ -197,8 +197,8 @@ function PromptSection() {
 
       {messages.length > 0 && (
         <div className="space-y-1.5 max-h-72 overflow-y-auto border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-3">
-          {messages.map((m, i) => (
-            <div key={`${m.role}-${i}`} className="text-sm">
+          {messages.map((m) => (
+            <div key={`${m.role}-${m.content.slice(0, 20)}`} className="text-sm">
               <span className="text-xs text-muted-foreground font-mono mr-2">
                 {m.role === "user" ? ">" : "<"}
               </span>

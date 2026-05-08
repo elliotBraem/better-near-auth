@@ -246,9 +246,7 @@ export default createPlugin({
           const activeOrgId = session?.session?.activeOrganizationId;
 
           if (activeOrgId) {
-            const activeMembership = memberships.find(
-              (m) => m.organization?.id === activeOrgId,
-            );
+            const activeMembership = memberships.find((m) => m.organization?.id === activeOrgId);
 
             if (activeMembership?.organization) {
               const org = activeMembership.organization;
@@ -373,7 +371,9 @@ export default createPlugin({
             ),
           });
           if (!membership || membership.role !== "owner") {
-            throw new ORPCError("FORBIDDEN", { message: "Only the owner can delete the organization" });
+            throw new ORPCError("FORBIDDEN", {
+              message: "Only the owner can delete the organization",
+            });
           }
 
           const org = await services.db.query.organization.findFirst({
@@ -680,25 +680,29 @@ export default createPlugin({
           return { sent: true };
         }),
 
-      acceptInvitation: builder.acceptInvitation.use(requireAuth).handler(async ({ input, context }) => {
-        await safeAuthApi(() =>
-          services.auth.api.acceptInvitation({
-            headers: createHeaders(context.reqHeaders),
-            body: { invitationId: input.id },
-          }),
-        );
-        return { success: true };
-      }),
+      acceptInvitation: builder.acceptInvitation
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          await safeAuthApi(() =>
+            services.auth.api.acceptInvitation({
+              headers: createHeaders(context.reqHeaders),
+              body: { invitationId: input.id },
+            }),
+          );
+          return { success: true };
+        }),
 
-      rejectInvitation: builder.rejectInvitation.use(requireAuth).handler(async ({ input, context }) => {
-        await safeAuthApi(() =>
-          services.auth.api.rejectInvitation({
-            headers: createHeaders(context.reqHeaders),
-            body: { invitationId: input.id },
-          }),
-        );
-        return { success: true };
-      }),
+      rejectInvitation: builder.rejectInvitation
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          await safeAuthApi(() =>
+            services.auth.api.rejectInvitation({
+              headers: createHeaders(context.reqHeaders),
+              body: { invitationId: input.id },
+            }),
+          );
+          return { success: true };
+        }),
 
       // ── NEAR SIWN Endpoints ─────────────────────────────────────────────
 

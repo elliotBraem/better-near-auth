@@ -132,6 +132,7 @@ function RootComponent() {
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: getBaseStyles returns safe CSS */}
         <style dangerouslySetInnerHTML={{ __html: getBaseStyles() }} />
       </head>
       <body>

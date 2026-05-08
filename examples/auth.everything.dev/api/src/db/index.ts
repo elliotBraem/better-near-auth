@@ -27,8 +27,7 @@ export async function createDatabase(url: string): Promise<DatabaseDriver> {
 
   const { Pool } = await import("pg");
   const { drizzle } = await import("drizzle-orm/node-postgres");
-  const isLocal =
-    url.includes("localhost") || url.includes("127.0.0.1") || url.includes("0.0.0.0");
+  const isLocal = url.includes("localhost") || url.includes("127.0.0.1") || url.includes("0.0.0.0");
   const pool = new Pool({
     connectionString: url,
     ssl: isLocal ? false : { rejectUnauthorized: false },

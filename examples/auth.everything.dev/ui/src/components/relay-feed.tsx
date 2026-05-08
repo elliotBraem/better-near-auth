@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import type { RelayedTransactionT } from "better-near-auth";
+import { CheckCircle2, Clock, ExternalLink, Loader2, XCircle } from "lucide-react";
+import { getAuthClient } from "@/app";
 import { Badge } from "@/components/ui/badge";
 import { useRelayHistory } from "@/lib/auth-hooks";
-import { getAuthClient } from "@/app";
-import type { RelayedTransactionT } from "better-near-auth";
 
 function explorerTxUrl(txHash: string): string {
   return `https://near.rocks/tx/${txHash}`;
@@ -48,7 +48,10 @@ function StatusBadge({ status }: { status: string }) {
       );
     case "failed":
       return (
-        <Badge variant="secondary" className="bg-destructive/10 text-destructive border-destructive/20">
+        <Badge
+          variant="secondary"
+          className="bg-destructive/10 text-destructive border-destructive/20"
+        >
           Failed
         </Badge>
       );

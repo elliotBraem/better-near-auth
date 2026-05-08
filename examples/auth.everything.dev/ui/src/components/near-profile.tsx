@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton } from "@/components/ui/skeleton";
-import { getAuthClient } from "@/app";
-import Markdown from "react-markdown";
 import type { Profile } from "better-near-auth";
+import Markdown from "react-markdown";
+import { getAuthClient } from "@/app";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface NearProfileProps {
   accountId?: string;
@@ -19,7 +19,11 @@ export function NearProfile({
   showName = true,
   className = "",
 }: NearProfileProps) {
-  const { data: profile, isLoading, error } = useQuery<Profile | null>({
+  const {
+    data: profile,
+    isLoading,
+    error,
+  } = useQuery<Profile | null>({
     queryKey: ["near-profile", accountId],
     queryFn: async () => {
       const res = await getAuthClient().near.getProfile(accountId);
@@ -31,9 +35,7 @@ export function NearProfile({
   const displayName = profile?.name;
   const avatarUrl =
     profile?.image?.url ??
-    (profile?.image?.ipfs_cid
-      ? `https://ipfs.near.social/ipfs/${profile.image.ipfs_cid}`
-      : null);
+    (profile?.image?.ipfs_cid ? `https://ipfs.near.social/ipfs/${profile.image.ipfs_cid}` : null);
   const backgroundUrl =
     profile?.backgroundImage?.url ??
     (profile?.backgroundImage?.ipfs_cid
