@@ -93,9 +93,11 @@ export default createPlugin({
       const auth = createAuthInstance(
         {
           secret: config.secrets.BETTER_AUTH_SECRET,
-          baseUrl: config.variables.domain ?? "http://localhost:3000",
-          account: config.variables.account ?? "dev.everything.near",
-          corsOrigins: undefined,
+          baseUrl: config.variables.domain || "http://localhost:3000",
+          account: config.variables.account || "dev.everything.near",
+          corsOrigins: config.variables.domain
+            ? [config.variables.domain]
+            : undefined,
           githubClientId: config.variables.githubClientId,
           githubClientSecret: config.variables.githubClientSecret,
         },
