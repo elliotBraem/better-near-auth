@@ -47,6 +47,7 @@
     }
   },
   "scripts": {
+    "postinstall": "bun run scripts/postinstall.ts",
     "init": "bun run db:migrate",
     "dev": "bun node_modules/.bin/bos dev",
     "dev:ui": "bun node_modules/.bin/bos dev --api remote",
