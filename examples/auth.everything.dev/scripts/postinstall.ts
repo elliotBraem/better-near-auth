@@ -1,7 +1,7 @@
-import { Generator, getConfig } from "@tanstack/router-generator";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Generator, getConfig } from "@tanstack/router-generator";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -78,7 +78,7 @@ function generateApiContract(plugins: Array<{ key: string; path: string }>) {
   lines.push("};");
 
   const outputPath = path.join(rootDir, "ui", "src", "api-contract.gen.ts");
-  writeFileSync(outputPath, lines.join("\n") + "\n");
+  writeFileSync(outputPath, `${lines.join("\n")}\n`);
   console.log("Generated ui/src/api-contract.gen.ts");
 }
 
@@ -119,9 +119,7 @@ function generatePluginsClient(plugins: Array<{ key: string; path: string }>) {
     );
   }
 
-  lines.push(
-    'import type { ContractRouterClient, AnyContractRouter } from "@orpc/contract";',
-  );
+  lines.push('import type { ContractRouterClient, AnyContractRouter } from "@orpc/contract";');
   lines.push(
     "type ClientFactory<C extends AnyContractRouter> = (context?: Record<string, unknown>) => ContractRouterClient<C>;",
   );
@@ -133,7 +131,7 @@ function generatePluginsClient(plugins: Array<{ key: string; path: string }>) {
   lines.push("};");
 
   const outputPath = path.join(rootDir, "api", "src", "plugins-client.gen.ts");
-  writeFileSync(outputPath, lines.join("\n") + "\n");
+  writeFileSync(outputPath, `${lines.join("\n")}\n`);
   console.log("Generated api/src/plugins-client.gen.ts");
 }
 

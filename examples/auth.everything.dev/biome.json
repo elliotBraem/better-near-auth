@@ -47,6 +47,7 @@
   "files": {
     "includes": [
       "**",
+      "!**/*.css",
       "!!**/ui/src/routeTree.gen.ts",
       "!!**/plugins/**/types/**/*.d.ts",
       "!!**/env.d.ts",
