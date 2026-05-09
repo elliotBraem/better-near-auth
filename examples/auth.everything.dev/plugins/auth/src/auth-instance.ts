@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, anonymous, organization, phoneNumber } from "better-auth/plugins";
 import { siwn } from "better-near-auth";
-import type {} from "zod/v4/core";
+import type { AuthConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
@@ -67,18 +67,6 @@ async function createPersonalOrganization(
   });
 
   return personalOrg;
-}
-
-export interface AuthConfig {
-  secret: string;
-  baseUrl: string;
-  account: string;
-  trustedOrigins?: string[];
-  githubClientId?: string;
-  githubClientSecret?: string;
-  fastnearApiKey?: string;
-  nearRpcUrl?: string;
-  isProduction?: boolean;
 }
 
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
@@ -188,3 +176,4 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
 
 export type Auth = ReturnType<typeof createAuthInstance>;
 export type AuthSession = Auth["$Infer"]["Session"];
+export type { AuthConfig } from "./auth-export";

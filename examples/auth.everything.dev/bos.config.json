@@ -32,11 +32,12 @@
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-3314-everything-dev-auth-plugin-bett-94e18c82d-ze.zephyrcloud.app",
-      "integrity": "sha384-fOM64j5sDjcAaD0jFDyV0Fqto5I0PxWhbimeYuxTD/gGbQN3m5Y3oF2wp2SLWfn3",
+      "production": "https://elliot-braem-3337-everything-dev-auth-plugin-bett-2313ee026-ze.zephyrcloud.app",
+      "integrity": "sha384-CSlaIO9iGCGCECzKLIHb1sBlDKBU/NQh7W3Msa4zTgPTowz4IjzNmm3ovScwWFJb",
       "secrets": [
         "AUTH_DATABASE_URL",
-        "BETTER_AUTH_SECRET"
+        "BETTER_AUTH_SECRET",
+        "CORS_ORIGIN"
       ]
     }
   },

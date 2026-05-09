@@ -4,13 +4,21 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
-import type { AuthServices } from "./auth-export";
 import { createAuthInstance } from "./auth-instance";
+import type { Auth } from "./auth-instance";
+import type { AuthDatabase, DatabaseDriver } from "./db/driver";
 import type { InferOutput } from "./contract";
 import { type apiKeySchema, contract } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
 import { migrate } from "./db/migrator";
 import * as schema from "./db/schema";
+
+type PluginAuthServices = {
+  auth: Auth;
+  db: AuthDatabase;
+  driver: DatabaseDriver;
+  handler: (req: Request) => Promise<Response>;
+};
 
 function tryJsonParse<T>(value: string | null | undefined): T | undefined {
   if (!value) return undefined;
@@ -163,7 +171,7 @@ export default createPlugin({
         db: driver.db,
         driver,
         handler: (req: Request) => auth.handler(req),
-      } satisfies AuthServices;
+      } satisfies PluginAuthServices;
     }),
 
   shutdown: () =>

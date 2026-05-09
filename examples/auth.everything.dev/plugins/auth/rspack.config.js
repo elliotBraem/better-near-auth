@@ -50,7 +50,15 @@ const baseConfig = {
       additionalExports: [
         {
           srcPath: "auth-export.d.ts",
-          exportNames: ["Auth", "AuthSession", "createAuthInstance"],
+          exportNames: [
+            "Auth",
+            "AuthSession",
+            "AuthConfig",
+            "AuthDatabase",
+            "DatabaseDriver",
+            "createAuthInstance",
+            "AuthServices",
+          ],
         },
       ],
     }),
