@@ -81,6 +81,41 @@ export interface AuthConfig {
   isProduction?: boolean;
 }
 
+export function resolveAuthUrls(domain?: string): { baseUrl: string; trustedOrigins: string[] } | undefined {
+  if (!domain) return undefined;
+
+  const hasProtocol = /^https?:\/\//i.test(domain);
+  const urlStr = hasProtocol ? domain : `https://${domain}`;
+
+  let url: URL;
+  try {
+    url = new URL(urlStr);
+  } catch {
+    return undefined;
+  }
+
+  const hostname = url.hostname;
+
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    const origin = url.origin;
+    return { baseUrl: origin, trustedOrigins: [origin] };
+  }
+
+  const cleanHostname = hostname.replace(/^www\./, "");
+  const dotCount = cleanHostname.split(".").length - 1;
+
+  const origin = url.origin;
+
+  if (dotCount === 1) {
+    return {
+      baseUrl: origin,
+      trustedOrigins: [origin, `https://*.${cleanHostname}`],
+    };
+  }
+
+  return { baseUrl: origin, trustedOrigins: [origin] };
+}
+
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
   return betterAuth({
     database: drizzleAdapter(db, {

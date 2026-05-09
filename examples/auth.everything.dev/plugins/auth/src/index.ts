@@ -5,7 +5,7 @@ import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { AuthServices } from "./auth-export";
-import { createAuthInstance } from "./auth-instance";
+import { createAuthInstance, resolveAuthUrls } from "./auth-instance";
 import type { InferOutput } from "./contract";
 import { type apiKeySchema, contract } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
@@ -90,12 +90,14 @@ export default createPlugin({
       yield* Effect.promise(() => migrate(driver.db, migrations.default));
       console.log("[Auth] Migrations applied");
 
+      const authUrls = resolveAuthUrls(config.variables.domain);
+
       const auth = createAuthInstance(
         {
           secret: config.secrets.BETTER_AUTH_SECRET,
-          baseUrl: config.variables.domain || "http://localhost:3000",
+          baseUrl: authUrls?.baseUrl ?? "http://localhost:3000",
           account: config.variables.account || "dev.everything.near",
-          corsOrigins: config.variables.domain ? [config.variables.domain] : undefined,
+          corsOrigins: authUrls?.trustedOrigins,
           githubClientId: config.variables.githubClientId,
           githubClientSecret: config.variables.githubClientSecret,
         },
