@@ -11,14 +11,14 @@ import { createAuthClient as createBetterAuthClient } from "better-auth/react";
 import { siwnClient } from "better-near-auth/client";
 import type { ClientRuntimeConfig } from "@/app";
 import { getAccount, getHostUrl, getNetworkId } from "@/app";
-import type { createAuthInstance } from "../auth-types.gen";
+import type { Auth } from "../auth-types.gen";
 
 function createAuthClient(config?: Partial<ClientRuntimeConfig>) {
   return createBetterAuthClient({
     baseURL: getHostUrl(config),
     fetchOptions: { credentials: "include" },
     plugins: [
-      inferAdditionalFields<typeof createAuthInstance>(),
+      inferAdditionalFields<Auth>(),
       siwnClient({
         recipient: getAccount(config),
         networkId: getNetworkId(config),

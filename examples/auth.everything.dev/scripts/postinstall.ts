@@ -86,7 +86,7 @@ function generateAuthTypes(plugins: Array<{ key: string; path: string }>) {
   const authPlugin = plugins.find((p) => p.key === "auth");
   if (!authPlugin) return;
 
-  const content = `export type { createAuthInstance } from "../../${authPlugin.path}/src/auth-export.ts";\n`;
+  const content = `export type { Auth, createAuthInstance } from "../../${authPlugin.path}/src/auth-export.ts";\n`;
   const outputPath = path.join(rootDir, "ui", "src", "auth-types.gen.ts");
   writeFileSync(outputPath, content);
   console.log("Generated ui/src/auth-types.gen.ts");
