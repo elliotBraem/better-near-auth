@@ -81,7 +81,9 @@ export interface AuthConfig {
   isProduction?: boolean;
 }
 
-export function resolveAuthUrls(domain?: string): { baseUrl: string; trustedOrigins: string[] } | undefined {
+export function resolveAuthUrls(
+  domain?: string,
+): { baseUrl: string; trustedOrigins: string[] } | undefined {
   if (!domain) return undefined;
 
   const hasProtocol = /^https?:\/\//i.test(domain);
