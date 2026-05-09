@@ -27,7 +27,7 @@
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-3276-everything-dev-auth-plugin-bett-f446b4e3d-ze.zephyrcloud.app",
+      "production": "https://elliot-braem-3306-everything-dev-auth-plugin-bett-86bbdc6d8-ze.zephyrcloud.app",
       "integrity": "sha384-CSlaIO9iGCGCECzKLIHb1sBlDKBU/NQh7W3Msa4zTgPTowz4IjzNmm3ovScwWFJb",
       "secrets": [
         "AUTH_DATABASE_URL",
