@@ -73,49 +73,12 @@ export interface AuthConfig {
   secret: string;
   baseUrl: string;
   account: string;
-  corsOrigins?: string[];
+  trustedOrigins?: string[];
   githubClientId?: string;
   githubClientSecret?: string;
   fastnearApiKey?: string;
   nearRpcUrl?: string;
   isProduction?: boolean;
-}
-
-export function resolveAuthUrls(
-  domain?: string,
-): { baseUrl: string; trustedOrigins: string[] } | undefined {
-  if (!domain) return undefined;
-
-  const hasProtocol = /^https?:\/\//i.test(domain);
-  const urlStr = hasProtocol ? domain : `https://${domain}`;
-
-  let url: URL;
-  try {
-    url = new URL(urlStr);
-  } catch {
-    return undefined;
-  }
-
-  const hostname = url.hostname;
-
-  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-    const origin = url.origin;
-    return { baseUrl: origin, trustedOrigins: [origin] };
-  }
-
-  const cleanHostname = hostname.replace(/^www\./, "");
-  const dotCount = cleanHostname.split(".").length - 1;
-
-  const origin = url.origin;
-
-  if (dotCount === 1) {
-    return {
-      baseUrl: origin,
-      trustedOrigins: [origin, `https://*.${cleanHostname}`],
-    };
-  }
-
-  return { baseUrl: origin, trustedOrigins: [origin] };
 }
 
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
@@ -124,7 +87,7 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       provider: "pg",
       schema: schema,
     }),
-    trustedOrigins: config.corsOrigins ?? [config.baseUrl],
+    trustedOrigins: config.trustedOrigins?.length ? config.trustedOrigins : undefined,
     secret: config.secret,
     baseURL: config.baseUrl,
     socialProviders: {

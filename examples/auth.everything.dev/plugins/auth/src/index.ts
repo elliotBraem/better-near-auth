@@ -5,7 +5,7 @@ import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { AuthServices } from "./auth-export";
-import { createAuthInstance, resolveAuthUrls } from "./auth-instance";
+import { createAuthInstance } from "./auth-instance";
 import type { InferOutput } from "./contract";
 import { type apiKeySchema, contract } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
@@ -58,6 +58,51 @@ async function safeAuthApi<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+function ensureOrigin(value: string): string | null {
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      new URL(value);
+      return value;
+    } catch {
+      console.warn(`[Auth] Invalid origin URL: ${value}`);
+      return null;
+    }
+  }
+  const isLoopback =
+    value === "localhost" ||
+    value.startsWith("localhost:") ||
+    value === "127.0.0.1" ||
+    value.startsWith("127.0.0.1:") ||
+    value === "::1" ||
+    value.startsWith("[::1]");
+  const withProtocol = isLoopback ? `http://${value}` : `https://${value}`;
+  try {
+    new URL(withProtocol);
+    return withProtocol;
+  } catch {
+    console.warn(`[Auth] Invalid origin: ${value} (resolved to ${withProtocol})`);
+    return null;
+  }
+}
+
+function parseTrustedOrigins(domain?: string, corsOrigin?: string): { baseUrl: string; trustedOrigins: string[] } {
+  const baseUrl = domain ? ensureOrigin(domain) : "http://localhost:3000";
+  const origins: string[] = [];
+  if (baseUrl) origins.push(baseUrl);
+
+  if (corsOrigin) {
+    for (const entry of corsOrigin.split(",")) {
+      const trimmed = entry.trim();
+      if (trimmed) {
+        const origin = ensureOrigin(trimmed);
+        if (origin) origins.push(origin);
+      }
+    }
+  }
+
+  return { baseUrl: baseUrl ?? "http://localhost:3000", trustedOrigins: [...new Set(origins)] };
+}
+
 export type { AuthServices } from "./auth-export";
 
 export default createPlugin({
@@ -71,6 +116,7 @@ export default createPlugin({
   secrets: z.object({
     AUTH_DATABASE_URL: z.string(),
     BETTER_AUTH_SECRET: z.string(),
+    CORS_ORIGIN: z.string().optional(),
   }),
 
   context: z.object({
@@ -90,14 +136,17 @@ export default createPlugin({
       yield* Effect.promise(() => migrate(driver.db, migrations.default));
       console.log("[Auth] Migrations applied");
 
-      const authUrls = resolveAuthUrls(config.variables.domain);
+      const { baseUrl, trustedOrigins } = parseTrustedOrigins(
+        config.variables.domain,
+        config.secrets.CORS_ORIGIN,
+      );
 
       const auth = createAuthInstance(
         {
           secret: config.secrets.BETTER_AUTH_SECRET,
-          baseUrl: authUrls?.baseUrl ?? "http://localhost:3000",
+          baseUrl,
           account: config.variables.account || "dev.everything.near",
-          corsOrigins: authUrls?.trustedOrigins,
+          trustedOrigins,
           githubClientId: config.variables.githubClientId,
           githubClientSecret: config.variables.githubClientSecret,
         },

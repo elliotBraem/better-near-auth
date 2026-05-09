@@ -17,6 +17,7 @@ export default {
       AUTH_DATABASE_URL: process.env.AUTH_DATABASE_URL || "pglite:.bos/auth/:memory:",
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET || "dev-only-secret-do-not-use-in-production",
+      CORS_ORIGIN: process.env.CORS_ORIGIN,
     },
   } satisfies PluginConfigInput<typeof Plugin>,
 };
