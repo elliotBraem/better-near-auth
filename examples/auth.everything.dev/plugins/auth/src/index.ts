@@ -85,7 +85,10 @@ function ensureOrigin(value: string): string | null {
   }
 }
 
-function parseTrustedOrigins(domain?: string, corsOrigin?: string): { baseUrl: string; trustedOrigins: string[] } {
+function parseTrustedOrigins(
+  domain?: string,
+  corsOrigin?: string,
+): { baseUrl: string; trustedOrigins: string[] } {
   const baseUrl = domain ? ensureOrigin(domain) : "http://localhost:3000";
   const origins: string[] = [];
   if (baseUrl) origins.push(baseUrl);
