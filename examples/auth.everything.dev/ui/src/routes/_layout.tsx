@@ -13,7 +13,9 @@ import { UserNav } from "../components/user-nav";
 export const Route = createFileRoute("/_layout")({
   beforeLoad: async ({ context }) => {
     const { queryClient } = context;
-    const session = await queryClient.ensureQueryData(sessionQueryOptions(context.session));
+    const session = await queryClient.ensureQueryData(
+      sessionQueryOptions(context.session, context.runtimeConfig),
+    );
     return { session };
   },
   component: Layout,
@@ -28,13 +30,13 @@ const authenticatedSidebarItems = [
 function Layout() {
   const pathname = useClientValue(() => window.location.pathname, "/");
   const appName = useClientValue(() => getAppName(), "app");
-  const { session } = Route.useRouteContext();
+  const { session, runtimeConfig } = Route.useRouteContext();
   const isAuthenticated = !!session?.user;
 
   const { data: organizations = [] } = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
-      const { data } = await getAuthClient().organization.list();
+      const { data } = await getAuthClient(runtimeConfig).organization.list();
       return (data || []) as Organization[];
     },
     staleTime: 30 * 1000,
@@ -149,7 +151,7 @@ function Layout() {
                     <ThemeToggle />
                   </div>
                 )}
-                <UserNav />
+                <UserNav runtimeConfig={runtimeConfig} />
               </div>
             </div>
           </header>

@@ -23,7 +23,8 @@ export const Route = createFileRoute("/_layout/login")({
     const { queryClient } = context;
     const initialSession = context.session;
     const session =
-      initialSession ?? queryClient.getQueryData(sessionQueryOptions(initialSession).queryKey);
+      initialSession ??
+      queryClient.getQueryData(sessionQueryOptions(initialSession, context.runtimeConfig).queryKey);
 
     if (session?.user) {
       const redirectTo = search.redirect?.startsWith("/") ? search.redirect : "/home";
@@ -33,15 +34,18 @@ export const Route = createFileRoute("/_layout/login")({
   loader: ({ context }) => {
     const initialSession = context.session;
 
-    void context.queryClient.prefetchQuery(sessionQueryOptions(initialSession));
+    void context.queryClient.prefetchQuery(
+      sessionQueryOptions(initialSession, context.runtimeConfig),
+    );
   },
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
-  const auth = getAuthClient();
-  const { data: session } = useQuery(sessionQueryOptions());
+  const { runtimeConfig } = Route.useRouteContext();
+  const auth = getAuthClient(runtimeConfig);
+  const { data: session } = useQuery(sessionQueryOptions(undefined, runtimeConfig));
   const { redirect } = Route.useSearch();
   const [authMethod, setAuthMethod] = useState<AuthMethod>("anonymous");
 

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Profile } from "better-near-auth";
 import Markdown from "react-markdown";
-import { getAuthClient } from "@/app";
+import { type ClientRuntimeConfig, getAuthClient } from "@/app";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface NearProfileProps {
@@ -10,6 +10,7 @@ interface NearProfileProps {
   showAvatar?: boolean;
   showName?: boolean;
   className?: string;
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }
 
 export function NearProfile({
@@ -18,6 +19,7 @@ export function NearProfile({
   showAvatar = true,
   showName = true,
   className = "",
+  runtimeConfig,
 }: NearProfileProps) {
   const {
     data: profile,
@@ -26,7 +28,7 @@ export function NearProfile({
   } = useQuery<Profile | null>({
     queryKey: ["near-profile", accountId],
     queryFn: async () => {
-      const res = await getAuthClient().near.getProfile(accountId);
+      const res = await getAuthClient(runtimeConfig).near.getProfile(accountId);
       return res.data || null;
     },
     enabled: !!accountId,

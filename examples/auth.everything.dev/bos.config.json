@@ -8,11 +8,6 @@
   },
   "repository": "https://github.com/nearbuilders/everything-dev",
   "app": {
-    "host": {
-      "development": "local:host",
-      "production": "https://elliot-braem-3032-host-everything-dev-nearbuilder-dac3244c0-ze.zephyrcloud.app",
-      "integrity": "sha384-AMT2ZD4BwjlCfWQKXq1m6fAwWYYa1/jQ85wXI6BmzRty+0aBy5xAnA3h/35ieI77"
-    },
     "ui": {
       "name": "ui",
       "development": "local:ui",

@@ -20,7 +20,12 @@ import {
 import { Gas } from "near-kit";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { getAuthClient, type Organization, type SessionData } from "@/app";
+import {
+  type ClientRuntimeConfig,
+  getAuthClient,
+  type Organization,
+  type SessionData,
+} from "@/app";
 import {
   Badge,
   Button,
@@ -92,13 +97,16 @@ export const Route = createFileRoute("/_layout/_authenticated/home")({
 });
 
 function DashboardPage() {
-  const { data: session } = useQuery<SessionData | null>(sessionQueryOptions());
+  const { runtimeConfig } = Route.useRouteContext();
+  const { data: session } = useQuery<SessionData | null>(
+    sessionQueryOptions(undefined, runtimeConfig),
+  );
   const user = session?.user ?? null;
 
   const { data: linkedAccounts = [] } = useQuery({
     queryKey: ["near-accounts"],
     queryFn: async () => {
-      const res = await getAuthClient().near.listAccounts();
+      const res = await getAuthClient(runtimeConfig).near.listAccounts();
       return Array.isArray(res?.data) ? res.data : [];
     },
     enabled: !!session?.user,
@@ -112,7 +120,7 @@ function DashboardPage() {
   const { data: organizations = [] } = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
-      const { data } = await getAuthClient().organization.list();
+      const { data } = await getAuthClient(runtimeConfig).organization.list();
       return (data || []) as Organization[];
     },
     staleTime: 30 * 1000,
@@ -127,7 +135,7 @@ function DashboardPage() {
   const { data: greeting } = useQuery({
     queryKey: ["greeting"],
     queryFn: async () => {
-      const res = await getAuthClient().near.view({
+      const res = await getAuthClient(runtimeConfig).near.view({
         contractId: GUESTBOOK_CONTRACT,
         methodName: "get_greeting",
       });
@@ -139,7 +147,7 @@ function DashboardPage() {
   const { data: relayerData } = useQuery<RelayerData>({
     queryKey: ["relayer-info"],
     queryFn: async () => {
-      const response = await getAuthClient().near.getRelayerInfo();
+      const response = await getAuthClient(runtimeConfig).near.getRelayerInfo();
       return response.data as RelayerData;
     },
   });
@@ -169,6 +177,7 @@ function DashboardPage() {
               user={user}
               nearAccountId={nearAccountId}
               linkedProviders={linkedProviders}
+              runtimeConfig={runtimeConfig}
             />
             <SessionInfoCard
               user={user}
@@ -202,17 +211,21 @@ function DashboardPage() {
         </TabsContent>
 
         <TabsContent value="relayer" className="space-y-6 pt-4">
-          <RelayerCard />
-          <GuestbookCard initialGreeting={greeting} />
-          <RelayFeedCard />
+          <RelayerCard runtimeConfig={runtimeConfig} />
+          <GuestbookCard initialGreeting={greeting} runtimeConfig={runtimeConfig} />
+          <RelayFeedCard runtimeConfig={runtimeConfig} />
         </TabsContent>
 
         <TabsContent value="accounts" className="space-y-6 pt-4">
-          <AccountLinkingCard linkedAccounts={linkedAccounts} user={user} />
+          <AccountLinkingCard
+            linkedAccounts={linkedAccounts}
+            user={user}
+            runtimeConfig={runtimeConfig}
+          />
         </TabsContent>
 
         <TabsContent value="explorer" className="space-y-6 pt-4">
-          <ExploreCard />
+          <ExploreCard runtimeConfig={runtimeConfig} />
         </TabsContent>
       </Tabs>
     </div>
@@ -235,10 +248,12 @@ function ProfileCard({
   user,
   nearAccountId,
   linkedProviders,
+  runtimeConfig,
 }: {
   user: any;
   nearAccountId: string | null;
   linkedProviders: string[];
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }) {
   const queryClient = useQueryClient();
   const [isUnlinking, setIsUnlinking] = useState(false);
@@ -312,7 +327,7 @@ function ProfileCard({
                     const [accountId, network] = nearAccountId.includes(":")
                       ? nearAccountId.split(":")
                       : [nearAccountId, "mainnet"];
-                    const response = await getAuthClient().near.unlink({
+                    const response = await getAuthClient(runtimeConfig).near.unlink({
                       accountId,
                       network: (network as "mainnet" | "testnet") || "mainnet",
                     });
@@ -340,13 +355,13 @@ function ProfileCard({
   );
 }
 
-function RelayerCard() {
+function RelayerCard({ runtimeConfig }: { runtimeConfig?: Partial<ClientRuntimeConfig> }) {
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading } = useQuery<RelayerData>({
     queryKey: ["relayer-info"],
     queryFn: async () => {
-      const response = await getAuthClient().near.getRelayerInfo();
+      const response = await getAuthClient(runtimeConfig).near.getRelayerInfo();
       return response.data as RelayerData;
     },
     refetchInterval: 2000,
@@ -502,7 +517,15 @@ function RelayerCard() {
   );
 }
 
-function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; user: any }) {
+function AccountLinkingCard({
+  linkedAccounts,
+  user,
+  runtimeConfig,
+}: {
+  linkedAccounts: any[];
+  user: any;
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+}) {
   const queryClient = useQueryClient();
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
@@ -514,7 +537,7 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   } | null>(null);
 
   const isAnonymous = user?.isAnonymous ?? false;
-  const walletAccountId = getAuthClient().near.getAccountId();
+  const walletAccountId = getAuthClient(runtimeConfig).near.getAccountId();
   const accounts = linkedAccounts;
 
   const invalidateAccounts = () => {
@@ -526,7 +549,10 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
     if (providerId === "google") setIsLinkingGoogle(true);
     else setIsLinkingGitHub(true);
     try {
-      await getAuthClient().linkSocial({ provider: providerId, callbackURL: window.location.href });
+      await getAuthClient(runtimeConfig).linkSocial({
+        provider: providerId,
+        callbackURL: window.location.href,
+      });
       toast.success(`${providerId === "google" ? "Google" : "GitHub"} account linked successfully`);
       invalidateAccounts();
       setRecentlyLinked({ provider: providerId, accountId: providerId });
@@ -543,7 +569,7 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   const handleNearAction = async () => {
     setIsProcessingNear(true);
     try {
-      await getAuthClient().near.link({
+      await getAuthClient(runtimeConfig).near.link({
         onSuccess: (ctx?: any) => {
           const linkedAccountId = ctx?.data?.accountId || walletAccountId || "NEAR account";
           toast.success(
@@ -562,7 +588,7 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
               : error.message || "Failed to link NEAR account";
           toast.error(errorMessage);
           setIsProcessingNear(false);
-          await getAuthClient().near.disconnect();
+          await getAuthClient(runtimeConfig).near.disconnect();
         },
       });
     } catch (error) {
@@ -576,7 +602,7 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
     setIsUnlinking(account.accountId);
     try {
       const [accountId, network] = account.accountId.split(":");
-      const response = await getAuthClient().near.unlink({
+      const response = await getAuthClient(runtimeConfig).near.unlink({
         accountId,
         network: (network as "mainnet" | "testnet") || "mainnet",
       });
@@ -597,7 +623,7 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   const handleUnlinkAccount = async (providerId: string) => {
     setIsUnlinking(providerId);
     try {
-      await getAuthClient().unlinkAccount({ providerId });
+      await getAuthClient(runtimeConfig).unlinkAccount({ providerId });
       toast.success("Account unlinked successfully");
       invalidateAccounts();
     } catch (error) {
@@ -781,7 +807,13 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
                   key={account.accountId}
                   className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-4"
                 >
-                  <NearProfile accountId={account.accountId} variant="card" showAvatar showName />
+                  <NearProfile
+                    accountId={account.accountId}
+                    variant="card"
+                    showAvatar
+                    showName
+                    runtimeConfig={runtimeConfig}
+                  />
                 </div>
               ))}
           </CardContent>
@@ -791,14 +823,20 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   );
 }
 
-function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
+function GuestbookCard({
+  initialGreeting,
+  runtimeConfig,
+}: {
+  initialGreeting?: string;
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+}) {
   const [newGreeting, setNewGreeting] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>("relay");
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [relayTxHash, setRelayTxHash] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const network = (getAuthClient().near.getState()?.networkId || "mainnet") as
+  const network = (getAuthClient(runtimeConfig).near.getState()?.networkId || "mainnet") as
     | "mainnet"
     | "testnet";
   const queryKey = useMemo(() => ["greeting", network] as const, [network]);
@@ -806,7 +844,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   const { data: greeting } = useQuery({
     queryKey,
     queryFn: async () => {
-      const res = await getAuthClient().near.view({
+      const res = await getAuthClient(runtimeConfig).near.view({
         contractId: GUESTBOOK_CONTRACT,
         methodName: "get_greeting",
       });
@@ -819,7 +857,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
     if (relayStatus !== "pending" || !relayTxHash) return;
     const interval = setInterval(async () => {
       try {
-        const res = await getAuthClient().near.getRelayStatus(relayTxHash);
+        const res = await getAuthClient(runtimeConfig).near.getRelayStatus(relayTxHash);
         const status = res.data?.status;
         if (status === "completed" || status === "failed") {
           setRelayStatus(status);
@@ -829,7 +867,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
       } catch {}
     }, 2000);
     return () => clearInterval(interval);
-  }, [relayStatus, relayTxHash, queryClient, queryKey]);
+  }, [relayStatus, relayTxHash, queryClient, queryKey, runtimeConfig]);
 
   const optimisticUpdate = async (text: string) => {
     await queryClient.cancelQueries({ queryKey });
@@ -846,22 +884,22 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
 
   const { mutate: addMessageRelay, isPending: isRelaying } = useMutation({
     mutationFn: async (text: string) => {
-      const accountId = getAuthClient().near.getAccountId();
+      const accountId = getAuthClient(runtimeConfig).near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
-      const signedDelegateAction = await getAuthClient().near.buildSignedDelegateAction(
-        GUESTBOOK_CONTRACT,
-        (builder) =>
-          builder.functionCall(
-            GUESTBOOK_CONTRACT,
-            "set_greeting",
-            { greeting: text },
-            {
-              gas: Gas.Tgas(30),
-              attachedDeposit: BigInt(0),
-            },
-          ),
+      const signedDelegateAction = await getAuthClient(
+        runtimeConfig,
+      ).near.buildSignedDelegateAction(GUESTBOOK_CONTRACT, (builder) =>
+        builder.functionCall(
+          GUESTBOOK_CONTRACT,
+          "set_greeting",
+          { greeting: text },
+          {
+            gas: Gas.Tgas(30),
+            attachedDeposit: BigInt(0),
+          },
+        ),
       );
-      const relayResult = await getAuthClient().near.relayTransaction({
+      const relayResult = await getAuthClient(runtimeConfig).near.relayTransaction({
         payload: signedDelegateAction,
       });
       if (relayResult.error) throw new Error(relayResult.error.message || "Relay failed");
@@ -889,9 +927,9 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
 
   const { mutate: addMessageDirect, isPending: isDirecting } = useMutation({
     mutationFn: async (text: string) => {
-      const accountId = getAuthClient().near.getAccountId();
+      const accountId = getAuthClient(runtimeConfig).near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
-      return getAuthClient()
+      return getAuthClient(runtimeConfig)
         .near.client.transaction(accountId)
         .functionCall(
           GUESTBOOK_CONTRACT,
@@ -1029,7 +1067,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   );
 }
 
-function RelayFeedCard() {
+function RelayFeedCard({ runtimeConfig }: { runtimeConfig?: Partial<ClientRuntimeConfig> }) {
   return (
     <Card>
       <CardHeader>
@@ -1037,7 +1075,7 @@ function RelayFeedCard() {
         <CardDescription>Live-updating relay history</CardDescription>
       </CardHeader>
       <CardContent>
-        <RelayFeed />
+        <RelayFeed runtimeConfig={runtimeConfig} />
       </CardContent>
     </Card>
   );
@@ -1126,7 +1164,7 @@ function SessionInfoCard({
   );
 }
 
-function ExploreCard() {
+function ExploreCard({ runtimeConfig }: { runtimeConfig?: Partial<ClientRuntimeConfig> }) {
   const [searchId, setSearchId] = useState("");
   const [queryId, setQueryId] = useState<string | undefined>(undefined);
 
@@ -1137,7 +1175,7 @@ function ExploreCard() {
   } = useQuery({
     queryKey: ["near-profile", queryId],
     queryFn: async () => {
-      const res = await getAuthClient().near.getProfile(queryId);
+      const res = await getAuthClient(runtimeConfig).near.getProfile(queryId);
       return res.data || null;
     },
     enabled: !!queryId,

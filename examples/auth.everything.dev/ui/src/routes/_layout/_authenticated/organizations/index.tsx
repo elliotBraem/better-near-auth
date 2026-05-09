@@ -16,7 +16,8 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
 });
 
 function OrganizationsList() {
-  const auth = getAuthClient();
+  const { runtimeConfig } = Route.useRouteContext();
+  const auth = getAuthClient(runtimeConfig);
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
     queryFn: async () => {

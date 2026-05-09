@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getAuthClient, type Passkey, type SessionData } from "@/app";
+import { type ClientRuntimeConfig, getAuthClient, type Passkey, type SessionData } from "@/app";
 import {
   ApiKeyForm,
   ApiKeyReveal,
@@ -34,12 +34,15 @@ export const Route = createFileRoute("/_layout/_authenticated/settings")({
 });
 
 function Settings() {
-  const auth = getAuthClient();
-  const { data: session } = useQuery<SessionData | null>(sessionQueryOptions());
+  const { runtimeConfig } = Route.useRouteContext();
+  const auth = getAuthClient(runtimeConfig);
+  const { data: session } = useQuery<SessionData | null>(
+    sessionQueryOptions(undefined, runtimeConfig),
+  );
   const { data: passkeys = [] } = useQuery({
     queryKey: ["passkeys"],
     queryFn: async () => {
-      const { data } = await getAuthClient().passkey.listUserPasskeys();
+      const { data } = await getAuthClient(runtimeConfig).passkey.listUserPasskeys();
       return (data || []) as Passkey[];
     },
     staleTime: 60 * 1000,
@@ -82,11 +85,16 @@ function Settings() {
         </TabsList>
 
         <TabsContent value="identity" className="space-y-6 pt-4">
-          <IdentityTab user={user} />
+          <IdentityTab user={user} runtimeConfig={runtimeConfig} />
         </TabsContent>
 
         <TabsContent value="auth" className="space-y-6 pt-4">
-          <AuthMethodsTab user={user} passkeys={passkeys} nearAccountId={nearAccountId} />
+          <AuthMethodsTab
+            user={user}
+            passkeys={passkeys}
+            nearAccountId={nearAccountId}
+            runtimeConfig={runtimeConfig}
+          />
         </TabsContent>
 
         <TabsContent value="apikeys" className="space-y-6 pt-4">
@@ -94,7 +102,7 @@ function Settings() {
         </TabsContent>
 
         <TabsContent value="security" className="space-y-6 pt-4">
-          <SecurityTab user={user} />
+          <SecurityTab user={user} runtimeConfig={runtimeConfig} />
         </TabsContent>
       </Tabs>
     </div>
@@ -103,14 +111,16 @@ function Settings() {
 
 function IdentityTab({
   user,
+  runtimeConfig,
 }: {
   user: { id: string; email?: string; name?: string; isAnonymous?: boolean | null };
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }) {
   const [name, setName] = useState(user.name || "");
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient().updateUser({ name });
+      const { error } = await getAuthClient(runtimeConfig).updateUser({ name });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Profile updated"),
@@ -175,14 +185,16 @@ function AuthMethodsTab({
   user,
   passkeys,
   nearAccountId,
+  runtimeConfig,
 }: {
   user: { email?: string; isAnonymous?: boolean | null };
   passkeys: Array<{ id: string; name?: string }>;
   nearAccountId: string | null;
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }) {
   const addPasskeyMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient().passkey.addPasskey();
+      const { error } = await getAuthClient(runtimeConfig).passkey.addPasskey();
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Passkey added"),
@@ -191,7 +203,7 @@ function AuthMethodsTab({
 
   const removePasskeyMutation = useMutation({
     mutationFn: async (passkeyId: string) => {
-      const { error } = await getAuthClient().passkey.deletePasskey({ id: passkeyId });
+      const { error } = await getAuthClient(runtimeConfig).passkey.deletePasskey({ id: passkeyId });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Passkey removed"),
@@ -200,7 +212,7 @@ function AuthMethodsTab({
 
   const linkNearMutation = useMutation({
     mutationFn: async () => {
-      await getAuthClient().signIn.near();
+      await getAuthClient(runtimeConfig).signIn.near();
     },
     onSuccess: () => toast.success("NEAR wallet linked"),
     onError: (err: Error) => toast.error(err.message),
@@ -415,7 +427,13 @@ function ApiKeysTab() {
   );
 }
 
-function SecurityTab({ user }: { user: { email?: string; isAnonymous?: boolean | null } }) {
+function SecurityTab({
+  user,
+  runtimeConfig,
+}: {
+  user: { email?: string; isAnonymous?: boolean | null };
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+}) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -429,7 +447,10 @@ function SecurityTab({ user }: { user: { email?: string; isAnonymous?: boolean |
         throw new Error("Password must be at least 8 characters");
       }
       return (async () => {
-        const { error } = await getAuthClient().changePassword({ currentPassword, newPassword });
+        const { error } = await getAuthClient(runtimeConfig).changePassword({
+          currentPassword,
+          newPassword,
+        });
         if (error) throw new Error(error.message);
       })();
     },
@@ -444,7 +465,7 @@ function SecurityTab({ user }: { user: { email?: string; isAnonymous?: boolean |
 
   const revokeSessionsMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient().revokeSessions();
+      const { error } = await getAuthClient(runtimeConfig).revokeSessions();
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Other sessions revoked"),
@@ -453,8 +474,8 @@ function SecurityTab({ user }: { user: { email?: string; isAnonymous?: boolean |
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
-      await getAuthClient().signOut();
-      await getAuthClient()
+      await getAuthClient(runtimeConfig).signOut();
+      await getAuthClient(runtimeConfig)
         .near.disconnect()
         .catch(() => {});
     },

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RelayedTransactionT } from "better-near-auth";
 import { CheckCircle2, Clock, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { getAuthClient } from "@/app";
+import { type ClientRuntimeConfig, getAuthClient } from "@/app";
 import { Badge } from "@/components/ui/badge";
 import { useRelayHistory } from "@/lib/auth-hooks";
 
@@ -64,16 +64,20 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-export default function RelayFeed() {
+export default function RelayFeed({
+  runtimeConfig,
+}: {
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+}) {
   const { data: session } = useQuery({
     queryKey: ["session"],
     queryFn: async () => {
-      const { data } = await getAuthClient().getSession();
+      const { data } = await getAuthClient(runtimeConfig).getSession();
       return data;
     },
   });
 
-  const { data: transactions, isPending } = useRelayHistory(session);
+  const { data: transactions, isPending } = useRelayHistory(session, runtimeConfig);
 
   if (isPending) {
     return (

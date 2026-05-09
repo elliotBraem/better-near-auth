@@ -36,13 +36,13 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/$slu
     context,
     params,
   }: {
-    context: { queryClient: QueryClient; apiClient: ApiClient };
+    context: { queryClient: QueryClient; apiClient: ApiClient; runtimeConfig: any };
     params: { slug: string };
   }) => {
     const orgs = await context.queryClient.ensureQueryData({
       queryKey: ["organizations"],
       queryFn: async () => {
-        const { data } = await getAuthClient().organization.list();
+        const { data } = await getAuthClient(context.runtimeConfig).organization.list();
         return (data || []) as Organization[];
       },
       staleTime: 30 * 1000,
@@ -84,8 +84,9 @@ function OrganizationDetail() {
   const queryClient = useQueryClient();
   const { slug: orgSlug } = Route.useParams();
   const apiClient = useApiClient();
+  const { runtimeConfig } = Route.useRouteContext();
 
-  const auth = getAuthClient();
+  const auth = getAuthClient(runtimeConfig);
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
     queryFn: async () => {

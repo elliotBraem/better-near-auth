@@ -19,12 +19,16 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/new"
 
 function NewOrganization() {
   const router = useRouter();
+  const { runtimeConfig } = Route.useRouteContext();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await getAuthClient().organization.create({ name, slug });
+      const { data, error } = await getAuthClient(runtimeConfig).organization.create({
+        name,
+        slug,
+      });
       if (error) throw new Error(error.message);
       return data;
     },
