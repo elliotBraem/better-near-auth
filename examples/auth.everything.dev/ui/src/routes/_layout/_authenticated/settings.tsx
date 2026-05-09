@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { type ClientRuntimeConfig, getAuthClient, type Passkey, type SessionData } from "@/app";
@@ -434,6 +434,8 @@ function SecurityTab({
   user: { email?: string; isAnonymous?: boolean | null };
   runtimeConfig?: Partial<ClientRuntimeConfig>;
 }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -474,13 +476,18 @@ function SecurityTab({
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
-      await getAuthClient(runtimeConfig).signOut();
+      const { error } = await getAuthClient(runtimeConfig).signOut();
+      if (error) {
+        throw new Error(error.message || "Failed to sign out");
+      }
       await getAuthClient(runtimeConfig)
         .near.disconnect()
         .catch(() => {});
     },
-    onSuccess: () => {
-      window.location.href = "/";
+    onSuccess: async () => {
+      queryClient.setQueryData(["session"], null);
+      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      navigate({ to: "/", replace: true });
     },
     onError: (err: Error) => toast.error(err.message),
   });

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { type ClientRuntimeConfig, getAuthClient, type Organization } from "@/app";
 import { Button, OrgSwitcher } from "@/components";
@@ -16,6 +16,7 @@ import { sessionQueryOptions } from "@/lib/session";
 export function UserNav({ runtimeConfig }: { runtimeConfig?: Partial<ClientRuntimeConfig> }) {
   const auth = getAuthClient(runtimeConfig);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: session } = useQuery(sessionQueryOptions(undefined, runtimeConfig));
   const user = session?.user;
   const { data: organizations } = useQuery({
@@ -35,13 +36,16 @@ export function UserNav({ runtimeConfig }: { runtimeConfig?: Partial<ClientRunti
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
-      await auth.signOut();
+      const { error } = await auth.signOut();
+      if (error) {
+        throw new Error(error.message || "Failed to sign out");
+      }
       await auth.near.disconnect().catch(() => {});
     },
-    onSuccess: () => {
-      if (typeof window !== "undefined") {
-        window.location.assign("/");
-      }
+    onSuccess: async () => {
+      queryClient.setQueryData(["session"], null);
+      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      navigate({ to: "/", replace: true });
     },
     onError: (error: Error) => {
       console.error("Sign out error:", error);
