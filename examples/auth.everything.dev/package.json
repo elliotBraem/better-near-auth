@@ -18,7 +18,7 @@
       "better-auth": "1.6.9",
       "@better-auth/api-key": "^1.6.9",
       "@better-auth/passkey": "^1.6.9",
-      "better-near-auth": "^1.2.1",
+      "better-near-auth": "^1.1.0",
       "every-plugin": "^2.5.5",
       "typescript": "^5.9.3",
       "vitest": "^4.0.17",
@@ -102,7 +102,7 @@
     "zod": "4.3.6",
     "@opentelemetry/api": "^1.9.0",
     "every-plugin": "^2.5.5",
-    "everything-dev": "^1.9.8",
+    "everything-dev": "^1.9.9",
     "better-near-auth": "^1.2.1"
   },
   "overrides": {

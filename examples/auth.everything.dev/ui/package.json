@@ -82,7 +82,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "every-plugin": "^2.5.5",
-    "everything-dev": "^1.9.8",
+    "everything-dev": "^1.9.9",
     "jsdom": "^27.2.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.17",
