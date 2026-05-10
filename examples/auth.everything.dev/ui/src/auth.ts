@@ -13,17 +13,23 @@ import { createAuthClient as createBetterAuthClient } from "better-auth/react";
 import type { RelayedTransactionT } from "better-near-auth";
 import { siwnClient } from "better-near-auth/client";
 import { getAccount, getHostUrl, getNetworkId } from "@/app";
+import type { ClientRuntimeConfig } from "./app";
 import type { Auth } from "./auth-types.gen";
 
-function createAuthClient() {
+interface AuthClientOpts {
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+}
+
+function createAuthClient(opts?: AuthClientOpts) {
+  const config = opts?.runtimeConfig;
   return createBetterAuthClient({
-    baseURL: getHostUrl(),
+    baseURL: getHostUrl(config),
     fetchOptions: { credentials: "include" },
     plugins: [
       inferAdditionalFields<Auth>(),
       siwnClient({
-        recipient: getAccount(),
-        networkId: getNetworkId(),
+        recipient: getAccount(config),
+        networkId: getNetworkId(config),
       }),
       adminClient(),
       anonymousClient(),

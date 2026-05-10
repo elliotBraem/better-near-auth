@@ -112,7 +112,7 @@ const getRouteHead = async (pathname: string, context?: Partial<RouterContext>) 
       apiClient:
         context?.apiClient ??
         createApiClient({ hostUrl: runtimeConfig.hostUrl, rpcBase: runtimeConfig.rpcBase }),
-      authClient: context?.authClient ?? createAuthClient(),
+      authClient: context?.authClient ?? createAuthClient({ runtimeConfig }),
       session: context?.session,
     },
   });
@@ -148,7 +148,7 @@ const renderToStream = async (request: Request, renderOptions: RenderOptions) =>
           assetsUrl: renderOptions.assetsUrl,
           runtimeConfig: renderOptions.runtimeConfig,
           apiClient: renderOptions.apiClient,
-          authClient: createAuthClient(),
+          authClient: createAuthClient({ runtimeConfig: renderOptions.runtimeConfig }),
           session: renderOptions.session,
         },
       });
