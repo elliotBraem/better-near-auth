@@ -60,13 +60,19 @@ import { useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { Auth } from "./auth-types.gen";
 import { getAccount, getHostUrl, getNetworkId } from "@/app";
+import type { ClientRuntimeConfig } from "./app";
 
-export function createAuthClient() {
+interface AuthClientOpts {
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+}
+
+export function createAuthClient(opts?: AuthClientOpts) {
+  const config = opts?.runtimeConfig;
   return createBetterAuthClient({
-    baseURL: getHostUrl(),
+    baseURL: getHostUrl(config),
     fetchOptions: { credentials: "include" },
     plugins: [
-      siwnClient({ recipient: getAccount(), networkId: getNetworkId() }),
+      siwnClient({ recipient: getAccount(config), networkId: getNetworkId(config) }),
     ],
   });
 }
@@ -82,7 +88,7 @@ export function useAuthClient(): AuthClient {
 The auth client is created once in the router setup (not per component call) and accessed via context:
 
 ```typescript
-// hydrate.tsx
+// hydrate.tsx — browser, no runtimeConfig needed (reads window.__RUNTIME_CONFIG__)
 import { createAuthClient } from "./auth";
 
 const { router } = createRouter({
@@ -91,23 +97,19 @@ const { router } = createRouter({
   },
 });
 
-// router.server.tsx — same pattern
+// router.server.tsx — server, MUST pass runtimeConfig
 context: {
-  authClient: createAuthClient(),
+  authClient: createAuthClient({ runtimeConfig: renderOptions.runtimeConfig }),
 }
 ```
 
 ## Type Inference from AuthClient
 
-Don't manually define `Organization`, `Passkey`, or other entity types. Infer them from the client's API responses:
+Don't manually define `Organization`, `Passkey`, or other entity types. Use `$Infer` to get them directly from the auth client's type system:
 
 ```typescript
-type UnwrapListResponse<T> = T extends (...args: any[]) => Promise<{
-  data: (infer U)[] | null; error: any
-}> ? U : never;
-
-export type Organization = UnwrapListResponse<AuthClient["organization"]["list"]>;
-export type Passkey = UnwrapListResponse<AuthClient["passkey"]["listUserPasskeys"]>;
+export type Organization = AuthClient["$Infer"]["Organization"];
+export type Passkey = AuthClient["$Infer"]["Passkey"];
 ```
 
 This automatically includes any additional fields the server configured. Single source of truth: the `AuthClient` type, which is itself derived from the plugin list.
@@ -217,7 +219,15 @@ This means UI can display the user's NEAR account even when the wallet is discon
 
 ## SSR Safety
 
-`siwnClient()` is SSR-safe — wallet resources are lazily initialized on first client-side access. On the server they sit dormant. This means `createAuthClient()` can safely run in `router.server.tsx` without accessing browser APIs.
+`siwnClient()` is SSR-safe — wallet resources are lazily initialized on first client-side access. On the server they sit dormant. However, `createAuthClient()` calls `getHostUrl()`, `getAccount()`, and `getNetworkId()`, which read `window.__RUNTIME_CONFIG__` by default. On the server, you **must** pass `{ runtimeConfig }` so these helpers read from the provided config instead of the browser-only `window` object:
+
+```typescript
+// Server (router.server.tsx) — MUST pass runtimeConfig
+createAuthClient({ runtimeConfig: renderOptions.runtimeConfig })
+
+// Client (hydrate.tsx) — no config needed, reads window.__RUNTIME_CONFIG__
+createAuthClient()
+```
 
 Methods that work on server (via `$fetch` only): `nonce`, `verify`, `view`, `relayTransaction`, `getRelayStatus`, `getRelayerInfo`, `relayHistory`, `getProfile`, `listAccounts`.
 
@@ -261,9 +271,10 @@ export const authClient = createAuthClient({
 });
 
 // OR: Router context singleton (SSR)
-export function createAuthClient() {
+export function createAuthClient(opts?: AuthClientOpts) {
+  const config = opts?.runtimeConfig;
   return createBetterAuthClient({
-    plugins: [siwnClient({ recipient: getAccount() })],
+    plugins: [siwnClient({ recipient: getAccount(config) })],
   });
 }
 // Create once in router setup, access via useAuthClient()
@@ -346,14 +357,35 @@ Correct (SSR):
 
 ```typescript
 // Factory — one instance per router/request
-export function createAuthClient() {
+export function createAuthClient(opts?: AuthClientOpts) {
+  const config = opts?.runtimeConfig;
   return createBetterAuthClient({
-    plugins: [siwnClient({ recipient: getAccount() })],
+    plugins: [siwnClient({ recipient: getAccount(config) })],
   });
 }
-// Created in createRouter() context
+// Created in createRouter() context with runtimeConfig
 ```
 
 On the server, a module-level singleton's `$fetch` and session state would be shared across concurrent requests. Router context isolates one client per request on server, one per app on client.
 
 Source: router.server.tsx:60-71
+
+### MEDIUM Calling createAuthClient() without runtimeConfig on the server
+
+Wrong:
+
+```typescript
+// router.server.tsx — throws "Runtime config is only available in the browser"
+authClient: createAuthClient(),
+```
+
+Correct:
+
+```typescript
+// router.server.tsx — pass runtimeConfig from renderOptions
+authClient: createAuthClient({ runtimeConfig: renderOptions.runtimeConfig }),
+```
+
+`getHostUrl()`, `getAccount()`, and `getNetworkId()` read `window.__RUNTIME_CONFIG__` by default. On the server, `window` is undefined, so they throw. Always pass `{ runtimeConfig }` when calling `createAuthClient()` in `router.server.tsx` or `getRouteHead()`.
+
+Source: auth.ts:18-27
