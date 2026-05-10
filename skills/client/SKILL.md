@@ -8,7 +8,7 @@ description: >
   using authClient.near.* methods, or building delegate actions for gasless relay.
 type: core
 library: better-near-auth
-library_version: "1.2.1"
+library_version: "1.4.1"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
   - "elliotBraem/better-near-auth:src/types.ts"

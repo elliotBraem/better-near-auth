@@ -8,8 +8,11 @@ description: >
   wiring auth into router context, or debugging wallet state loss after
   sign-in in SSR/CSR TanStack apps.
 type: framework
+requires:
+  - client
+  - siwn
 library: better-near-auth
-library_version: "1.2.1"
+library_version: "1.4.1"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/auth.ts"
