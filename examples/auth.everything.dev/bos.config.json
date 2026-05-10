@@ -36,38 +36,5 @@
       ]
     }
   },
-  "plugins": {},
-  "shared": {
-    "ui": {
-      "effect": {
-        "version": "3.21.0",
-        "requiredVersion": "^3.21.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "zod": {
-        "version": "4.3.6",
-        "requiredVersion": "^4.3.6",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@orpc/contract": {
-        "version": "1.13.14",
-        "requiredVersion": "^1.13.14",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-auth": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      }
-    },
-    "plugins": {}
-  }
+  "plugins": {}
 }
