@@ -39,7 +39,7 @@
     "@tanstack/react-router-devtools": "^1.139.14",
     "@tanstack/react-table": "^8.21.3",
     "better-auth": "1.6.9",
-    "better-near-auth": "^1.1.0",
+    "better-near-auth": "catalog:",
     "@hot-labs/near-connect": "0.11.2",
     "class-variance-authority": "^0.7.1",
     "effect": "3.21.0",

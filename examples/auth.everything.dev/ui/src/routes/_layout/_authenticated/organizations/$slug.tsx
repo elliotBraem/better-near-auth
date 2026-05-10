@@ -1,5 +1,5 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Edit2, Key, Mail, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -51,7 +51,7 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/$slu
     const org = orgs.find((o: Organization) => o.slug === params.slug);
     const orgId = org?.id;
 
-    if (!orgId) return;
+    if (!orgId) throw notFound();
 
     await Promise.all([
       context.queryClient.ensureQueryData({

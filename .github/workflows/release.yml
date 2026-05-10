@@ -32,6 +32,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create Release Pull Request or Publish
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: pnpm release
@@ -40,3 +41,18 @@ jobs:
           createGithubReleases: true
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Bump example catalog version
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          CATALOG_FILE="examples/auth.everything.dev/package.json"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('$CATALOG_FILE', 'utf8'));
+            pkg.workspaces.catalog['better-near-auth'] = '^' + '$NEW_VERSION';
+            fs.writeFileSync('$CATALOG_FILE', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          git add "$CATALOG_FILE"
+          git commit -m "chore: bump example catalog to better-near-auth@${NEW_VERSION}"
+          git push
