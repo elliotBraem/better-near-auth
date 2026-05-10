@@ -23,7 +23,6 @@ RUN apk add --no-cache curl
 RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001
 
 COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /app/bos.config.json .
 COPY --from=builder --chown=appuser:appgroup /app/package.json .
 COPY --from=builder --chown=appuser:appgroup /app/bun.lock .
 COPY --from=builder --chown=appuser:appgroup /app/bunfig.toml .
