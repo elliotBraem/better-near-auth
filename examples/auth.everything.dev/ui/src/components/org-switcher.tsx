@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Building2, Check, Plus } from "lucide-react";
-import { type ClientRuntimeConfig, getAuthClient, type Organization } from "@/app";
+import type { Organization } from "@/app";
+import { useAuthClient } from "@/auth";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,
@@ -15,16 +16,10 @@ interface OrgSwitcherProps {
   organizations: Organization[];
   activeOrgId?: string | null;
   onSwitch?: (orgId: string) => void;
-  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }
 
-export function OrgSwitcher({
-  organizations,
-  activeOrgId,
-  onSwitch,
-  runtimeConfig,
-}: OrgSwitcherProps) {
-  const auth = getAuthClient(runtimeConfig);
+export function OrgSwitcher({ organizations, activeOrgId, onSwitch }: OrgSwitcherProps) {
+  const auth = useAuthClient();
   const activeOrg = organizations.find((o) => o.id === activeOrgId);
 
   const handleSwitch = async (orgId: string) => {

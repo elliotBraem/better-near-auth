@@ -1,4 +1,4 @@
-import { createApiClient, getAssetsUrl, getRuntimeConfig } from "./app";
+import { createApiClient, createAuthClient, getAssetsUrl, getRuntimeConfig } from "./app";
 
 declare global {
   interface Window {
@@ -43,6 +43,7 @@ export async function hydrate() {
           hostUrl: runtimeConfig.hostUrl,
           rpcBase: runtimeConfig.rpcBase,
         }),
+        authClient: createAuthClient(),
       },
     });
 

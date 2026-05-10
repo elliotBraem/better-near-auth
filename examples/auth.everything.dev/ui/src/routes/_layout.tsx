@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Building2, Home, Settings } from "lucide-react";
-import { getAppName, getAuthClient, type Organization } from "@/app";
+import { getAppName } from "@/app";
 import builtOn from "@/assets/built_on.png";
 import builtOnRev from "@/assets/built_on_rev.png";
+import { type Organization, sessionQueryOptions, useAuthClient } from "@/auth";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useClientValue } from "@/hooks/use-client";
-import { sessionQueryOptions } from "@/lib/session";
 import { ThemeToggle } from "../components/theme-toggle";
 import { UserNav } from "../components/user-nav";
 
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_layout")({
   beforeLoad: async ({ context }) => {
     const { queryClient } = context;
     const session = await queryClient.ensureQueryData(
-      sessionQueryOptions(context.session, context.runtimeConfig),
+      sessionQueryOptions(context.authClient, context.session),
     );
     return { session };
   },
@@ -30,13 +30,14 @@ const authenticatedSidebarItems = [
 function Layout() {
   const pathname = useClientValue(() => window.location.pathname, "/");
   const appName = useClientValue(() => getAppName(), "app");
-  const { session, runtimeConfig } = Route.useRouteContext();
+  const { session } = Route.useRouteContext();
   const isAuthenticated = !!session?.user;
+  const auth = useAuthClient();
 
   const { data: organizations = [] } = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
-      const { data } = await getAuthClient(runtimeConfig).organization.list();
+      const { data } = await auth.organization.list();
       return (data || []) as Organization[];
     },
     staleTime: 30 * 1000,
@@ -151,7 +152,7 @@ function Layout() {
                     <ThemeToggle />
                   </div>
                 )}
-                <UserNav runtimeConfig={runtimeConfig} />
+                <UserNav />
               </div>
             </div>
           </header>

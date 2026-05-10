@@ -1,6 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { getAuthClient, type Organization, type SessionData } from "@/app";
-import { sessionQueryOptions } from "@/lib/session";
+import { type Organization, type SessionData, sessionQueryOptions } from "@/auth";
 
 interface AuthContext {
   isAuthenticated: boolean;
@@ -15,10 +14,9 @@ interface AuthContext {
 export const Route = createFileRoute("/_layout/_authenticated")({
   beforeLoad: async ({ context, location }) => {
     const { queryClient } = context;
-    const runtimeConfig = context.runtimeConfig;
 
     const session = await queryClient.ensureQueryData(
-      sessionQueryOptions(context.session, runtimeConfig),
+      sessionQueryOptions(context.authClient, context.session),
     );
 
     if (!session?.user) {
@@ -50,7 +48,7 @@ export const Route = createFileRoute("/_layout/_authenticated")({
     await queryClient.ensureQueryData({
       queryKey: ["organizations"],
       queryFn: async () => {
-        const { data } = await getAuthClient(runtimeConfig).organization.list();
+        const { data } = await context.authClient.organization.list();
         return (data || []) as Organization[];
       },
       staleTime: 30 * 1000,

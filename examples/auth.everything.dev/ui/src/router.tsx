@@ -24,6 +24,7 @@ export function createRouter(opts: CreateRouterOptions) {
       assetsUrl: opts.context.assetsUrl,
       runtimeConfig: opts.context.runtimeConfig,
       apiClient: opts.context.apiClient,
+      authClient: opts.context.authClient,
       session: opts.context.session,
     },
     defaultPreload: "intent",

@@ -30,7 +30,7 @@ let nearKitModules: {
   hex: typeof import("@scure/base").hex;
 } | null = null;
 
-const TEST_DB_URL = "pglite:./test-auth.db";
+const TEST_DB_URL = "pglite::memory:";
 
 // Set required env var for auth instance
 process.env.BETTER_AUTH_SECRET =

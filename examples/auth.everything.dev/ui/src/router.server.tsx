@@ -13,7 +13,7 @@ import type {
   RenderResult,
   RouterContext,
 } from "./app";
-import { createApiClient } from "./app";
+import { createApiClient, createAuthClient } from "./app";
 import { routeTree } from "./routeTree.gen";
 
 export type { CreateRouterOptions, HeadData, RenderOptions, RenderResult, RouterContext };
@@ -66,6 +66,7 @@ const createRouter = (opts: CreateRouterOptions) => {
       assetsUrl: opts.context.assetsUrl,
       runtimeConfig: opts.context.runtimeConfig,
       apiClient: opts.context.apiClient,
+      authClient: opts.context.authClient,
       session: opts.context.session,
     },
     defaultPreload: "intent",
@@ -111,6 +112,7 @@ const getRouteHead = async (pathname: string, context?: Partial<RouterContext>) 
       apiClient:
         context?.apiClient ??
         createApiClient({ hostUrl: runtimeConfig.hostUrl, rpcBase: runtimeConfig.rpcBase }),
+      authClient: context?.authClient ?? createAuthClient(),
       session: context?.session,
     },
   });
@@ -146,6 +148,7 @@ const renderToStream = async (request: Request, renderOptions: RenderOptions) =>
           assetsUrl: renderOptions.assetsUrl,
           runtimeConfig: renderOptions.runtimeConfig,
           apiClient: renderOptions.apiClient,
+          authClient: createAuthClient(),
           session: renderOptions.session,
         },
       });

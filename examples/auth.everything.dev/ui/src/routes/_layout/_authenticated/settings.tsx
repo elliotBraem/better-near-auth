@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type ClientRuntimeConfig, getAuthClient, type Passkey, type SessionData } from "@/app";
+import { type Passkey, type SessionData, sessionQueryOptions, useAuthClient } from "@/auth";
 import {
   ApiKeyForm,
   ApiKeyReveal,
@@ -17,7 +17,6 @@ import {
   TabsTrigger,
 } from "@/components";
 import { Input } from "@/components/ui/input";
-import { sessionQueryOptions } from "@/lib/session";
 import { useApiClient } from "@/lib/use-api-client";
 
 export const Route = createFileRoute("/_layout/_authenticated/settings")({
@@ -34,15 +33,12 @@ export const Route = createFileRoute("/_layout/_authenticated/settings")({
 });
 
 function Settings() {
-  const { runtimeConfig } = Route.useRouteContext();
-  const auth = getAuthClient(runtimeConfig);
-  const { data: session } = useQuery<SessionData | null>(
-    sessionQueryOptions(undefined, runtimeConfig),
-  );
+  const auth = useAuthClient();
+  const { data: session } = useQuery<SessionData | null>(sessionQueryOptions(auth));
   const { data: passkeys = [] } = useQuery({
     queryKey: ["passkeys"],
     queryFn: async () => {
-      const { data } = await getAuthClient(runtimeConfig).passkey.listUserPasskeys();
+      const { data } = await auth.passkey.listUserPasskeys();
       return (data || []) as Passkey[];
     },
     staleTime: 60 * 1000,
@@ -85,16 +81,11 @@ function Settings() {
         </TabsList>
 
         <TabsContent value="identity" className="space-y-6 pt-4">
-          <IdentityTab user={user} runtimeConfig={runtimeConfig} />
+          <IdentityTab user={user} />
         </TabsContent>
 
         <TabsContent value="auth" className="space-y-6 pt-4">
-          <AuthMethodsTab
-            user={user}
-            passkeys={passkeys}
-            nearAccountId={nearAccountId}
-            runtimeConfig={runtimeConfig}
-          />
+          <AuthMethodsTab user={user} passkeys={passkeys} nearAccountId={nearAccountId} />
         </TabsContent>
 
         <TabsContent value="apikeys" className="space-y-6 pt-4">
@@ -102,7 +93,7 @@ function Settings() {
         </TabsContent>
 
         <TabsContent value="security" className="space-y-6 pt-4">
-          <SecurityTab user={user} runtimeConfig={runtimeConfig} />
+          <SecurityTab user={user} />
         </TabsContent>
       </Tabs>
     </div>
@@ -111,16 +102,15 @@ function Settings() {
 
 function IdentityTab({
   user,
-  runtimeConfig,
 }: {
   user: { id: string; email?: string; name?: string; isAnonymous?: boolean | null };
-  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }) {
+  const auth = useAuthClient();
   const [name, setName] = useState(user.name || "");
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient(runtimeConfig).updateUser({ name });
+      const { error } = await auth.updateUser({ name });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Profile updated"),
@@ -185,16 +175,16 @@ function AuthMethodsTab({
   user,
   passkeys,
   nearAccountId,
-  runtimeConfig,
 }: {
   user: { email?: string; isAnonymous?: boolean | null };
   passkeys: Array<{ id: string; name?: string }>;
   nearAccountId: string | null;
-  runtimeConfig?: Partial<ClientRuntimeConfig>;
 }) {
+  const auth = useAuthClient();
+
   const addPasskeyMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient(runtimeConfig).passkey.addPasskey();
+      const { error } = await auth.passkey.addPasskey();
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Passkey added"),
@@ -203,7 +193,7 @@ function AuthMethodsTab({
 
   const removePasskeyMutation = useMutation({
     mutationFn: async (passkeyId: string) => {
-      const { error } = await getAuthClient(runtimeConfig).passkey.deletePasskey({ id: passkeyId });
+      const { error } = await auth.passkey.deletePasskey({ id: passkeyId });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Passkey removed"),
@@ -212,7 +202,7 @@ function AuthMethodsTab({
 
   const linkNearMutation = useMutation({
     mutationFn: async () => {
-      await getAuthClient(runtimeConfig).signIn.near();
+      await auth.signIn.near();
     },
     onSuccess: () => toast.success("NEAR wallet linked"),
     onError: (err: Error) => toast.error(err.message),
@@ -427,13 +417,8 @@ function ApiKeysTab() {
   );
 }
 
-function SecurityTab({
-  user,
-  runtimeConfig,
-}: {
-  user: { email?: string; isAnonymous?: boolean | null };
-  runtimeConfig?: Partial<ClientRuntimeConfig>;
-}) {
+function SecurityTab({ user }: { user: { email?: string; isAnonymous?: boolean | null } }) {
+  const auth = useAuthClient();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -449,7 +434,7 @@ function SecurityTab({
         throw new Error("Password must be at least 8 characters");
       }
       return (async () => {
-        const { error } = await getAuthClient(runtimeConfig).changePassword({
+        const { error } = await auth.changePassword({
           currentPassword,
           newPassword,
         });
@@ -467,7 +452,7 @@ function SecurityTab({
 
   const revokeSessionsMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient(runtimeConfig).revokeSessions();
+      const { error } = await auth.revokeSessions();
       if (error) throw new Error(error.message);
     },
     onSuccess: () => toast.success("Other sessions revoked"),
@@ -476,13 +461,11 @@ function SecurityTab({
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await getAuthClient(runtimeConfig).signOut();
+      const { error } = await auth.signOut();
       if (error) {
         throw new Error(error.message || "Failed to sign out");
       }
-      await getAuthClient(runtimeConfig)
-        .near.disconnect()
-        .catch(() => {});
+      await auth.near.disconnect().catch(() => {});
     },
     onSuccess: async () => {
       queryClient.setQueryData(["session"], null);

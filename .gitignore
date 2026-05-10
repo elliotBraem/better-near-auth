@@ -50,6 +50,9 @@ bun.lock
 # SQLite in-memory databases
 :memory:
 
+# pglite test artifacts
+test-auth.db/
+
 # Examples
 examples/*/node_modules
 examples/*/.turbo
@@ -58,3 +61,4 @@ examples/*/apps/*/.turbo
 examples/*/pnpm-lock.yaml
 examples/*/*.db
 examples/*/apps/*/*.db
+examples/*/plugins/*/*.db

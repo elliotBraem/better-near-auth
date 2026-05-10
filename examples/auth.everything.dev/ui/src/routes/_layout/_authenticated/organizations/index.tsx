@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { getAuthClient, type Organization, type SessionData } from "@/app";
+import { type Organization, type SessionData, useAuthClient } from "@/auth";
 import { Badge, Button, Card, CardContent, Skeleton } from "@/components";
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
@@ -16,8 +16,7 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
 });
 
 function OrganizationsList() {
-  const { runtimeConfig } = Route.useRouteContext();
-  const auth = getAuthClient(runtimeConfig);
+  const auth = useAuthClient();
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
     queryFn: async () => {

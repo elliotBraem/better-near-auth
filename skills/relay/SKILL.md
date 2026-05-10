@@ -8,7 +8,7 @@ description: >
   configuring RotatingKeyStore for high-throughput relay.
 type: core
 library: better-near-auth
-library_version: "1.1.0"
+library_version: "1.2.1"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/utils.ts"
@@ -189,7 +189,7 @@ siwn({
 // Send NEAR to that account ID to fund the relayer
 ```
 
-The ephemeral mode generates an implicit account (hex of public key) with zero balance. Without funding, every relay attempt fails with an insufficient balance error from the NEAR RPC. Alternatively, use explicit mode with a pre-funded named account.
+The ephemeral mode generates an implicit account (hex of public key) with zero balance. Without funding, every relay attempt fails with an insufficient balance error from the NEAR RPC. The server catches this at src/index.ts:952-958 and surfaces it as `"Relay failed"` — check server logs for the actual RPC error. Alternatively, use explicit mode with a pre-funded named account.
 
 Source: src/index.ts:179-181, maintainer interview
 
@@ -250,7 +250,7 @@ const payload = await authClient.near.buildSignedDelegateAction(
 const result = await authClient.near.relayTransaction({ payload });
 ```
 
-Delegate actions must be built using the near-kit `TransactionBuilder` with `.delegate()`, not `.send()` directly. The wallet signs a delegate action; the relayer submits it on-chain. External code should construct the transaction object using the builder API, not attempt to broadcast directly.
+Delegate actions must be built using the near-kit `TransactionBuilder` with `.delegate()`, not `.send()` directly. The wallet signs a delegate action; the relayer submits it on-chain. For direct sends (user pays gas), call `authClient.near.ensureConnected()` first — wallet extensions may disconnect between sign-in and signing.
 
 Source: src/client.ts:172-185, maintainer interview
 

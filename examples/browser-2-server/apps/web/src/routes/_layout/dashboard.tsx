@@ -667,6 +667,8 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
     mutationFn: async (text: string) => {
       const accountId = authClient.near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
+      const connected = await authClient.near.ensureConnected();
+      if (!connected) throw new Error("Wallet connection required");
       return authClient.near.client
         .transaction(accountId)
         .functionCall(GUESTBOOK_CONTRACT, "set_greeting", { greeting: text }, {

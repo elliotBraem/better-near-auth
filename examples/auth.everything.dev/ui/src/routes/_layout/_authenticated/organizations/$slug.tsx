@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Edit2, Key, Mail, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getAuthClient, type Organization, type SessionData } from "@/app";
+import { type AuthClient, type Organization, type SessionData, useAuthClient } from "@/auth";
 import {
   ApiKeyForm,
   ApiKeyReveal,
@@ -36,13 +36,13 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/$slu
     context,
     params,
   }: {
-    context: { queryClient: QueryClient; apiClient: ApiClient; runtimeConfig: any };
+    context: { queryClient: QueryClient; apiClient: ApiClient; authClient: AuthClient };
     params: { slug: string };
   }) => {
     const orgs = await context.queryClient.ensureQueryData({
       queryKey: ["organizations"],
       queryFn: async () => {
-        const { data } = await getAuthClient(context.runtimeConfig).organization.list();
+        const { data } = await context.authClient.organization.list();
         return (data || []) as Organization[];
       },
       staleTime: 30 * 1000,
@@ -84,9 +84,7 @@ function OrganizationDetail() {
   const queryClient = useQueryClient();
   const { slug: orgSlug } = Route.useParams();
   const apiClient = useApiClient();
-  const { runtimeConfig } = Route.useRouteContext();
-
-  const auth = getAuthClient(runtimeConfig);
+  const auth = useAuthClient();
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
     queryFn: async () => {

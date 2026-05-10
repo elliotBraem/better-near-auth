@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { type ClientRuntimeConfig, getAuthClient, type Organization } from "@/app";
+import type { Organization } from "@/app";
+import { sessionQueryOptions, useAuthClient } from "@/auth";
 import { Button, OrgSwitcher } from "@/components";
 import {
   DropdownMenu,
@@ -11,13 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { sessionQueryOptions } from "@/lib/session";
 
-export function UserNav({ runtimeConfig }: { runtimeConfig?: Partial<ClientRuntimeConfig> }) {
-  const auth = getAuthClient(runtimeConfig);
+export function UserNav() {
+  const auth = useAuthClient();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { data: session } = useQuery(sessionQueryOptions(undefined, runtimeConfig));
+  const { data: session } = useQuery(sessionQueryOptions(auth));
   const user = session?.user;
   const { data: organizations } = useQuery({
     queryKey: ["organizations"],
@@ -75,7 +75,6 @@ export function UserNav({ runtimeConfig }: { runtimeConfig?: Partial<ClientRunti
           organizations={organizations}
           activeOrgId={activeOrgId}
           onSwitch={handleOrgSwitch}
-          runtimeConfig={runtimeConfig}
         />
       )}
 

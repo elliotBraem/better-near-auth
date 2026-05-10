@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getAuthClient } from "@/app";
+import { useAuthClient } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,13 +19,13 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/new"
 
 function NewOrganization() {
   const router = useRouter();
-  const { runtimeConfig } = Route.useRouteContext();
+  const auth = useAuthClient();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await getAuthClient(runtimeConfig).organization.create({
+      const { data, error } = await auth.organization.create({
         name,
         slug,
       });
