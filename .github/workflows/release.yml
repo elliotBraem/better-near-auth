@@ -28,6 +28,11 @@ jobs:
           node-version: 24
           cache: 'pnpm'
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.20
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
@@ -35,26 +40,11 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
+          version: >-
+            pnpm run version && node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const examplePath = 'examples/auth.everything.dev/package.json'; const example = JSON.parse(fs.readFileSync(examplePath, 'utf8')); example.workspaces.catalog['better-near-auth'] = '^' + pkg.version; fs.writeFileSync(examplePath, JSON.stringify(example, null, 2) + '\n');" && cd examples/auth.everything.dev && bun install --lockfile-only
           publish: pnpm release
           title: "chore: version packages"
           commit: "chore: version packages"
           createGithubReleases: true
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Bump example catalog version
-        if: steps.changesets.outputs.published == 'true'
-        run: |
-          NEW_VERSION=$(node -e "const published = JSON.parse(process.env.PUBLISHED_PACKAGES || '[]'); const pkg = published.find((entry) => entry.name === 'better-near-auth'); if (!pkg) process.exit(1); process.stdout.write(pkg.version)")
-          CATALOG_FILE="examples/auth.everything.dev/package.json"
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('$CATALOG_FILE', 'utf8'));
-            pkg.workspaces.catalog['better-near-auth'] = '^' + '$NEW_VERSION';
-            fs.writeFileSync('$CATALOG_FILE', JSON.stringify(pkg, null, 2) + '\n');
-          "
-          git add "$CATALOG_FILE"
-          git commit -m "chore: bump example catalog to better-near-auth@${NEW_VERSION}"
-          git push
-        env:
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
