@@ -45,7 +45,7 @@ jobs:
       - name: Bump example catalog version
         if: steps.changesets.outputs.published == 'true'
         run: |
-          NEW_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION=$(node -e "const published = JSON.parse(process.env.PUBLISHED_PACKAGES || '[]'); const pkg = published.find((entry) => entry.name === 'better-near-auth'); if (!pkg) process.exit(1); process.stdout.write(pkg.version)")
           CATALOG_FILE="examples/auth.everything.dev/package.json"
           node -e "
             const fs = require('fs');
@@ -56,3 +56,5 @@ jobs:
           git add "$CATALOG_FILE"
           git commit -m "chore: bump example catalog to better-near-auth@${NEW_VERSION}"
           git push
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
