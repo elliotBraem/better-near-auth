@@ -1,1 +1,1 @@
-export type { Auth, createAuthInstance } from "../../plugins/auth/src/auth-export.ts";
+export type { Auth, createAuthInstance } from "../../.bos/generated/auth/auth-export.d.ts";

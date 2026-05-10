@@ -3,6 +3,7 @@ import { createFileRoute, Navigate, redirect, useNavigate } from "@tanstack/reac
 import { useState } from "react";
 import { toast } from "sonner";
 import { sessionQueryOptions, useAuthClient } from "@/auth";
+import { UnderConstruction } from "@/components/under-construction";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -282,6 +283,11 @@ function LoginPage() {
       case "passkey":
         return (
           <div className="space-y-6">
+            <UnderConstruction
+              label="passkey"
+              sourceFile="ui/src/routes/_layout/login.tsx"
+              className="mx-auto w-full max-w-xs"
+            />
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               Use Face ID, Touch ID, or security key
             </p>
@@ -309,6 +315,11 @@ function LoginPage() {
       case "email":
         return (
           <div className="space-y-6">
+            <UnderConstruction
+              label="email"
+              sourceFile="ui/src/routes/_layout/login.tsx"
+              className="mx-auto w-full max-w-xs"
+            />
             <Input
               type="email"
               value={email}
@@ -348,6 +359,11 @@ function LoginPage() {
       case "phone":
         return (
           <div className="space-y-6">
+            <UnderConstruction
+              label="phone"
+              sourceFile="ui/src/routes/_layout/login.tsx"
+              className="mx-auto w-full max-w-xs"
+            />
             {!otpSent ? (
               <>
                 <Input
@@ -395,6 +411,11 @@ function LoginPage() {
       case "github":
         return (
           <div className="space-y-6">
+            <UnderConstruction
+              label="github"
+              sourceFile="ui/src/routes/_layout/login.tsx"
+              className="mx-auto w-full max-w-xs"
+            />
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               Sign in with your GitHub account
             </p>
@@ -418,10 +439,10 @@ function LoginPage() {
                 size="sm"
                 onClick={() => setAuthMethod(method)}
                 disabled={isPending}
-                className={`w-full capitalize ${method === "anonymous" ? "col-span-2" : ""}`}
-              >
-                {method}
-              </Button>
+              className={`w-full capitalize ${method === "anonymous" ? "col-span-2" : ""} ${method === "near" && authMethod === "near" ? "!bg-green-600 hover:!bg-green-700 !border-green-600" : ""}`}
+            >
+              {method === "near" ? "NEAR" : method}
+            </Button>
             ),
           )}
         </div>
