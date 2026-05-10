@@ -3,10 +3,7 @@ import { UnderConstruction } from "@/components/under-construction";
 
 export const Route = createFileRoute("/_layout/_authenticated/projects")({
   head: () => ({
-    meta: [
-      { title: "Projects | app" },
-      { name: "description", content: "Manage your projects." },
-    ],
+    meta: [{ title: "Projects | app" }, { name: "description", content: "Manage your projects." }],
   }),
   component: ProjectsPage,
 });

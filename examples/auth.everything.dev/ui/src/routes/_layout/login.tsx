@@ -3,9 +3,9 @@ import { createFileRoute, Navigate, redirect, useNavigate } from "@tanstack/reac
 import { useState } from "react";
 import { toast } from "sonner";
 import { sessionQueryOptions, useAuthClient } from "@/auth";
-import { UnderConstruction } from "@/components/under-construction";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UnderConstruction } from "@/components/under-construction";
 
 type SearchParams = {
   redirect?: string;
@@ -439,10 +439,10 @@ function LoginPage() {
                 size="sm"
                 onClick={() => setAuthMethod(method)}
                 disabled={isPending}
-              className={`w-full capitalize ${method === "anonymous" ? "col-span-2" : ""} ${method === "near" && authMethod === "near" ? "!bg-green-600 hover:!bg-green-700 !border-green-600" : ""}`}
-            >
-              {method === "near" ? "NEAR" : method}
-            </Button>
+                className={`w-full capitalize ${method === "anonymous" ? "col-span-2" : ""} ${method === "near" && authMethod === "near" ? "!bg-green-600 hover:!bg-green-700 !border-green-600" : ""}`}
+              >
+                {method === "near" ? "NEAR" : method}
+              </Button>
             ),
           )}
         </div>
