@@ -1,4 +1,4 @@
-import { createApiClient, createAuthClient, getAssetsUrl, getRuntimeConfig } from "./app";
+import { createApiClient, createAuthClient, getRuntimeConfig } from "./app";
 
 declare global {
   interface Window {
@@ -37,13 +37,13 @@ export async function hydrate() {
     const { router } = createRouter({
       context: {
         queryClient: client,
-        assetsUrl: getAssetsUrl(runtimeConfig),
+        assetsUrl: runtimeConfig.assetsUrl,
         runtimeConfig,
         apiClient: createApiClient({
           hostUrl: runtimeConfig.hostUrl,
           rpcBase: runtimeConfig.rpcBase,
         }),
-        authClient: createAuthClient(),
+        authClient: createAuthClient(runtimeConfig),
       },
     });
 

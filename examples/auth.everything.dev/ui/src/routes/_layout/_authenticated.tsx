@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { type Organization, type SessionData, sessionQueryOptions } from "@/auth";
+import { type Organization, type SessionData, sessionQueryOptions } from "@/app";
 
 interface AuthContext {
   isAuthenticated: boolean;

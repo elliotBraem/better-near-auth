@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Building2, Check, Plus } from "lucide-react";
 import type { Organization } from "@/app";
-import { useAuthClient } from "@/auth";
+import { useAuthClient } from "@/app";
 import { Button } from "./ui/button";
 import {
   DropdownMenu,

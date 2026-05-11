@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { getAppName } from "@/app";
+import { getAppName, useApiClient } from "@/app";
 import { Badge, Input } from "@/components";
 import { useClientValue } from "@/hooks/use-client";
-import { useApiClient } from "@/lib/use-api-client";
 
 type Tab = "server" | "prompt";
 

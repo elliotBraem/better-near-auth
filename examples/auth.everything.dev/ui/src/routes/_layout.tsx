@@ -1,9 +1,8 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Building2, FolderKanban, Globe, Home, Settings } from "lucide-react";
-import { getAppName } from "@/app";
+import { getAppName, sessionQueryOptions } from "@/app";
 import builtOn from "@/assets/built_on.png";
 import builtOnRev from "@/assets/built_on_rev.png";
-import { sessionQueryOptions } from "@/auth";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useClientValue } from "@/hooks/use-client";
 import { ThemeToggle } from "../components/theme-toggle";

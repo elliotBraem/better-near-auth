@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import type { Organization } from "@/app";
-import { sessionQueryOptions, useAuthClient } from "@/auth";
+import { sessionQueryOptions, useAuthClient } from "@/app";
 import { Button, OrgSwitcher } from "@/components";
 import {
   DropdownMenu,

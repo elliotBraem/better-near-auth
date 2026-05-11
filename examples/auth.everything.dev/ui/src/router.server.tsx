@@ -66,7 +66,7 @@ const createRouter = (opts: CreateRouterOptions) => {
       assetsUrl: opts.context.assetsUrl,
       runtimeConfig: opts.context.runtimeConfig,
       apiClient: opts.context.apiClient,
-      authClient: opts.context.authClient,
+      authClient: opts.context.authClient ?? createAuthClient(opts.context.runtimeConfig),
       session: opts.context.session,
     },
     defaultPreload: "intent",
@@ -112,7 +112,7 @@ const getRouteHead = async (pathname: string, context?: Partial<RouterContext>) 
       apiClient:
         context?.apiClient ??
         createApiClient({ hostUrl: runtimeConfig.hostUrl, rpcBase: runtimeConfig.rpcBase }),
-      authClient: context?.authClient ?? createAuthClient({ runtimeConfig }),
+      authClient: context?.authClient ?? createAuthClient(runtimeConfig),
       session: context?.session,
     },
   });
@@ -148,7 +148,7 @@ const renderToStream = async (request: Request, renderOptions: RenderOptions) =>
           assetsUrl: renderOptions.assetsUrl,
           runtimeConfig: renderOptions.runtimeConfig,
           apiClient: renderOptions.apiClient,
-          authClient: createAuthClient({ runtimeConfig: renderOptions.runtimeConfig }),
+          authClient: createAuthClient(renderOptions.runtimeConfig),
           session: renderOptions.session,
         },
       });

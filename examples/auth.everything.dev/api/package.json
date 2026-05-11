@@ -13,40 +13,42 @@
     }
   },
   "peerDependencies": {
-    "typescript": "^5.9.3"
+    "typescript": "catalog:"
   },
   "dependencies": {
     "@libsql/client": "0.17.0",
-    "@orpc/contract": "1.13.14",
-    "@orpc/server": "1.13.14",
+    "@orpc/contract": "catalog:",
+    "@orpc/server": "catalog:",
     "@types/pg": "^8.11.6",
-    "drizzle-kit": "^0.31.8",
-    "drizzle-orm": "^0.45.1",
-    "effect": "3.21.0",
-    "every-plugin": "^2.5.8",
-    "pg": "^8.12.0",
-    "zod": "4.3.6"
+    "drizzle-kit": "catalog:",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
+    "every-plugin": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:",
+    "@electric-sql/pglite": "catalog:"
   },
   "devDependencies": {
     "@effect/language-service": "^0.85.1",
     "@electric-sql/pglite": "^0.4.5",
-    "@module-federation/node": "^2.7.40",
+    "@module-federation/node": "catalog:",
     "@proj-airi/unplugin-drizzle-orm-migrations": "^0.1.4",
     "@rspack/cli": "^1.6.8",
     "@rspack/core": "^1.6.8",
-    "@types/node": "^25.0.3",
+    "@types/node": "catalog:",
     "dotenv": "^17.2.3",
-    "everything-dev": "^1.12.2",
+    "everything-dev": "catalog:",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^4.0.17",
-    "zephyr-rspack-plugin": "^1.1.0"
+    "vitest": "catalog:",
+    "zephyr-rspack-plugin": "^1.1.0",
+    "@types/pg": "catalog:"
   },
   "scripts": {
     "build": "bun run build:types && rspack build",
     "build:types": "tsc -p tsconfig.contract.json",
     "deploy": "bun run build:types && DEPLOY=true rspack build",
     "dev": "bun run build:types && rspack serve",
-    "test": "vitest run --root .",
+    "test": "vitest run --root . --pool=forks",
     "test:watch": "vitest --root .",
     "coverage": "vitest run --root . --coverage",
     "typecheck": "tsc --noEmit",

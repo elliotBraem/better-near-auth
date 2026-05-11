@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RelayedTransactionT } from "better-near-auth";
 import { CheckCircle2, Clock, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { sessionQueryOptions, useAuthClient, useRelayHistory } from "@/auth";
+import { sessionQueryOptions, useAuthClient, useRelayHistory } from "@/app";
 import { Badge } from "@/components/ui/badge";
 
 function explorerTxUrl(txHash: string): string {

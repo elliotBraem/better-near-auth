@@ -1,52 +1,79 @@
+/**
+ * Public UI surface — thin barrel only.
+ *
+ * This file re-exports everything that UI route code needs.
+ * Do not create clients, add app logic, or define types here.
+ *
+ * Framework file roles (understand this boundary — don't dig into host):
+ *
+ *   hydrate.tsx       — Client bootstrap. Creates browser-side QueryClient,
+ *                        Router, and browser-side auth/API clients once.
+ *                        Called from the host-rendered HTML shell.
+ *
+ *   router.tsx        — Client router factory. Consumes the context set up
+ *                        during hydration. Uses browser history.
+ *
+ *   router.server.tsx — SSR router factory. Creates request-scoped server
+ *                        router and server-side API/auth clients per request.
+ *                        Mirrors client router shape for hydration consistency.
+ *
+ *   routes/__root.tsx — HTML shell, head/scripts/styles, runtime config
+ *                        handoff. Root boundary between host-rendered
+ *                        document and the UI application.
+ *
+ *   app.ts            — This file. Re-exports the minimal shared runtime
+ *                        helpers plus public client surfaces from ./lib/api
+ *                        and ./lib/auth. Also re-exports router-facing
+ *                        public types.
+ *
+ * Boundary rule: The host loads UI remotely via Module Federation and
+ * provides runtime config + auth/API routing. Work within the typed
+ * surface exported here. Only investigate host internals if something
+ * is genuinely broken and a host PR is warranted.
+ */
+
 export { getBaseStyles } from "everything-dev/ui/head";
 
 import {
   buildPublishedAccountHref,
   buildPublishedGatewayHref,
   buildRuntimeHref,
-  getAccount,
-  getActiveRuntime,
-  getApiBaseUrl,
-  getAssetsUrl,
-  getHostUrl,
-  getNetworkId,
-  getRepository,
-  getRuntimeBasePath,
   getRuntimeConfig,
 } from "everything-dev/ui/runtime";
 
-export {
-  buildPublishedAccountHref,
-  buildPublishedGatewayHref,
-  buildRuntimeHref,
-  getAccount,
-  getActiveRuntime,
-  getApiBaseUrl,
-  getAssetsUrl,
-  getHostUrl,
-  getNetworkId,
-  getRepository,
-  getRuntimeBasePath,
-  getRuntimeConfig,
-};
+export { buildPublishedAccountHref, buildPublishedGatewayHref, buildRuntimeHref, getRuntimeConfig };
 
-import type { ApiClient } from "./lib/api-client";
-
-export type { AuthClient, Organization, Passkey, SessionData } from "./auth";
-export { createAuthClient, useAuthClient } from "./auth";
-export type { ApiClient } from "./lib/api-client";
-export { createApiClient } from "./lib/api-client";
-
-export function getAppName(config?: Parameters<typeof getAccount>[0]): string {
-  return getActiveRuntime(config)?.title ?? getAccount(config);
+export function getAppName(): string {
+  const cfg = getRuntimeConfig();
+  return cfg?.runtime?.title ?? cfg?.account ?? "app";
 }
+
+export function getAccount(): string | undefined {
+  return getRuntimeConfig()?.account;
+}
+
+export function getRepository(): string | undefined {
+  return getRuntimeConfig()?.repository;
+}
+
+export function getActiveRuntime() {
+  return getRuntimeConfig()?.runtime;
+}
+
+import type { ApiClient } from "./lib/api";
+import type { AuthClient as AuthClientType } from "./lib/auth";
+
+export type { ApiClient } from "./lib/api";
+export { createApiClient, useApiClient } from "./lib/api";
+export type { AuthClient, Organization, Passkey, SessionData } from "./lib/auth";
+export { createAuthClient, sessionQueryOptions, useAuthClient, useRelayHistory } from "./lib/auth";
 
 import type {
   CreateRouterOptions as BaseCreateRouterOptions,
   RenderOptions as BaseRenderOptions,
   RouterContextWithApi as BaseRouterContextWithApi,
 } from "everything-dev/ui/types";
-import type { AuthClient, SessionData } from "./auth";
+import type { SessionData } from "./lib/auth";
 
 export type {
   ClientRuntimeConfig,
@@ -63,7 +90,7 @@ export type {
 
 export interface RouterContext extends BaseRouterContextWithApi<ApiClient, SessionData> {
   apiClient: ApiClient;
-  authClient: AuthClient;
+  authClient: AuthClientType;
 }
 
 export interface CreateRouterOptions

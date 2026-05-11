@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type Passkey, type SessionData, sessionQueryOptions, useAuthClient } from "@/auth";
+import {
+  type Passkey,
+  type SessionData,
+  sessionQueryOptions,
+  useApiClient,
+  useAuthClient,
+} from "@/app";
 import {
   ApiKeyForm,
   ApiKeyReveal,
@@ -17,7 +23,6 @@ import {
   TabsTrigger,
 } from "@/components";
 import { Input } from "@/components/ui/input";
-import { useApiClient } from "@/lib/use-api-client";
 
 export const Route = createFileRoute("/_layout/_authenticated/settings")({
   head: () => ({

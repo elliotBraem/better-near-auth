@@ -3,7 +3,13 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Edit2, Key, Mail, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type AuthClient, type Organization, type SessionData, useAuthClient } from "@/auth";
+import {
+  type AuthClient,
+  type Organization,
+  type SessionData,
+  useApiClient,
+  useAuthClient,
+} from "@/app";
 import {
   ApiKeyForm,
   ApiKeyReveal,
@@ -19,7 +25,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components";
-import { useApiClient } from "@/lib/use-api-client";
 
 type ApiClient = import("@/app").ApiClient;
 type OrgApiKeysResult = Awaited<ReturnType<ApiClient["auth"]["listApiKeys"]>>;

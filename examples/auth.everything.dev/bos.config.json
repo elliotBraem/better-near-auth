@@ -34,7 +34,99 @@
         "BETTER_AUTH_SECRET",
         "CORS_ORIGIN"
       ]
+    },
+    "host": {
+      "development": "local:host",
+      "production": "https://elliot-braem-3541-host-everything-dev-nearbuilder-ed5b79d99-ze.zephyrcloud.app",
+      "integrity": "sha384-Tsu6qanLw+Pn81PyT0VmuOM6bcae5ki20tZ09x1AUPMygsYj7QwoV2eGG299Zj+T"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "template": {
+      "development": "local:plugins/_template",
+      "production": "https://elliot-braem-3538-every-plugin-template-everythin-8374a78ab-ze.zephyrcloud.app",
+      "integrity": "sha384-2h1px6DIx1xv3rSeg1MTi+HMHRwgXgCmCk7qwtnoy04EeqVxzGXBQGCw6cmidNTn",
+      "routes": [
+        "ui/src/routes/_layout/_authenticated/settings.tsx"
+      ]
+    },
+    "registry": {
+      "development": "local:plugins/registry",
+      "production": "https://elliot-braem-3539-everything-dev-registry-plugin--53676005f-ze.zephyrcloud.app",
+      "integrity": "sha384-CVIUbz+YppH93cO30F3OO/WG7YE9PYjOvxY0U9mmUZxTRHG1So4/XwIJ7KQ1oyUs",
+      "variables": {
+        "registryNamespace": "dev.everything.near"
+      },
+      "routes": [
+        "ui/src/routes/_layout/apps/**",
+        "ui/src/routes/_layout/about.tsx"
+      ]
+    },
+    "projects": {
+      "development": "local:plugins/projects",
+      "production": "https://elliot-braem-3540-everything-dev-projects-plugin--9958a8ba1-ze.zephyrcloud.app",
+      "integrity": "sha384-Fq3b3KS1D0nt3hIgvJ8cu/JzDJj/F+rKLJEOauT3hHY4DocvDavZYaitERjD7mPU",
+      "secrets": [
+        "PROJECTS_DATABASE_URL"
+      ],
+      "routes": [
+        "ui/src/routes/_layout/_authenticated/organizations/**",
+        "ui/src/routes/_layout/_authenticated/projects/**"
+      ]
+    }
+  },
+  "shared": {
+    "ui": {
+      "effect": {
+        "version": "3.21.0",
+        "requiredVersion": "^3.21.0",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "zod": {
+        "version": "4.3.6",
+        "requiredVersion": "^4.3.6",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@orpc/contract": {
+        "version": "1.13.14",
+        "requiredVersion": "^1.13.14",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "better-auth": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "better-near-auth": {
+        "version": "1.4.0",
+        "requiredVersion": "^1.4.0",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@better-auth/api-key": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@better-auth/passkey": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      }
+    },
+    "plugins": {}
+  }
 }

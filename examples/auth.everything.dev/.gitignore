@@ -295,7 +295,7 @@ fabric.properties
 .near/data
 
 # db
-/**/\*.db
+/**/*.db
 :memory:
 
 .turbo
@@ -315,5 +315,4 @@ fabric.properties
 node_modules/.federation
 # CSS files (Tailwind - handled by build tools)
 *.css
-!ui/src/styles.css
 .tanstack

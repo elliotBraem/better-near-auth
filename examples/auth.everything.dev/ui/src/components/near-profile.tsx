@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Profile } from "better-near-auth";
 import Markdown from "react-markdown";
-import { useAuthClient } from "@/auth";
+import { useAuthClient } from "@/app";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface NearProfileProps {

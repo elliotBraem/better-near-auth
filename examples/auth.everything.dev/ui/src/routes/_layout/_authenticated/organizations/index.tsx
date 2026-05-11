@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { type Organization, type SessionData, useAuthClient } from "@/auth";
+import { type Organization, type SessionData, useAuthClient } from "@/app";
 import { Badge, Button, Card, CardContent, Skeleton } from "@/components";
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/")({

@@ -1,5 +1,6 @@
 import { apiKeyClient } from "@better-auth/api-key/client";
 import { passkeyClient } from "@better-auth/passkey/client";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import {
   adminClient,
@@ -9,10 +10,39 @@ import {
   phoneNumberClient,
 } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
+import type { RelayedTransactionT } from "better-near-auth";
 import { siwnClient } from "better-near-auth/client";
 import type { ClientRuntimeConfig } from "everything-dev/types";
-import { getAccount, getHostUrl, getNetworkId } from "everything-dev/ui/runtime";
+import { getRuntimeConfig } from "everything-dev/ui/runtime";
 import type { Auth } from "./auth-types.gen";
+
+function readRuntimeConfig(config?: Partial<ClientRuntimeConfig>) {
+  if (config) return config;
+  if (typeof window === "undefined") return undefined;
+  try {
+    return getRuntimeConfig();
+  } catch {
+    return undefined;
+  }
+}
+
+function getAccountId(config?: Partial<ClientRuntimeConfig>) {
+  return readRuntimeConfig(config)?.account ?? "every.near";
+}
+
+function getNetworkId(config?: Partial<ClientRuntimeConfig>): "mainnet" | "testnet" {
+  return (
+    readRuntimeConfig(config)?.networkId ??
+    (getAccountId(config).endsWith(".testnet") ? "testnet" : "mainnet")
+  );
+}
+
+function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
+  const runtimeConfig = readRuntimeConfig(config);
+  if (runtimeConfig?.hostUrl) return runtimeConfig.hostUrl;
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
+}
 
 export function createAuthClient(config?: Partial<ClientRuntimeConfig>) {
   return createBetterAuthClient({
@@ -21,7 +51,7 @@ export function createAuthClient(config?: Partial<ClientRuntimeConfig>) {
     plugins: [
       inferAdditionalFields<Auth>(),
       siwnClient({
-        recipient: getAccount(config),
+        recipient: getAccountId(config),
         networkId: getNetworkId(config),
       }),
       adminClient(),
@@ -62,4 +92,16 @@ export function sessionQueryOptions(authClient: AuthClient, initialSession?: Ses
   return initialSession === undefined
     ? baseOptions
     : { ...baseOptions, initialData: initialSession };
+}
+
+export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
+  return useQuery({
+    queryKey: ["relay-history"],
+    queryFn: async () => {
+      const res = await authClient.near.relayHistory();
+      return (res?.data?.transactions ?? []) as RelayedTransactionT[];
+    },
+    enabled: !!session,
+    refetchInterval: 2000,
+  });
 }

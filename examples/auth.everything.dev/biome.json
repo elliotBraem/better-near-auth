@@ -47,7 +47,6 @@
   "files": {
     "includes": [
       "**",
-      "!**/*.css",
       "!!**/ui/src/routeTree.gen.ts",
       "!!**/plugins/**/types/**/*.d.ts",
       "!!**/env.d.ts",
@@ -60,17 +59,5 @@
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true
-  },
-  "overrides": [
-    {
-      "includes": ["ui/src/components/ui/markdown.tsx"],
-      "linter": {
-        "rules": {
-          "security": {
-            "noDangerouslySetInnerHtml": "off"
-          }
-        }
-      }
-    }
-  ]
+  }
 }

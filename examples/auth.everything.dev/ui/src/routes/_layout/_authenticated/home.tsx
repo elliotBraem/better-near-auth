@@ -20,7 +20,13 @@ import {
 import { Gas } from "near-kit";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { type Organization, type SessionData, sessionQueryOptions, useAuthClient } from "@/auth";
+import {
+  type Organization,
+  type SessionData,
+  sessionQueryOptions,
+  useApiClient,
+  useAuthClient,
+} from "@/app";
 import {
   Badge,
   Button,
@@ -38,7 +44,6 @@ import { NearProfile } from "@/components/near-profile";
 import RelayFeed from "@/components/relay-feed";
 import { Input } from "@/components/ui/input";
 import { getLinkedProviders, getNearAccountId, getProviderConfig } from "@/lib/auth-utils";
-import { useApiClient } from "@/lib/use-api-client";
 
 const GUESTBOOK_CONTRACT = "hello.near-examples.near";
 type SendMode = "relay" | "direct";

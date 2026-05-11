@@ -43,7 +43,8 @@
       "@module-federation/sdk": "^2.3.2",
       "@module-federation/dts-plugin": "^2.3.2",
       "@tanstack/intent": "^0.0.40",
-      "@opentelemetry/api": "^1.9.0"
+      "@opentelemetry/api": "^1.9.0",
+      "everything-dev": "^1.12.3"
     }
   },
   "scripts": {
@@ -61,7 +62,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "start": "NODE_ENV=production bos start --port ${PORT:-3000} --env ${APP_ENV:-production} --no-interactive",
+    "start": "NODE_ENV=production bos start --port ${PORT:-3000} --env ${APP_ENV:-production} --no-interactive ${BOS_ACCOUNT:+--account $BOS_ACCOUNT}",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "echo 'Packages versioned - skipping npm publish'",
@@ -70,10 +71,13 @@
     "db:generate": "bun run --cwd api drizzle-kit generate",
     "db:migrate": "bun run --cwd api drizzle-kit migrate",
     "test": "bun run test:api && bun run test:e2e",
-    "test:api": "cd api && bun test tests/integration/ tests/unit/",
-    "test:integration": "cd api && bun test tests/integration/",
+    "test:api": "cd api && bun run test tests/integration/ tests/unit/",
+    "test:integration": "cd api && bun run test tests/integration/",
     "test:e2e": "bun run --cwd host test:e2e",
-    "types:gen": "node_modules/.bin/bos types gen"
+    "types:gen": "node_modules/.bin/bos types gen",
+    "dev:postgres": "docker compose up -d --wait && bun run dev",
+    "dev:postgres:down": "docker compose down",
+    "dev:postgres:reset": "docker compose down -v && docker compose up -d --wait"
   },
   "packageManager": "bun@1.2.20",
   "module": "index.ts",
@@ -91,20 +95,21 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@better-auth/api-key": "^1.6.9",
-    "@better-auth/passkey": "^1.6.9",
+    "@better-auth/api-key": "catalog:",
+    "@better-auth/passkey": "catalog:",
     "@hot-labs/near-connect": "0.11.2",
     "@libsql/client": "^0.17.0",
     "@orpc/contract": "^1.13.14",
     "@orpc/server": "^1.13.14",
-    "better-auth": "^1.6.9",
+    "better-auth": "catalog:",
     "drizzle-orm": "^0.45.1",
-    "effect": "3.21.0",
-    "zod": "4.3.6",
-    "@opentelemetry/api": "^1.9.0",
-    "every-plugin": "^2.5.8",
-    "everything-dev": "^1.12.2",
-    "better-near-auth": "^1.4.2"
+    "effect": "catalog:",
+    "zod": "catalog:",
+    "@opentelemetry/api": "catalog:",
+    "every-plugin": "catalog:",
+    "everything-dev": "catalog:",
+    "better-near-auth": "catalog:",
+    "@electric-sql/pglite": "catalog:"
   },
   "overrides": {
     "axios": "1.13.6",

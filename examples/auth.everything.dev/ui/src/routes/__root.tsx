@@ -12,7 +12,7 @@ import { getSocialImageMeta } from "everything-dev/ui/metadata";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import type { RouterContext } from "@/app";
-import { getAppName, getBaseStyles, getRuntimeBasePath } from "@/app";
+import { getBaseStyles } from "@/app";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -43,11 +43,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   head: ({ loaderData }) => {
     const assetsUrl = loaderData?.assetsUrl || "";
     const runtimeConfig = loaderData?.runtimeConfig;
-    const runtimeBasePath = getRuntimeBasePath(runtimeConfig);
+    const runtimeBasePath = runtimeConfig?.runtime?.runtimeBasePath ?? "/";
     const siteUrl = runtimeConfig?.hostUrl
       ? `${runtimeConfig.hostUrl}${runtimeBasePath === "/" ? "" : runtimeBasePath}`
       : "";
-    const title = getAppName(runtimeConfig);
+    const title = runtimeConfig?.runtime?.title ?? runtimeConfig?.account ?? "every.near";
     const description =
       "Open runtime for apps on NEAR, composed from published config and loaded through a shared host, UI, and API runtime.";
     const siteName = title;
@@ -132,7 +132,6 @@ function RootComponent() {
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <HeadContent />
-        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: getBaseStyles returns safe CSS */}
         <style dangerouslySetInnerHTML={{ __html: getBaseStyles() }} />
       </head>
       <body>
