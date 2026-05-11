@@ -1,45 +1,65 @@
 {
-  "extends": "bos://dev.everything.near/everything.dev",
   "account": "auth.everything.near",
+  "extends": "bos://dev.everything.near/everything.dev",
   "domain": "everything.dev",
   "testnet": "dev.allthethings.testnet",
   "staging": {
     "domain": "staging.dev.everything.dev"
   },
   "repository": "https://github.com/nearbuilders/everything-dev",
-  "app": {
+  "shared": {
     "ui": {
-      "name": "ui",
-      "development": "local:ui",
-      "production": "https://elliot-braem-3448-ui-better-near-auth-elliotbraem-26f0bb49f-ze.zephyrcloud.app",
-      "integrity": "sha384-J2VzE+e0iXKtKghgK2+Q/37MhPKcwR37WV7odgbZuHcJUqrfToWI0qOm4ImF4Yr3",
-      "ssr": "https://elliot-braem-3449-ui-better-near-auth-elliotbraem-fbc7a44f4-ze.zephyrcloud.app"
+      "effect": {
+        "version": "3.21.0",
+        "requiredVersion": "^3.21.0",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "zod": {
+        "version": "4.3.6",
+        "requiredVersion": "^4.3.6",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@orpc/contract": {
+        "version": "1.13.14",
+        "requiredVersion": "^1.13.14",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "better-auth": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "better-near-auth": {
+        "version": "^1.4.2",
+        "requiredVersion": "^^1.4.2",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@better-auth/api-key": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@better-auth/passkey": {
+        "version": "1.6.9",
+        "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      }
     },
-    "api": {
-      "name": "api",
-      "development": "local:api",
-      "production": "https://elliot-braem-3450-api-better-near-auth-elliotbrae-61b4b8636-ze.zephyrcloud.app",
-      "integrity": "sha384-0S3x1EDidzN+aOCYIX3ty+P49osWi8D/UK7lh3pd9Iy6xo9c8mmKRH004GS35tJ2",
-      "secrets": [
-        "API_DATABASE_URL"
-      ]
-    },
-    "auth": {
-      "name": "everything-dev_auth-plugin",
-      "development": "local:plugins/auth",
-      "production": "https://elliot-braem-3451-everything-dev-auth-plugin-bett-e5165f8e4-ze.zephyrcloud.app",
-      "integrity": "sha384-n7jDrAEpRArwIBMWAxwk47Yor5YC//OJJ+eGWLROjNHezNlJow92IYi30HXCdToh",
-      "secrets": [
-        "AUTH_DATABASE_URL",
-        "BETTER_AUTH_SECRET",
-        "CORS_ORIGIN"
-      ]
-    },
-    "host": {
-      "development": "local:host",
-      "production": "https://elliot-braem-3541-host-everything-dev-nearbuilder-ed5b79d99-ze.zephyrcloud.app",
-      "integrity": "sha384-Tsu6qanLw+Pn81PyT0VmuOM6bcae5ki20tZ09x1AUPMygsYj7QwoV2eGG299Zj+T"
-    }
+    "plugins": {}
   },
   "plugins": {
     "template": {
@@ -75,58 +95,38 @@
       ]
     }
   },
-  "shared": {
-    "ui": {
-      "effect": {
-        "version": "3.21.0",
-        "requiredVersion": "^3.21.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "zod": {
-        "version": "4.3.6",
-        "requiredVersion": "^4.3.6",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@orpc/contract": {
-        "version": "1.13.14",
-        "requiredVersion": "^1.13.14",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-auth": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-near-auth": {
-        "version": "1.4.0",
-        "requiredVersion": "^1.4.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@better-auth/api-key": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@better-auth/passkey": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      }
+  "app": {
+    "host": {
+      "development": "local:host",
+      "production": "https://elliot-braem-3541-host-everything-dev-nearbuilder-ed5b79d99-ze.zephyrcloud.app",
+      "integrity": "sha384-Tsu6qanLw+Pn81PyT0VmuOM6bcae5ki20tZ09x1AUPMygsYj7QwoV2eGG299Zj+T"
     },
-    "plugins": {}
+    "ui": {
+      "name": "ui",
+      "development": "local:ui",
+      "production": "https://elliot-braem-3448-ui-better-near-auth-elliotbraem-26f0bb49f-ze.zephyrcloud.app",
+      "integrity": "sha384-J2VzE+e0iXKtKghgK2+Q/37MhPKcwR37WV7odgbZuHcJUqrfToWI0qOm4ImF4Yr3",
+      "ssr": "https://elliot-braem-3603-ui-better-near-auth-elliotbraem-57d421e6d-ze.zephyrcloud.app"
+    },
+    "api": {
+      "name": "api",
+      "development": "local:api",
+      "production": "https://elliot-braem-3604-api-better-near-auth-elliotbrae-f1ee91342-ze.zephyrcloud.app",
+      "integrity": "sha384-0S3x1EDidzN+aOCYIX3ty+P49osWi8D/UK7lh3pd9Iy6xo9c8mmKRH004GS35tJ2",
+      "secrets": [
+        "API_DATABASE_URL"
+      ]
+    },
+    "auth": {
+      "name": "everything-dev_auth-plugin",
+      "development": "local:plugins/auth",
+      "production": "https://elliot-braem-3605-everything-dev-auth-plugin-bett-f19f96ec0-ze.zephyrcloud.app",
+      "integrity": "sha384-0+6PBccgYZwLDVxJJ3LDeA0EledPagot9TwxGvq59+qoJaBVc8qHJcxPTJNiHI6X",
+      "secrets": [
+        "AUTH_DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "CORS_ORIGIN"
+      ]
+    }
   }
 }
