@@ -108,7 +108,7 @@
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
-    "better-near-auth": "catalog:",
+    "better-near-auth": "^1.4.2",
     "@electric-sql/pglite": "catalog:"
   },
   "overrides": {
