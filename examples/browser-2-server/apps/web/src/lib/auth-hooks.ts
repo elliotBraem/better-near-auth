@@ -7,7 +7,7 @@ export function useNearAccounts(session: any) {
     queryKey: ["near-accounts"],
     queryFn: async () => {
       const res = await authClient.near.listAccounts();
-      const accounts = res?.data;
+      const accounts = res?.data?.accounts;
       return Array.isArray(accounts) ? accounts : [];
     },
     enabled: !!session,

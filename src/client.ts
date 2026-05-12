@@ -6,7 +6,7 @@ import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import type { siwn } from "./index.js";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT } from "./types.js";
+import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -38,7 +38,8 @@ export interface SIWNClientActions {
 		disconnect: () => Promise<void>;
 		link: (callbacks?: AuthCallbacks) => Promise<void>;
 		unlink: (params: { accountId: string; network?: "mainnet" | "testnet" }) => Promise<BetterFetchResponse<{ success: boolean; message: string }>>;
-		listAccounts: () => Promise<BetterFetchResponse<{ accounts: NearAccount[] }>>;
+		listAccounts: () => Promise<BetterFetchResponse<ListAccountsResponseT>>;
+		setPrimaryAccount: (params: SetPrimaryAccountRequestT) => Promise<BetterFetchResponse<SetPrimaryAccountResponseT>>;
 		buildSignedDelegateAction: (receiverId: string, buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder) => Promise<string>;
 		relayTransaction: (params: { payload: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
 		getRelayStatus: (txHash: string) => Promise<BetterFetchResponse<RelayStatusResponseT>>;
@@ -140,10 +141,10 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		}
 
 		try {
-			const res = await $fetch<{ accounts: NearAccount[] }>("/near/list-accounts", { method: "GET" });
+			const res = await $fetch<ListAccountsResponseT>("/near/list-accounts", { method: "GET" });
 			const accounts = res.data?.accounts;
 			if (accounts?.length) {
-				const primary = accounts.find((a: NearAccount) => a.isPrimary) || accounts[0];
+				const primary = res.data?.activeAccount || accounts.find((a: NearAccount) => a.isPrimary) || accounts[0];
 				if (primary) {
 					nearState.set({
 						accountId: primary.accountId,
@@ -400,8 +401,25 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							...fetchOptions
 						});
 					},
-					listAccounts: async (): Promise<BetterFetchResponse<{ accounts: NearAccount[] }>> => {
+					listAccounts: async (): Promise<BetterFetchResponse<ListAccountsResponseT>> => {
 						return await $fetch("/near/list-accounts", { method: "GET" });
+					},
+					setPrimaryAccount: async (
+						params: SetPrimaryAccountRequestT
+					): Promise<BetterFetchResponse<SetPrimaryAccountResponseT>> => {
+						const response = await $fetch<SetPrimaryAccountResponseT>("/near/set-primary-account", {
+							method: "POST",
+							body: params,
+						});
+						const activeAccount = response.data?.activeAccount;
+						if (activeAccount) {
+							nearState.set({
+								accountId: activeAccount.accountId,
+								publicKey: activeAccount.publicKey ?? null,
+								networkId: activeAccount.network,
+							});
+						}
+						return response;
 					},
 					buildSignedDelegateAction: async (
 						receiverId: string,

@@ -14,6 +14,25 @@ export interface NearAccount {
 	createdAt: Date;
 }
 
+export interface ListedNearAccount extends NearAccount {
+	providerId: "siwn";
+	isActive: boolean;
+	isAvailable: boolean;
+}
+
+export interface ListAccountsResponseT {
+	accounts: ListedNearAccount[];
+	activeAccount: ListedNearAccount | null;
+	availableAccounts: ListedNearAccount[];
+}
+
+export interface SetPrimaryAccountResponseT extends ListAccountsResponseT {
+	success: boolean;
+	accountId: string;
+	network: "mainnet" | "testnet";
+	message: string;
+}
+
 export const socialImageSchema = z.object({
 	url: z.string().optional(),
 	ipfs_cid: z.string().optional(),
@@ -43,6 +62,11 @@ export const LinkAccountRequest = z.object({
 	recipient: z.string(),
 	nonce: z.string(),
 	accountId: AccountIdSchema,
+});
+
+export const SetPrimaryAccountRequest = z.object({
+	accountId: AccountIdSchema,
+	network: z.enum(["mainnet", "testnet"]).optional(),
 });
 
 export const NonceRequest = z.object({
@@ -103,6 +127,7 @@ export type ProfileRequestT = z.infer<typeof ProfileRequest>;
 
 export type NonceRequestT = z.infer<typeof NonceRequest>;
 export type NonceResponseT = z.infer<typeof NonceResponse>;
+export type SetPrimaryAccountRequestT = z.infer<typeof SetPrimaryAccountRequest>;
 export type VerifyRequestT = z.infer<typeof VerifyRequest>;
 export type VerifyResponseT = z.infer<typeof VerifyResponse>;
 export type ProfileResponseT = z.infer<typeof ProfileResponse>;

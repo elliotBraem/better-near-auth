@@ -5,7 +5,7 @@ export function getNearAccountId(linkedAccounts: any[]): string | null {
   if (!Array.isArray(linkedAccounts)) {
     return null;
   }
-  const nearAccount = linkedAccounts.find(account => account.providerId === 'siwn');
+  const nearAccount = linkedAccounts.find(account => account.providerId === 'siwn' || account.providerId === undefined);
   return (nearAccount?.accountId)?.split(":")[0] || nearAccount?.providerId || null;
 }
 
@@ -16,7 +16,7 @@ export function getLinkedProviders(linkedAccounts: any[]): string[] {
   if (!Array.isArray(linkedAccounts)) {
     return [];
   }
-  return linkedAccounts.map(account => account.providerId);
+  return linkedAccounts.map(account => account.providerId ?? 'siwn');
 }
 
 /**

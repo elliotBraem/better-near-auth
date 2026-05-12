@@ -9,6 +9,8 @@ import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profi
 import { schema } from "./schema.js";
 import type {
 	AccountId,
+	ListAccountsResponseT,
+	ListedNearAccount,
 	NearAccount,
 	Profile,
 	RelayerInfo,
@@ -25,6 +27,7 @@ import {
 	RelayRequest,
 	RelayResponse,
 	RelayStatusResponse,
+	SetPrimaryAccountRequest,
 	ViewContractRequest,
 	ViewContractResponse,
 } from "./types.js";
@@ -49,6 +52,44 @@ function deriveEmail(accountId: string): string | null {
 		return `${localPart}@near.email`;
 	}
 	return null;
+}
+
+function nearAccountKey(account: Pick<NearAccount, "accountId" | "network">): string {
+	return `${account.accountId}:${account.network}`;
+}
+
+function getCreatedAtTime(account: NearAccount): number {
+	return account.createdAt instanceof Date
+		? account.createdAt.getTime()
+		: new Date(account.createdAt).getTime();
+}
+
+function buildListAccountsResponse(nearAccounts: NearAccount[]): ListAccountsResponseT {
+	const activeAccount = nearAccounts.find((account) => account.isPrimary) ?? nearAccounts[0] ?? null;
+	const activeKey = activeAccount ? nearAccountKey(activeAccount) : null;
+	const accounts: ListedNearAccount[] = nearAccounts
+		.map((account) => {
+			const isActive = activeKey === nearAccountKey(account);
+			return {
+				...account,
+				providerId: "siwn" as const,
+				isActive,
+				isAvailable: !isActive,
+			};
+		})
+		.sort((a, b) => {
+			if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+			return getCreatedAtTime(a) - getCreatedAtTime(b);
+		});
+	const listedActiveAccount = accounts.find((account) => account.isActive) ?? null;
+
+	return {
+		accounts,
+		activeAccount: listedActiveAccount ? { ...listedActiveAccount } : null,
+		availableAccounts: accounts
+			.filter((account) => account.isAvailable)
+			.map((account) => ({ ...account })),
+	};
 }
 
 export interface RelayerConfig {
@@ -530,7 +571,60 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						where: [{ field: "userId", operator: "eq", value: session.user.id }],
 					});
 
-					return ctx.json({ accounts: nearAccounts });
+					return ctx.json(buildListAccountsResponse(nearAccounts));
+				},
+			),
+			setPrimaryNearAccount: createAuthEndpoint(
+				"/near/set-primary-account",
+				{
+					method: "POST",
+					body: SetPrimaryAccountRequest,
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const { accountId, network: providedNetwork } = ctx.body;
+					const session = ctx.context.session;
+					const network = providedNetwork || getNetworkFromAccountId(accountId);
+
+					const targetAccount: NearAccount | null = await ctx.context.adapter.findOne({
+						model: "nearAccount",
+						where: [
+							{ field: "userId", operator: "eq", value: session.user.id },
+							{ field: "accountId", operator: "eq", value: accountId },
+							{ field: "network", operator: "eq", value: network },
+						],
+					});
+
+					if (!targetAccount) {
+						throw new APIError("NOT_FOUND", {
+							message: "NEAR account not found or not linked to your user",
+							status: 404,
+						});
+					}
+
+					const nearAccounts: NearAccount[] = await ctx.context.adapter.findMany({
+						model: "nearAccount",
+						where: [{ field: "userId", operator: "eq", value: session.user.id }],
+					});
+
+					await Promise.all(nearAccounts.map((account) => ctx.context.adapter.update({
+						model: "nearAccount",
+						where: [{ field: "id", operator: "eq", value: account.id }],
+						update: { isPrimary: nearAccountKey(account) === nearAccountKey(targetAccount) },
+					})));
+
+					const updatedNearAccounts: NearAccount[] = await ctx.context.adapter.findMany({
+						model: "nearAccount",
+						where: [{ field: "userId", operator: "eq", value: session.user.id }],
+					});
+
+					return ctx.json({
+						success: true,
+						accountId,
+						network,
+						message: "Primary NEAR account updated",
+						...buildListAccountsResponse(updatedNearAccounts),
+					});
 				},
 			),
 			getSiwnNonce: createAuthEndpoint(

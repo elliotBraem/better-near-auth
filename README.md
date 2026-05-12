@@ -159,6 +159,10 @@ const aliceProfile = await authClient.near.getProfile("alice.near");
 
 ```ts
 const accountId = authClient.near.getAccountId();
+const { data } = await authClient.near.listAccounts();
+const activeAccount = data?.activeAccount;
+const availableAccounts = data?.availableAccounts ?? [];
+await authClient.near.setPrimaryAccount({ accountId: "alice.near", network: "mainnet" });
 await authClient.near.disconnect();
 ```
 
@@ -248,7 +252,8 @@ When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral
 - `disconnect()` — Disconnect wallet and clear cached data
 - `link(callbacks?)` — Link a NEAR account to the current session
 - `unlink(params)` — Unlink a NEAR account
-- `listAccounts()` — List all linked NEAR accounts
+- `listAccounts()` — List linked NEAR accounts with `activeAccount` and `availableAccounts`
+- `setPrimaryAccount(params)` — Select the active NEAR account for the session user
 
 **Relay**
 - `buildSignedDelegateAction(receiverId, buildActions)` — Build + sign a delegate action via wallet FAK
