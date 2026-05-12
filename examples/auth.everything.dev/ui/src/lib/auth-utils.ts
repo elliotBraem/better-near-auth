@@ -2,9 +2,18 @@
  * Extract NEAR accountId from linked accounts
  */
 function getProviderId(account: any): string | null {
-  return typeof account?.providerId === "string" && account.providerId.length > 0
-    ? account.providerId
-    : null;
+  if (typeof account?.providerId === "string" && account.providerId.length > 0) {
+    return account.providerId;
+  }
+
+  if (
+    typeof account?.accountId === "string" &&
+    (account.network === "mainnet" || account.network === "testnet")
+  ) {
+    return "siwn";
+  }
+
+  return null;
 }
 
 export function getNearAccountId(linkedAccounts: any[]): string | null {
