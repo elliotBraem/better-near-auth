@@ -3,7 +3,37 @@ import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, anonymous, organization, phoneNumber } from "better-auth/plugins";
+import { createAccessControl } from "better-auth/plugins/access";
+import {
+  adminAc,
+  defaultStatements,
+  memberAc,
+  ownerAc,
+} from "better-auth/plugins/organization/access";
 import { siwn } from "better-near-auth";
+
+const orgStatements = {
+  ...defaultStatements,
+  apiKey: ["create", "read", "update", "delete"],
+} as const;
+
+const orgAc = createAccessControl(orgStatements);
+
+const orgRoles = {
+  owner: orgAc.newRole({
+    ...ownerAc.statements,
+    apiKey: ["create", "read", "update", "delete"],
+  }),
+  admin: orgAc.newRole({
+    ...adminAc.statements,
+    apiKey: ["create", "read", "update", "delete"],
+  }),
+  member: orgAc.newRole({
+    ...memberAc.statements,
+    apiKey: ["read"],
+  }),
+};
+
 import type { AuthConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
@@ -151,6 +181,8 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       }),
       passkey(passkeyOptions),
       organization({
+        ac: orgAc,
+        roles: orgRoles,
         async sendInvitationEmail(data) {
           const inviteLink = `${config.baseUrl}/accept-invitation/${data.id}`;
           await sendEmail({
@@ -160,7 +192,10 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
           });
         },
       }),
-      apiKey(),
+      apiKey([
+        { configId: "user-keys", defaultPrefix: "api_", references: "user" },
+        { configId: "org-keys", defaultPrefix: "org_", references: "organization" },
+      ]),
     ],
     emailAndPassword: {
       enabled: true,

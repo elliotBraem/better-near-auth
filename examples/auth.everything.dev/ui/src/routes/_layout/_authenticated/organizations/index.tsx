@@ -160,7 +160,7 @@ function OrganizationsList() {
               <Card key={invitation.id}>
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 border-2 border-outset border-border flex items-center justify-center shrink-0">
                       <Mail className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="space-y-1 min-w-0 flex-1">

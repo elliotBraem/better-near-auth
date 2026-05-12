@@ -3,11 +3,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  type ApiClient,
+  type AuthClient,
   type Passkey,
   type SessionData,
   sessionQueryOptions,
-  useApiClient,
   useAuthClient,
 } from "@/app";
 import {
@@ -26,8 +25,21 @@ import {
 } from "@/components";
 import { Input } from "@/components/ui/input";
 
-type CreatedApiKey = Awaited<ReturnType<ApiClient["auth"]["createApiKey"]>>;
-type VerifyApiKeyResult = Awaited<ReturnType<ApiClient["auth"]["verifyApiKey"]>>;
+type CreatedApiKey =
+  Awaited<ReturnType<AuthClient["apiKey"]["create"]>> extends { data: infer D }
+    ? NonNullable<D>
+    : never;
+
+type ApiKeyItem = {
+  id: string;
+  name: string | null;
+  prefix: string | null;
+  start: string | null;
+  enabled?: boolean;
+  createdAt: string | Date;
+  expiresAt?: string | Date | null;
+  lastRequest?: string | Date | null;
+};
 
 export const Route = createFileRoute("/_layout/_authenticated/settings")({
   head: () => ({
@@ -326,7 +338,7 @@ function AuthMethodsTab({
 }
 
 function ApiKeysTab() {
-  const apiClient = useApiClient();
+  const auth = useAuthClient();
   const queryClient = useQueryClient();
   const [createdApiKey, setCreatedApiKey] = useState<CreatedApiKey | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -338,30 +350,42 @@ function ApiKeysTab() {
 
   const { data: apiKeys = [], isLoading } = useQuery({
     queryKey: ["user-api-keys"],
-    queryFn: () => apiClient.auth.listApiKeys({}),
+    queryFn: async (): Promise<ApiKeyItem[]> => {
+      const { data, error } = await auth.apiKey.list({
+        query: { configId: "user-keys" },
+      });
+      if (error) throw new Error(error.message);
+      if (!data) return [];
+      const list = Array.isArray(data)
+        ? data
+        : ((data as { apiKeys?: ApiKeyItem[] }).apiKeys ?? []);
+      return list as ApiKeyItem[];
+    },
   });
 
   const createMutation = useMutation({
-    mutationFn: (values: ApiKeyFormValues) => apiClient.auth.createApiKey(values),
+    mutationFn: async (values: ApiKeyFormValues) => {
+      const { data, error } = await auth.apiKey.create({
+        configId: "user-keys",
+        name: values.name,
+        ...(values.expiresIn !== undefined ? { expiresIn: values.expiresIn } : {}),
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: (data) => {
-      setCreatedApiKey(data);
+      if (data) setCreatedApiKey(data as CreatedApiKey);
       toast.success("API key created");
       queryClient.invalidateQueries({ queryKey: ["user-api-keys"] });
     },
     onError: (error: Error) => toast.error(error.message || "Failed to create API key"),
   });
 
-  const toggleEnabledMutation = useMutation({
-    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      apiClient.auth.updateApiKey({ id, enabled }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-api-keys"] });
-    },
-    onError: (error: Error) => toast.error(error.message || "Failed to update API key"),
-  });
-
   const deleteMutation = useMutation({
-    mutationFn: (keyId: string) => apiClient.auth.deleteApiKey({ id: keyId }),
+    mutationFn: async (keyId: string) => {
+      const { error } = await auth.apiKey.delete({ keyId });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: () => {
       toast.success("API key deleted");
       queryClient.invalidateQueries({ queryKey: ["user-api-keys"] });
@@ -393,10 +417,8 @@ function ApiKeysTab() {
       </Card>
 
       {createdApiKey && (
-        <ApiKeyReveal apiKey={createdApiKey} onDismiss={() => setCreatedApiKey(null)} />
+        <ApiKeyReveal apiKey={createdApiKey as never} onDismiss={() => setCreatedApiKey(null)} />
       )}
-
-      <VerifyApiKeyCard />
 
       {isLoading ? (
         <Card>
@@ -406,73 +428,37 @@ function ApiKeysTab() {
         </Card>
       ) : apiKeys.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          {apiKeys.map((key) => {
-            const perms = key.permissions as Record<string, string[]> | null;
-            const permEntries = perms ? Object.entries(perms) : [];
-            return (
-              <Card key={key.id}>
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
-                      <div className="text-xs text-muted-foreground font-mono">
-                        {key.prefix ?? "api_"}...{key.start ?? ""}
-                      </div>
+          {apiKeys.map((key) => (
+            <Card key={key.id}>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {key.prefix ?? "api_"}...{key.start ?? ""}
                     </div>
-                    <Badge variant="outline">{key.enabled ? "enabled" : "disabled"}</Badge>
                   </div>
-                  {permEntries.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {permEntries.flatMap(([scope, actions]) =>
-                        actions.map((action) => (
-                          <Badge
-                            key={`${scope}:${action}`}
-                            variant="outline"
-                            className="text-[10px]"
-                          >
-                            {scope}:{action}
-                          </Badge>
-                        )),
-                      )}
-                    </div>
+                  {key.enabled === false && <Badge variant="outline">disabled</Badge>}
+                </div>
+                <div className="grid gap-1 text-xs text-muted-foreground">
+                  <div>created {new Date(key.createdAt).toLocaleString()}</div>
+                  {key.expiresAt && <div>expires {new Date(key.expiresAt).toLocaleString()}</div>}
+                  {key.lastRequest && (
+                    <div>last used {new Date(key.lastRequest).toLocaleString()}</div>
                   )}
-                  <div className="grid gap-1 text-xs text-muted-foreground">
-                    <div>created {new Date(key.createdAt).toLocaleString()}</div>
-                    {key.expiresAt && <div>expires {new Date(key.expiresAt).toLocaleString()}</div>}
-                    {key.lastRequest && (
-                      <div>last used {new Date(key.lastRequest).toLocaleString()}</div>
-                    )}
-                    {key.rateLimitEnabled && key.rateLimitMax && key.rateLimitTimeWindow && (
-                      <div>
-                        rate limit {key.rateLimitMax}/{key.rateLimitTimeWindow}ms
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() =>
-                        toggleEnabledMutation.mutate({ id: key.id, enabled: !key.enabled })
-                      }
-                      disabled={toggleEnabledMutation.isPending}
-                      variant="outline"
-                      size="sm"
-                    >
-                      {key.enabled ? "disable" : "enable"}
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete(key.id, key.name)}
-                      disabled={deleteMutation.isPending}
-                      variant="outline"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                    >
-                      delete
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                </div>
+                <Button
+                  onClick={() => handleDelete(key.id, key.name)}
+                  disabled={deleteMutation.isPending}
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                >
+                  delete
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : (
         <Card>
@@ -492,66 +478,6 @@ function ApiKeysTab() {
         isPending={deleteMutation.isPending}
       />
     </div>
-  );
-}
-
-function VerifyApiKeyCard() {
-  const apiClient = useApiClient();
-  const [verifyInput, setVerifyInput] = useState("");
-  const [result, setResult] = useState<VerifyApiKeyResult | null>(null);
-
-  const verifyMutation = useMutation({
-    mutationFn: (key: string) => apiClient.auth.verifyApiKey({ key }),
-    onSuccess: (data) => setResult(data),
-    onError: (error: Error) => toast.error(error.message || "Failed to verify API key"),
-  });
-
-  return (
-    <Card>
-      <CardContent className="p-6 space-y-3">
-        <div className="space-y-1">
-          <div className="font-medium">Verify a key</div>
-          <p className="text-sm text-muted-foreground">
-            Paste a key value to check if it is valid. Verification does not require a session.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            value={verifyInput}
-            onChange={(event) => setVerifyInput(event.target.value)}
-            placeholder="api_..."
-            className="font-mono text-xs"
-          />
-          <Button
-            onClick={() => verifyMutation.mutate(verifyInput.trim())}
-            disabled={verifyMutation.isPending || !verifyInput.trim()}
-            variant="outline"
-            size="sm"
-          >
-            {verifyMutation.isPending ? "verifying..." : "verify"}
-          </Button>
-        </div>
-        {result && (
-          <div className="text-xs space-y-1">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{result.valid ? "valid" : "invalid"}</Badge>
-              {result.error && (
-                <span className="text-muted-foreground">
-                  {result.error.code}
-                  {result.error.message ? `: ${result.error.message}` : ""}
-                </span>
-              )}
-            </div>
-            {result.key && (
-              <div className="text-muted-foreground">
-                Matches key <span className="font-mono">{result.key.name ?? result.key.id}</span>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

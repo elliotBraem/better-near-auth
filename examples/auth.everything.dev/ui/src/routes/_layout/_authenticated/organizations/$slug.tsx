@@ -3,13 +3,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Edit2, Key, LogOut, Mail, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  type ApiClient,
-  type Organization,
-  type SessionData,
-  useApiClient,
-  useAuthClient,
-} from "@/app";
+import { type Organization, type SessionData, useAuthClient } from "@/app";
 import {
   ApiKeyForm,
   type ApiKeyFormValues,
@@ -35,9 +29,20 @@ type MemberItem = NonNullable<MembersResponse["data"]>["members"][number];
 type InvitationsResponse = Awaited<ReturnType<AuthClientType["organization"]["listInvitations"]>>;
 type InvitationItem = NonNullable<InvitationsResponse["data"]>[number];
 
-type OrgApiKeysResult = Awaited<ReturnType<ApiClient["auth"]["listApiKeys"]>>;
-type ApiKeyItem = OrgApiKeysResult[number];
-type CreatedApiKey = Awaited<ReturnType<ApiClient["auth"]["createApiKey"]>>;
+type ApiKeyItem = {
+  id: string;
+  name: string | null;
+  prefix: string | null;
+  start: string | null;
+  createdAt: string | Date;
+  expiresAt?: string | Date | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type CreatedApiKey =
+  Awaited<ReturnType<AuthClientType["apiKey"]["create"]>> extends { data: infer D }
+    ? NonNullable<D>
+    : never;
 
 const orgMembersQueryKey = (orgId: string) => ["org-members", orgId] as const;
 const orgInvitationsQueryKey = (orgId: string) => ["org-invitations", orgId] as const;
@@ -58,7 +63,6 @@ function OrganizationDetail() {
   const router = useRouter();
   const { slug: orgSlug } = Route.useParams();
   const auth = useAuthClient();
-  const apiClient = useApiClient();
 
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
@@ -112,8 +116,17 @@ function OrganizationDetail() {
   const apiKeys =
     useQuery({
       queryKey: orgApiKeysQueryKey(orgId),
-      queryFn: (): Promise<OrgApiKeysResult> =>
-        apiClient.auth.listApiKeys({ organizationId: orgId }),
+      queryFn: async (): Promise<ApiKeyItem[]> => {
+        const { data, error } = await auth.apiKey.list({
+          query: { configId: "org-keys", organizationId: orgId },
+        });
+        if (error) throw new Error(error.message);
+        if (!data) return [];
+        const list = Array.isArray(data)
+          ? data
+          : ((data as { apiKeys?: ApiKeyItem[] }).apiKeys ?? []);
+        return list as ApiKeyItem[];
+      },
       enabled: !!orgId,
     }).data ?? [];
 
@@ -201,10 +214,18 @@ function OrganizationDetail() {
   });
 
   const createApiKeyMutation = useMutation({
-    mutationFn: (values: ApiKeyFormValues) =>
-      apiClient.auth.createApiKey({ organizationId: orgId, ...values }),
+    mutationFn: async (values: ApiKeyFormValues) => {
+      const { data, error } = await auth.apiKey.create({
+        configId: "org-keys",
+        organizationId: orgId,
+        name: values.name,
+        ...(values.expiresIn !== undefined ? { expiresIn: values.expiresIn } : {}),
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: async (data) => {
-      if (data) setCreatedApiKey(data);
+      if (data) setCreatedApiKey(data as CreatedApiKey);
       toast.success("API key created");
       await queryClient.invalidateQueries({ queryKey: orgApiKeysQueryKey(orgId) });
     },
@@ -214,7 +235,10 @@ function OrganizationDetail() {
   });
 
   const deleteApiKeyMutation = useMutation({
-    mutationFn: (keyId: string) => apiClient.auth.deleteApiKey({ id: keyId }),
+    mutationFn: async (keyId: string) => {
+      const { error } = await auth.apiKey.delete({ keyId });
+      if (error) throw new Error(error.message);
+    },
     onMutate: async (keyId) => {
       await queryClient.cancelQueries({ queryKey: orgApiKeysQueryKey(orgId) });
       const previousKeys = queryClient.getQueryData<ApiKeyItem[]>(orgApiKeysQueryKey(orgId));
@@ -588,24 +612,16 @@ function OrganizationDetail() {
               {apiKeys.map((key) => (
                 <Card key={key.id}>
                   <CardContent className="p-5 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1 min-w-0">
-                        <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {key.prefix ?? "api_"}...{key.start ?? ""}
-                        </div>
+                    <div className="space-y-1 min-w-0">
+                      <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
+                      <div className="text-xs text-muted-foreground font-mono">
+                        {key.prefix ?? "api_"}...{key.start ?? ""}
                       </div>
-                      <Badge variant="outline">{key.enabled ? "enabled" : "disabled"}</Badge>
                     </div>
                     <div className="grid gap-1 text-xs text-muted-foreground">
                       <div>created {new Date(key.createdAt).toLocaleString()}</div>
                       {key.expiresAt && (
                         <div>expires {new Date(key.expiresAt).toLocaleString()}</div>
-                      )}
-                      {key.rateLimitEnabled && key.rateLimitMax && key.rateLimitTimeWindow && (
-                        <div>
-                          rate limit {key.rateLimitMax}/{key.rateLimitTimeWindow}ms
-                        </div>
                       )}
                     </div>
                     <div className="flex gap-2">

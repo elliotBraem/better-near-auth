@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { useAuthClient } from "@/app";
+import { getAppName, useAuthClient } from "@/app";
 import { Badge, Button, Card, CardContent } from "@/components";
 
 export const Route = createFileRoute("/_layout/_authenticated/accept-invitation/$id")({
   head: () => ({
-    meta: [{ title: "Accept Invitation | app" }],
+    meta: [{ title: `Accept Invitation | ${getAppName()}` }],
   }),
   component: AcceptInvitation,
 });
@@ -110,7 +110,7 @@ function AcceptInvitation() {
             </p>
           </div>
 
-          <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/10 p-4 space-y-2 text-xs font-mono">
+          <div className="border-2 border-outset border-border bg-muted/10 p-4 space-y-2 text-xs font-mono">
             <div className="flex justify-between gap-4">
               <span className="text-muted-foreground">organization</span>
               <span className="text-right break-all">
