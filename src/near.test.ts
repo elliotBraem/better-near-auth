@@ -184,6 +184,20 @@ async function setup(overrides?: {
 	);
 }
 
+async function verifyWithCookie(customFetchImpl: any): Promise<string> {
+	const res = await customFetchImpl("http://localhost/api/auth/near/verify", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(makeVerifyBody()),
+	});
+	expect(res.status).toBe(200);
+	const cookie = res.headers.get("set-cookie") || "";
+	expect(cookie).not.toBe("");
+	return cookie;
+}
+
 describe("siwn plugin", () => {
 	describe("nonce endpoint", () => {
 		it("should generate a nonce for a valid mainnet account ID", async () => {
@@ -362,16 +376,90 @@ describe("siwn plugin", () => {
 
 	describe("list accounts endpoint", () => {
 		it("should list NEAR accounts for authenticated user", async () => {
-			const { client } = await setup();
-			await client.near.verify(makeVerifyBody());
+			const { customFetchImpl } = await setup();
+			const cookie = await verifyWithCookie(customFetchImpl);
 
-			const { data, error } = await client.near.listAccounts();
-			if (error) {
-				expect(error).toBeDefined();
-			} else {
-				expect(data?.accounts).toBeDefined();
-				expect(Array.isArray(data?.accounts)).toBe(true);
-			}
+			const res = await customFetchImpl("http://localhost/api/auth/near/list-accounts", {
+				method: "GET",
+				headers: { cookie },
+			});
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data?.accounts).toHaveLength(1);
+			expect(data?.activeAccount?.accountId).toBe(MOCK_ACCOUNT_ID);
+			expect(data?.availableAccounts).toEqual([]);
+			expect(data?.accounts[0]?.providerId).toBe("siwn");
+			expect(data?.accounts[0]?.isActive).toBe(true);
+			expect(data?.accounts[0]?.isAvailable).toBe(false);
+		});
+
+		it("should mark primary account active and non-primary accounts available", async () => {
+			const { customFetchImpl, db } = await setup();
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const [primaryAccount] = await db.findMany({ model: "nearAccount" });
+			await db.create({
+				model: "nearAccount",
+				data: {
+					userId: primaryAccount.userId,
+					accountId: "secondary.near",
+					network: "mainnet",
+					publicKey: MOCK_PUBLIC_KEY,
+					isPrimary: false,
+					createdAt: new Date(),
+				},
+			});
+
+			const res = await customFetchImpl("http://localhost/api/auth/near/list-accounts", {
+				method: "GET",
+				headers: { cookie },
+			});
+			expect(res.status).toBe(200);
+			const data = await res.json();
+			expect(data?.activeAccount?.accountId).toBe(MOCK_ACCOUNT_ID);
+			expect(data?.availableAccounts).toHaveLength(1);
+			expect(data?.availableAccounts[0]?.accountId).toBe("secondary.near");
+			expect(data?.accounts.map((account: any) => account.accountId)).toEqual([
+				MOCK_ACCOUNT_ID,
+				"secondary.near",
+			]);
+		});
+
+		it("should select a primary NEAR account", async () => {
+			const { customFetchImpl, db } = await setup();
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const [primaryAccount] = await db.findMany({ model: "nearAccount" });
+			await db.create({
+				model: "nearAccount",
+				data: {
+					userId: primaryAccount.userId,
+					accountId: "secondary.near",
+					network: "mainnet",
+					publicKey: MOCK_PUBLIC_KEY,
+					isPrimary: false,
+					createdAt: new Date(),
+				},
+			});
+
+			const res = await customFetchImpl("http://localhost/api/auth/near/set-primary-account", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					cookie,
+				},
+				body: JSON.stringify({
+					accountId: "secondary.near",
+				}),
+			});
+			expect(res.status).toBe(200);
+			const data = await res.json();
+
+			expect(data?.success).toBe(true);
+			expect(data?.activeAccount?.accountId).toBe("secondary.near");
+			expect(data?.availableAccounts.map((account: any) => account.accountId)).toEqual([
+				MOCK_ACCOUNT_ID,
+			]);
 		});
 	});
 

@@ -38,8 +38,8 @@
         "shareScope": "default"
       },
       "better-near-auth": {
-        "version": "^1.4.2",
-        "requiredVersion": "^^1.4.2",
+        "version": "1.4.2",
+        "requiredVersion": "^1.4.2",
         "singleton": true,
         "strictVersion": false,
         "shareScope": "default"
