@@ -8,6 +8,51 @@ import type { AuthConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
+export interface PasskeyRelyingPartyOptions {
+  rpID: string;
+  rpName: string;
+  origin: string;
+}
+
+function normalizeOrigin(value: string): string {
+  try {
+    if (/^https?:\/\//i.test(value)) {
+      return new URL(value).origin;
+    }
+    const hostname = new URL(`https://${value}`).hostname;
+    const protocol = hostname === "localhost" || hostname === "127.0.0.1" ? "http" : "https";
+    return new URL(`${protocol}://${value}`).origin;
+  } catch {
+    throw new Error(`Invalid passkey origin value: "${value}". Must be a valid URL or hostname.`);
+  }
+}
+
+function normalizeRpId(value: string): string {
+  try {
+    const hostname = /^https?:\/\//i.test(value)
+      ? new URL(value).hostname
+      : new URL(`https://${value}`).hostname;
+    if (!hostname) {
+      throw new TypeError("Missing hostname");
+    }
+    return hostname;
+  } catch {
+    throw new Error(`Invalid passkey RP ID value: "${value}". Must be a valid domain or URL.`);
+  }
+}
+
+export function resolvePasskeyRelyingPartyOptions(
+  config: Pick<AuthConfig, "baseUrl" | "passkeyOrigin" | "passkeyRpId" | "passkeyRpName">,
+): PasskeyRelyingPartyOptions {
+  const origin = normalizeOrigin(config.passkeyOrigin?.trim() || config.baseUrl);
+  const rpID = config.passkeyRpId?.trim()
+    ? normalizeRpId(config.passkeyRpId.trim())
+    : new URL(origin).hostname;
+  const rpName = config.passkeyRpName?.trim() || "Everything Dev";
+
+  return { rpID, rpName, origin };
+}
+
 async function sendEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
   console.log(`\n📧 [Email Preview] ============================================`);
   console.log(`To: ${to}`);
@@ -70,6 +115,8 @@ async function createPersonalOrganization(
 }
 
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
+  const passkeyOptions = resolvePasskeyRelyingPartyOptions(config);
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -102,7 +149,7 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
           getTempName: (phoneNumber) => phoneNumber,
         },
       }),
-      passkey(),
+      passkey(passkeyOptions),
       organization({
         async sendInvitationEmail(data) {
           const inviteLink = `${config.baseUrl}/accept-invitation/${data.id}`;

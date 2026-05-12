@@ -122,6 +122,9 @@ export default createPlugin({
     domain: z.string().optional(),
     githubClientId: z.string().optional(),
     githubClientSecret: z.string().optional(),
+    passkeyRpId: z.string().optional(),
+    passkeyRpName: z.string().optional(),
+    passkeyOrigin: z.string().optional(),
   }),
 
   secrets: z.object({
@@ -151,6 +154,9 @@ export default createPlugin({
         config.variables.domain,
         config.secrets.CORS_ORIGIN,
       );
+      const passkeyOrigin = config.variables.passkeyOrigin
+        ? ensureOrigin(config.variables.passkeyOrigin)
+        : undefined;
 
       const auth = createAuthInstance(
         {
@@ -160,6 +166,9 @@ export default createPlugin({
           trustedOrigins,
           githubClientId: config.variables.githubClientId,
           githubClientSecret: config.variables.githubClientSecret,
+          passkeyRpId: config.variables.passkeyRpId,
+          passkeyRpName: config.variables.passkeyRpName,
+          passkeyOrigin: passkeyOrigin ?? undefined,
         },
         driver.db,
       );

@@ -40,16 +40,18 @@ export const Route = createFileRoute("/_layout/_authenticated/settings")({
 function Settings() {
   const auth = useAuthClient();
   const { data: session } = useQuery<SessionData | null>(sessionQueryOptions(auth));
+  const user = session?.user;
+  const passkeyQueryKey = ["passkeys", user?.id] as const;
   const { data: passkeys = [] } = useQuery({
-    queryKey: ["passkeys"],
+    queryKey: passkeyQueryKey,
     queryFn: async () => {
       const { data } = await auth.passkey.listUserPasskeys();
       return (data || []) as Passkey[];
     },
+    enabled: !!user?.id,
     staleTime: 60 * 1000,
   });
 
-  const user = session?.user;
   const nearAccountId = auth.near.getAccountId();
 
   if (!user) {
@@ -181,18 +183,31 @@ function AuthMethodsTab({
   passkeys,
   nearAccountId,
 }: {
-  user: { email?: string; isAnonymous?: boolean | null };
+  user: { id: string; email?: string; isAnonymous?: boolean | null };
   passkeys: Array<{ id: string; name?: string }>;
   nearAccountId: string | null;
 }) {
   const auth = useAuthClient();
+  const queryClient = useQueryClient();
+  const [passkeyName, setPasskeyName] = useState("");
+  const [passkeyToDelete, setPasskeyToDelete] = useState<{ id: string; name?: string } | null>(
+    null,
+  );
+  const passkeyQueryKey = ["passkeys", user.id] as const;
 
   const addPasskeyMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await auth.passkey.addPasskey();
+      const name = passkeyName.trim();
+      const { error } = name
+        ? await auth.passkey.addPasskey({ name })
+        : await auth.passkey.addPasskey();
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => toast.success("Passkey added"),
+    onSuccess: () => {
+      setPasskeyName("");
+      toast.success("Passkey added");
+      queryClient.invalidateQueries({ queryKey: passkeyQueryKey });
+    },
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -201,7 +216,11 @@ function AuthMethodsTab({
       const { error } = await auth.passkey.deletePasskey({ id: passkeyId });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => toast.success("Passkey removed"),
+    onSuccess: () => {
+      setPasskeyToDelete(null);
+      toast.success("Passkey removed");
+      queryClient.invalidateQueries({ queryKey: passkeyQueryKey });
+    },
     onError: (err: Error) => toast.error(err.message),
   });
 
@@ -214,66 +233,90 @@ function AuthMethodsTab({
   });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <MethodCard title="email" status={user.email ? "linked" : "missing"}>
-        <p className="text-sm text-muted-foreground">
-          {user.email ?? "Email login has not been linked for this account yet."}
-        </p>
-      </MethodCard>
+    <>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <MethodCard title="email" status={user.email ? "linked" : "missing"}>
+          <p className="text-sm text-muted-foreground">
+            {user.email ?? "Email login has not been linked for this account yet."}
+          </p>
+        </MethodCard>
 
-      <MethodCard title="near" status={nearAccountId ? "linked" : "missing"}>
-        {nearAccountId ? (
-          <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 p-3 font-mono text-xs break-all">
-            {nearAccountId}
-          </div>
-        ) : (
-          <Button
-            onClick={() => linkNearMutation.mutate()}
-            disabled={linkNearMutation.isPending}
-            variant="outline"
-            size="sm"
-          >
-            {linkNearMutation.isPending ? "linking..." : "link NEAR wallet"}
-          </Button>
-        )}
-      </MethodCard>
-
-      <MethodCard
-        title="passkeys"
-        status={passkeys.length > 0 ? `${passkeys.length} linked` : "missing"}
-      >
-        <div className="space-y-2">
-          {passkeys.length > 0 ? (
-            passkeys.map((passkey) => (
-              <div
-                key={passkey.id}
-                className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 p-3 flex items-center justify-between gap-3"
-              >
-                <span className="text-sm truncate">{passkey.name || "Passkey"}</span>
-                <Button
-                  onClick={() => removePasskeyMutation.mutate(passkey.id)}
-                  disabled={removePasskeyMutation.isPending}
-                  variant="outline"
-                  size="sm"
-                >
-                  remove
-                </Button>
-              </div>
-            ))
+        <MethodCard title="near" status={nearAccountId ? "linked" : "missing"}>
+          {nearAccountId ? (
+            <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 p-3 font-mono text-xs break-all">
+              {nearAccountId}
+            </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No passkeys registered yet.</p>
+            <Button
+              onClick={() => linkNearMutation.mutate()}
+              disabled={linkNearMutation.isPending}
+              variant="outline"
+              size="sm"
+            >
+              {linkNearMutation.isPending ? "linking..." : "link NEAR wallet"}
+            </Button>
           )}
-          <Button
-            onClick={() => addPasskeyMutation.mutate()}
-            disabled={addPasskeyMutation.isPending}
-            variant="outline"
-            size="sm"
-          >
-            {addPasskeyMutation.isPending ? "adding..." : "add passkey"}
-          </Button>
-        </div>
-      </MethodCard>
-    </div>
+        </MethodCard>
+
+        <MethodCard
+          title="passkeys"
+          status={passkeys.length > 0 ? `${passkeys.length} linked` : "missing"}
+        >
+          <div className="space-y-2">
+            {passkeys.length > 0 ? (
+              passkeys.map((passkey) => (
+                <div
+                  key={passkey.id}
+                  className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 p-3 flex items-center justify-between gap-3"
+                >
+                  <span className="text-sm truncate">{passkey.name || "Passkey"}</span>
+                  <Button
+                    onClick={() => setPasskeyToDelete(passkey)}
+                    disabled={removePasskeyMutation.isPending}
+                    variant="outline"
+                    size="sm"
+                  >
+                    remove
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No passkeys registered yet.</p>
+            )}
+            <Input
+              type="text"
+              value={passkeyName}
+              onChange={(event) => setPasskeyName(event.target.value)}
+              placeholder="Passkey name, e.g. Work laptop"
+            />
+            <Button
+              onClick={() => addPasskeyMutation.mutate()}
+              disabled={addPasskeyMutation.isPending}
+              variant="outline"
+              size="sm"
+            >
+              {addPasskeyMutation.isPending ? "adding..." : "add passkey"}
+            </Button>
+          </div>
+        </MethodCard>
+      </div>
+      <ConfirmDialog
+        open={!!passkeyToDelete}
+        onOpenChange={(open) => {
+          if (!open) setPasskeyToDelete(null);
+        }}
+        title="Remove passkey"
+        description={`Remove ${passkeyToDelete?.name || "this passkey"} from your account? You will no longer be able to use it to sign in.`}
+        confirmLabel="remove"
+        variant="destructive"
+        onConfirm={() => {
+          if (passkeyToDelete) {
+            removePasskeyMutation.mutate(passkeyToDelete.id);
+          }
+        }}
+        isPending={removePasskeyMutation.isPending}
+      />
+    </>
   );
 }
 
@@ -474,6 +517,7 @@ function SecurityTab({ user }: { user: { email?: string; isAnonymous?: boolean |
     },
     onSuccess: async () => {
       queryClient.setQueryData(["session"], null);
+      queryClient.removeQueries({ queryKey: ["passkeys"] });
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       navigate({ to: "/", replace: true });
     },
