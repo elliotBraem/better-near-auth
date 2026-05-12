@@ -62,3 +62,7 @@ examples/*/pnpm-lock.yaml
 examples/*/*.db
 examples/*/apps/*/*.db
 examples/*/plugins/*/*.db
+
+# Agents files
+.CLAUDE.md
+.AGENTS.md
