@@ -8,6 +8,7 @@ import {
   ApiKeyForm,
   type ApiKeyFormValues,
   ApiKeyReveal,
+  type ApiKeyRevealProps,
   Badge,
   Button,
   Card,
@@ -39,10 +40,7 @@ type ApiKeyItem = {
   metadata?: Record<string, unknown> | null;
 };
 
-type CreatedApiKey =
-  Awaited<ReturnType<AuthClientType["apiKey"]["create"]>> extends { data: infer D }
-    ? NonNullable<D>
-    : never;
+type CreatedApiKey = ApiKeyRevealProps["apiKey"];
 
 const orgMembersQueryKey = (orgId: string) => ["org-members", orgId] as const;
 const orgInvitationsQueryKey = (orgId: string) => ["org-invitations", orgId] as const;
@@ -50,8 +48,8 @@ const orgApiKeysQueryKey = (orgId: string) => ["org-api-keys", orgId] as const;
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/$slug")({
   head: () => ({
+    title: "Organization | auth.everything.dev",
     meta: [
-      { title: "Organization | app" },
       { name: "description", content: "Manage organization details and members." },
     ],
   }),
@@ -121,11 +119,7 @@ function OrganizationDetail() {
           query: { configId: "org-keys", organizationId: orgId },
         });
         if (error) throw new Error(error.message);
-        if (!data) return [];
-        const list = Array.isArray(data)
-          ? data
-          : ((data as { apiKeys?: ApiKeyItem[] }).apiKeys ?? []);
-        return list as ApiKeyItem[];
+        return (data?.apiKeys ?? []) as ApiKeyItem[];
       },
       enabled: !!orgId,
     }).data ?? [];
@@ -602,7 +596,7 @@ function OrganizationDetail() {
 
           {createdApiKey && (
             <ApiKeyReveal
-              apiKey={createdApiKey as never}
+              apiKey={createdApiKey}
               onDismiss={() => setCreatedApiKey(null)}
             />
           )}

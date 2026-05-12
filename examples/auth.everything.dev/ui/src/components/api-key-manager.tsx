@@ -86,14 +86,14 @@ export function ApiKeyForm({ onCreate, isPending }: ApiKeyFormProps) {
   );
 }
 
-interface ApiKeyRevealProps {
+export interface ApiKeyRevealProps {
   apiKey: {
     id: string;
     name: string | null;
     prefix: string | null;
     start: string | null;
     key: string;
-    createdAt: Date;
+    createdAt: string | Date;
   };
   onDismiss: () => void;
 }

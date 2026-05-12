@@ -37,6 +37,12 @@ interface UserWithAnonymous extends User {
   isAnonymous?: boolean | null;
 }
 
+const localDevTrustedOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://[::1]:3000",
+];
+
 function toORPCError(error: unknown) {
   if (error && typeof error === "object" && "status" in error) {
     const apiError = error as { status: number; message?: string; code?: string };
@@ -69,8 +75,7 @@ async function safeAuthApi<T>(fn: () => Promise<T>): Promise<T> {
 function ensureOrigin(value: string): string | null {
   if (/^https?:\/\//i.test(value)) {
     try {
-      new URL(value);
-      return value;
+      return new URL(value).origin;
     } catch {
       console.warn(`[Auth] Invalid origin URL: ${value}`);
       return null;
@@ -100,6 +105,9 @@ function parseTrustedOrigins(
   const baseUrl = domain ? ensureOrigin(domain) : "http://localhost:3000";
   const origins: string[] = [];
   if (baseUrl) origins.push(baseUrl);
+  if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
+    origins.push(...localDevTrustedOrigins);
+  }
 
   if (corsOrigin) {
     for (const entry of corsOrigin.split(",")) {

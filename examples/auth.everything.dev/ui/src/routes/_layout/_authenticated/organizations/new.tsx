@@ -3,14 +3,12 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAuthClient } from "@/app";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button, Card, CardContent, Input } from "@/components";
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/new")({
   head: () => ({
+    title: "New Organization | auth.everything.dev",
     meta: [
-      { title: "New Organization | app" },
       { name: "description", content: "Create a new organization." },
     ],
   }),
@@ -64,25 +62,18 @@ function NewOrganization() {
   };
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-4">
-        <Card>
-          <CardContent className="p-6 sm:p-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                New Organization
-              </h1>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Create a new workspace for your team, then move directly into membership and API key
-                management.
-              </p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/organizations">back to organizations</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">New Organization</h1>
+          <p className="text-sm text-muted-foreground">
+            Create a workspace for team members and organization API keys.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/organizations">back to organizations</Link>
+        </Button>
+      </div>
 
       <form
         onSubmit={(e) => {
@@ -92,44 +83,34 @@ function NewOrganization() {
         className="space-y-6"
       >
         <Card>
-          <CardContent className="p-0">
-            <table className="w-full text-xs font-mono">
-              <tbody>
-                <tr className="border-b border-border">
-                  <td className="px-4 py-3 text-muted-foreground text-right w-32">name</td>
-                  <td className="px-4 py-3">
-                    <Input
-                      type="text"
-                      value={name}
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      placeholder="My Team"
-                      className="font-mono text-xs h-8"
-                      required
-                    />
-                  </td>
-                </tr>
-                <tr>
-                  <td className="px-4 py-3 text-muted-foreground text-right">slug</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">@</span>
-                      <Input
-                        type="text"
-                        value={slug}
-                        onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/g, ""))}
-                        placeholder="my-team"
-                        pattern="[a-z0-9-]+"
-                        className="font-mono text-xs h-8"
-                        required
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Only lowercase letters, numbers, and hyphens
-                    </p>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <CardContent className="p-6 space-y-4">
+            <Field label="name" htmlFor="organization-name">
+              <Input
+                id="organization-name"
+                type="text"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="My Team"
+                required
+              />
+            </Field>
+            <Field label="slug" htmlFor="organization-slug">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">@</span>
+                <Input
+                  id="organization-slug"
+                  type="text"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/g, ""))}
+                  placeholder="my-team"
+                  pattern="[a-z0-9-]+"
+                  required
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Only lowercase letters, numbers, and hyphens.
+              </p>
+            </Field>
           </CardContent>
         </Card>
 
@@ -149,8 +130,8 @@ function NewOrganization() {
       </form>
 
       <section className="space-y-4">
-        <h2 className="text-xs font-mono text-muted-foreground border-b border-border pb-2">
-          what happens next
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          What Happens Next
         </h2>
         <Card>
           <CardContent className="p-4">
@@ -163,6 +144,25 @@ function NewOrganization() {
           </CardContent>
         </Card>
       </section>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor={htmlFor} className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

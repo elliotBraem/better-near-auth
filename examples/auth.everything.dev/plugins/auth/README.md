@@ -49,6 +49,7 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 |--------|------|---------|-------------|
 | `AUTH_DATABASE_URL` | `string` | — | PostgreSQL connection string or pglite path |
 | `BETTER_AUTH_SECRET` | `string` | — | Secret key for Better Auth session signing |
+| `CORS_ORIGIN` | `string` | — | Optional comma-separated browser origins trusted by Better Auth |
 
 ### Plugin Context
 
@@ -71,6 +72,7 @@ The plugin itself does **not** read `process.env`. The host passes all configura
 | `PASSKEY_ORIGIN` | WebAuthn origin override (dev fallback) |
 | `AUTH_DATABASE_URL` | Database URL (dev fallback) |
 | `BETTER_AUTH_SECRET` | Session signing secret (dev fallback) |
+| `CORS_ORIGIN` | Additional comma-separated trusted origins |
 
 ## Database
 

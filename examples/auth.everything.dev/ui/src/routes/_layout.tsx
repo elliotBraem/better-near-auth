@@ -1,5 +1,15 @@
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
-import { Building2, FolderKanban, Globe, Home, Settings } from "lucide-react";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
+import {
+  Building2,
+  Home,
+  Key,
+  Link2,
+  Search,
+  Settings,
+  ShieldCheck,
+  UserRound,
+  Zap,
+} from "lucide-react";
 import { getAppName, sessionQueryOptions } from "@/app";
 import builtOn from "@/assets/built_on.png";
 import builtOnRev from "@/assets/built_on_rev.png";
@@ -25,21 +35,28 @@ export const Route = createFileRoute("/_layout")({
 });
 
 const authenticatedSidebarItems = [
-  { icon: Home, label: "home", to: "/" as const },
-  { icon: Globe, label: "apps", to: "/apps" as const },
-  { icon: FolderKanban, label: "projects", to: "/projects" as const },
+  { icon: Home, label: "home", to: "/home" as const },
+  { icon: Zap, label: "guestbook", to: "/guestbook" as const },
+  { icon: Link2, label: "accounts", to: "/accounts" as const },
+  { icon: Search, label: "account", to: "/account" as const },
+  { icon: UserRound, label: "auth", to: "/auth-methods" as const },
+  { icon: Key, label: "api keys", to: "/api-keys" as const },
   { icon: Building2, label: "organizations", to: "/organizations" as const },
   { icon: Settings, label: "settings", to: "/settings" as const },
+  { icon: ShieldCheck, label: "admin", to: "/admin" as const, adminOnly: true },
 ];
 
 function Layout() {
-  const pathname = useClientValue(() => window.location.pathname, "/");
+  const pathname = useLocation({ select: (location) => location.pathname });
   const appName = useClientValue(() => getAppName(), "app");
   const { session } = Route.useRouteContext();
   const isAuthenticated = !!session?.user;
+  const sidebarItems = authenticatedSidebarItems.filter(
+    (item) => !("adminOnly" in item) || session?.user?.role === "admin",
+  );
 
-  const isActive = (item: (typeof authenticatedSidebarItems)[number]) => {
-    return pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+  const isActive = (item: (typeof sidebarItems)[number]) => {
+    return pathname === item.to || pathname.startsWith(`${item.to}/`);
   };
 
   return (
@@ -69,7 +86,7 @@ function Layout() {
                 <TooltipContent side="right">{appName}</TooltipContent>
               </Tooltip>
 
-              {authenticatedSidebarItems.map((item) => {
+              {sidebarItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item);
                 const className = `flex items-center justify-center w-10 h-10 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] shadow-sm transition-all duration-200 ease-out hover:shadow-md ${active ? "bg-foreground text-background" : "bg-card text-foreground hover:bg-muted"}`;
@@ -166,7 +183,7 @@ function Layout() {
           {isAuthenticated && (
             <nav className="fixed bottom-0 left-0 right-0 sm:hidden border-t border-border bg-card animate-fade-in z-40">
               <div className="flex items-center justify-around px-2 py-2 safe-area-inset-bottom">
-                {authenticatedSidebarItems.map((item) => {
+                {sidebarItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item);
                   const className = `flex flex-col items-center justify-center gap-0.5 p-1.5 transition-colors duration-200 ${active ? "text-foreground" : "text-muted-foreground"}`;
