@@ -1,9 +1,15 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2, Plus, RefreshCw } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { Building2, Mail, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { type Organization, type SessionData, useAuthClient } from "@/app";
 import { Badge, Button, Card, CardContent, Skeleton } from "@/components";
+
+type AuthClientType = import("@/app").AuthClient;
+type UserInvitationsResponse = Awaited<
+  ReturnType<AuthClientType["organization"]["listUserInvitations"]>
+>;
+type UserInvitationItem = NonNullable<UserInvitationsResponse["data"]>[number];
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
   head: () => ({
@@ -17,6 +23,8 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
 
 function OrganizationsList() {
   const auth = useAuthClient();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
     queryFn: async () => {
@@ -34,6 +42,56 @@ function OrganizationsList() {
     staleTime: 30 * 1000,
   });
 
+  const { data: userInvitations = [] } = useQuery({
+    queryKey: ["user-invitations"],
+    queryFn: async (): Promise<UserInvitationItem[]> => {
+      const { data, error } = await auth.organization.listUserInvitations();
+      if (error) throw new Error(error.message);
+      return (data ?? []) as UserInvitationItem[];
+    },
+    staleTime: 30 * 1000,
+  });
+
+  const pendingInvitations = userInvitations.filter((i) => i.status === "pending");
+
+  const acceptInvitationMutation = useMutation({
+    mutationFn: async (invitation: UserInvitationItem) => {
+      const { error } = await auth.organization.acceptInvitation({
+        invitationId: invitation.id,
+      });
+      if (error) throw new Error(error.message);
+      return invitation;
+    },
+    onSuccess: async (invitation) => {
+      toast.success(`Joined ${invitation.organizationName ?? "organization"}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["organizations"] }),
+        queryClient.invalidateQueries({ queryKey: ["session"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-invitations"] }),
+      ]);
+      await queryClient.refetchQueries({ queryKey: ["organizations"] });
+      if (invitation.organizationSlug) {
+        await router.navigate({
+          to: "/organizations/$slug",
+          params: { slug: invitation.organizationSlug },
+        });
+      }
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to accept invitation"),
+  });
+
+  const rejectInvitationMutation = useMutation({
+    mutationFn: async (invitationId: string) => {
+      const { error } = await auth.organization.rejectInvitation({ invitationId });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: async () => {
+      toast.success("Invitation declined");
+      await queryClient.invalidateQueries({ queryKey: ["user-invitations"] });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to decline invitation"),
+  });
+
   const user = session?.user;
   const activeOrgId = session?.session?.activeOrganizationId;
 
@@ -42,7 +100,10 @@ function OrganizationsList() {
       const { error } = await auth.organization.setActive({ organizationId: orgId });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => toast.success("Switched organization"),
+    onSuccess: async () => {
+      toast.success("Switched organization");
+      await queryClient.invalidateQueries({ queryKey: ["session"] });
+    },
     onError: (error: Error) => toast.error(error.message || "Failed to switch organization"),
   });
 
@@ -84,9 +145,69 @@ function OrganizationsList() {
           <CardContent className="p-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <StatBox label="total" value={String(orgs.length)} />
             <StatBox label="active" value={activeOrgId ? "yes" : "no"} />
+            <StatBox label="invites" value={String(pendingInvitations.length)} />
           </CardContent>
         </Card>
       </section>
+
+      {pendingInvitations.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-mono text-muted-foreground border-b border-border pb-2">
+            pending invitations ({pendingInvitations.length})
+          </h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {pendingInvitations.map((invitation) => (
+              <Card key={invitation.id}>
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 border-2 border-outset border-border flex items-center justify-center shrink-0">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="font-medium break-all">
+                        {invitation.organizationName ?? invitation.organizationSlug}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono">
+                        invited as {invitation.role ?? "member"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => acceptInvitationMutation.mutate(invitation)}
+                      disabled={
+                        acceptInvitationMutation.isPending || rejectInvitationMutation.isPending
+                      }
+                      size="sm"
+                    >
+                      {acceptInvitationMutation.isPending &&
+                      acceptInvitationMutation.variables?.id === invitation.id
+                        ? "accepting..."
+                        : "accept"}
+                    </Button>
+                    <Button
+                      onClick={() => rejectInvitationMutation.mutate(invitation.id)}
+                      disabled={
+                        acceptInvitationMutation.isPending || rejectInvitationMutation.isPending
+                      }
+                      variant="outline"
+                      size="sm"
+                    >
+                      {rejectInvitationMutation.isPending &&
+                      rejectInvitationMutation.variables === invitation.id
+                        ? "declining..."
+                        : "decline"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

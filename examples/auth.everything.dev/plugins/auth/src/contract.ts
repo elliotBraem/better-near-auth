@@ -102,11 +102,24 @@ export const apiKeySchema = z.object({
   name: z.string().nullable(),
   prefix: z.string().nullable(),
   start: z.string().nullable(),
+  enabled: z.boolean(),
+  rateLimitEnabled: z.boolean(),
+  rateLimitMax: z.number().nullable(),
+  rateLimitTimeWindow: z.number().nullable(),
+  remaining: z.number().nullable(),
+  requestCount: z.number(),
+  lastRequest: z.date().nullable(),
   expiresAt: z.date().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
   metadata: z.unknown().nullable(),
   permissions: z.record(z.string(), z.array(z.string())).nullable(),
+});
+
+const apiKeyRateLimitSchema = z.object({
+  enabled: z.boolean().optional(),
+  timeWindow: z.number().int().positive().optional(),
+  max: z.number().int().positive().optional(),
 });
 
 const memberSchema = z.object({
@@ -234,6 +247,43 @@ export const contract = oc.router({
 
   // ── Organization ─────────────────────────────────────────────────────
 
+  listOrganizations: oc
+    .route({ method: "GET", path: "/v1/auth/organizations" })
+    .output(
+      z.array(
+        organizationInfoSchema.extend({
+          createdAt: z.date(),
+          role: z.string(),
+        }),
+      ),
+    )
+    .errors(Errors),
+
+  createOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations" })
+    .input(
+      z.object({
+        name: z.string(),
+        slug: z.string(),
+        logo: z.string().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .output(organizationInfoSchema.extend({ createdAt: z.date() }))
+    .errors(Errors),
+
+  setActiveOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/set-active" })
+    .input(z.object({ organizationId: z.string().nullable() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  leaveOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/{id}/leave" })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
   getOrganization: oc
     .route({ method: "GET", path: "/v1/auth/organizations/{id}" })
     .input(z.object({ id: z.string() }))
@@ -308,6 +358,31 @@ export const contract = oc.router({
 
   // ── Invitations ──────────────────────────────────────────────────────
 
+  inviteMember: oc
+    .route({ method: "POST", path: "/v1/auth/invitations" })
+    .input(
+      z.object({
+        email: z.string(),
+        role: z.enum(["owner", "admin", "member"]),
+        organizationId: z.string().optional(),
+        resend: z.boolean().optional(),
+      }),
+    )
+    .output(invitationSchema)
+    .errors(Errors),
+
+  getInvitation: oc
+    .route({ method: "GET", path: "/v1/auth/invitations/{id}" })
+    .input(z.object({ id: z.string() }))
+    .output(
+      invitationSchema
+        .extend({
+          organization: organizationInfoSchema.nullable(),
+        })
+        .nullable(),
+    )
+    .errors(Errors),
+
   listInvitations: oc
     .route({ method: "GET", path: "/v1/auth/invitations" })
     .input(
@@ -357,6 +432,10 @@ export const contract = oc.router({
     .input(
       z.object({
         organizationId: z.string().optional(),
+        limit: z.number().int().positive().optional(),
+        offset: z.number().int().nonnegative().optional(),
+        sortBy: z.enum(["createdAt", "name", "expiresAt", "lastRequest"]).optional(),
+        sortDirection: z.enum(["asc", "desc"]).optional(),
       }),
     )
     .output(z.array(apiKeySchema))
@@ -368,15 +447,10 @@ export const contract = oc.router({
       z.object({
         name: z.string().optional(),
         prefix: z.string().optional(),
-        expiresAt: z.date().optional(),
+        expiresIn: z.number().int().positive().optional(),
         permissions: z.record(z.string(), z.array(z.string())).optional(),
         metadata: z.unknown().optional(),
-        rateLimit: z
-          .object({
-            timeWindow: z.number().optional(),
-            max: z.number().optional(),
-          })
-          .optional(),
+        rateLimit: apiKeyRateLimitSchema.optional(),
         organizationId: z.string().optional(),
       }),
     )
@@ -389,9 +463,11 @@ export const contract = oc.router({
       z.object({
         id: z.string(),
         name: z.string().optional(),
-        permissions: z.record(z.string(), z.array(z.string())).optional(),
+        enabled: z.boolean().optional(),
+        permissions: z.record(z.string(), z.array(z.string())).nullable().optional(),
         metadata: z.unknown().optional(),
-        expiresAt: z.date().optional(),
+        expiresIn: z.number().int().positive().nullable().optional(),
+        rateLimit: apiKeyRateLimitSchema.optional(),
       }),
     )
     .output(apiKeySchema)
@@ -405,6 +481,28 @@ export const contract = oc.router({
       }),
     )
     .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  verifyApiKey: oc
+    .route({ method: "POST", path: "/v1/auth/api-keys/verify" })
+    .input(
+      z.object({
+        key: z.string(),
+        permissions: z.record(z.string(), z.array(z.string())).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        valid: z.boolean(),
+        error: z
+          .object({
+            code: z.string(),
+            message: z.string().optional(),
+          })
+          .nullable(),
+        key: apiKeySchema.nullable(),
+      }),
+    )
     .errors(Errors),
 
   // ── NEAR SIWN ──────────────────────────────────────────────────────

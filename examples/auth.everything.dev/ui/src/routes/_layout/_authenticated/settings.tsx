@@ -3,14 +3,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
+  type AuthClient,
   type Passkey,
   type SessionData,
   sessionQueryOptions,
-  useApiClient,
   useAuthClient,
 } from "@/app";
 import {
   ApiKeyForm,
+  type ApiKeyFormValues,
   ApiKeyReveal,
   Badge,
   Button,
@@ -23,6 +24,22 @@ import {
   TabsTrigger,
 } from "@/components";
 import { Input } from "@/components/ui/input";
+
+type CreatedApiKey =
+  Awaited<ReturnType<AuthClient["apiKey"]["create"]>> extends { data: infer D }
+    ? NonNullable<D>
+    : never;
+
+type ApiKeyItem = {
+  id: string;
+  name: string | null;
+  prefix: string | null;
+  start: string | null;
+  enabled?: boolean;
+  createdAt: string | Date;
+  expiresAt?: string | Date | null;
+  lastRequest?: string | Date | null;
+};
 
 export const Route = createFileRoute("/_layout/_authenticated/settings")({
   head: () => ({
@@ -321,30 +338,43 @@ function AuthMethodsTab({
 }
 
 function ApiKeysTab() {
-  const apiClient = useApiClient();
+  const auth = useAuthClient();
   const queryClient = useQueryClient();
-  const [createdApiKey, setCreatedApiKey] = useState<any>(null);
+  const [createdApiKey, setCreatedApiKey] = useState<CreatedApiKey | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmConfig, setConfirmConfig] = useState({
-    title: "",
-    description: "",
-    onConfirm: () => {},
-    keyId: "",
-  });
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({ title: "", description: "", onConfirm: () => {} });
 
   const { data: apiKeys = [], isLoading } = useQuery({
     queryKey: ["user-api-keys"],
-    queryFn: async () => {
-      const res = await apiClient.auth.listApiKeys({});
-      return res ?? [];
+    queryFn: async (): Promise<ApiKeyItem[]> => {
+      const { data, error } = await auth.apiKey.list({
+        query: { configId: "user-keys" },
+      });
+      if (error) throw new Error(error.message);
+      if (!data) return [];
+      const list = Array.isArray(data)
+        ? data
+        : ((data as { apiKeys?: ApiKeyItem[] }).apiKeys ?? []);
+      return list as ApiKeyItem[];
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: (params: { name: string; permissions?: Record<string, string[]> }) =>
-      apiClient.auth.createApiKey({ name: params.name, permissions: params.permissions }),
+    mutationFn: async (values: ApiKeyFormValues) => {
+      const { data, error } = await auth.apiKey.create({
+        configId: "user-keys",
+        name: values.name,
+        ...(values.expiresIn !== undefined ? { expiresIn: values.expiresIn } : {}),
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: (data) => {
-      setCreatedApiKey(data);
+      if (data) setCreatedApiKey(data as CreatedApiKey);
       toast.success("API key created");
       queryClient.invalidateQueries({ queryKey: ["user-api-keys"] });
     },
@@ -352,7 +382,10 @@ function ApiKeysTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (keyId: string) => apiClient.auth.deleteApiKey({ id: keyId }),
+    mutationFn: async (keyId: string) => {
+      const { error } = await auth.apiKey.delete({ keyId });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: () => {
       toast.success("API key deleted");
       queryClient.invalidateQueries({ queryKey: ["user-api-keys"] });
@@ -360,12 +393,10 @@ function ApiKeysTab() {
     onError: (error: Error) => toast.error(error.message || "Failed to delete API key"),
   });
 
-  const handleDelete = (keyId: string) => {
+  const handleDelete = (keyId: string, keyName: string | null) => {
     setConfirmConfig({
       title: "Delete API key",
-      description:
-        "This API key will be permanently revoked. Any services using it will stop working.",
-      keyId,
+      description: `Permanently revoke ${keyName ?? "this key"}. Any service using it will stop working.`,
       onConfirm: () => {
         deleteMutation.mutate(keyId);
         setConfirmOpen(false);
@@ -379,15 +410,14 @@ function ApiKeysTab() {
       <Card>
         <CardContent className="p-6">
           <ApiKeyForm
-            orgId=""
-            onCreate={(name, permissions) => createMutation.mutate({ name, permissions })}
+            onCreate={(values) => createMutation.mutate(values)}
             isPending={createMutation.isPending}
           />
         </CardContent>
       </Card>
 
       {createdApiKey && (
-        <ApiKeyReveal apiKey={createdApiKey} onDismiss={() => setCreatedApiKey(null)} />
+        <ApiKeyReveal apiKey={createdApiKey as never} onDismiss={() => setCreatedApiKey(null)} />
       )}
 
       {isLoading ? (
@@ -401,44 +431,30 @@ function ApiKeysTab() {
           {apiKeys.map((key) => (
             <Card key={key.id}>
               <CardContent className="p-5 space-y-3">
-                <div className="space-y-1">
-                  <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {key.prefix ?? "api_"}...
-                  </div>
-                </div>
-                {(() => {
-                  const perms = key.permissions;
-                  if (!perms || typeof perms !== "object") return null;
-                  const entries = Object.entries(perms as Record<string, string[]>);
-                  if (entries.length === 0) return null;
-                  return (
-                    <div className="flex flex-wrap gap-1">
-                      {entries.flatMap(([scope, actions]) =>
-                        actions.map((action) => (
-                          <Badge
-                            key={`${scope}:${action}`}
-                            variant="outline"
-                            className="text-[10px]"
-                          >
-                            {scope}:{action}
-                          </Badge>
-                        )),
-                      )}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
+                    <div className="text-xs text-muted-foreground font-mono">
+                      {key.prefix ?? "api_"}...{key.start ?? ""}
                     </div>
-                  );
-                })()}
-                <div className="text-xs text-muted-foreground">
-                  created {new Date(key.createdAt).toLocaleString()}
+                  </div>
+                  {key.enabled === false && <Badge variant="outline">disabled</Badge>}
+                </div>
+                <div className="grid gap-1 text-xs text-muted-foreground">
+                  <div>created {new Date(key.createdAt).toLocaleString()}</div>
+                  {key.expiresAt && <div>expires {new Date(key.expiresAt).toLocaleString()}</div>}
+                  {key.lastRequest && (
+                    <div>last used {new Date(key.lastRequest).toLocaleString()}</div>
+                  )}
                 </div>
                 <Button
-                  onClick={() => handleDelete(key.id)}
+                  onClick={() => handleDelete(key.id, key.name)}
                   disabled={deleteMutation.isPending}
                   variant="outline"
                   size="sm"
                   className="text-destructive hover:text-destructive"
                 >
-                  delete key
+                  delete
                 </Button>
               </CardContent>
             </Card>
