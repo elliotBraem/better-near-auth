@@ -64,5 +64,5 @@ examples/*/apps/*/*.db
 examples/*/plugins/*/*.db
 
 # Agents files
-.CLAUDE.md
-.AGENTS.md
+CLAUDE.md
+AGENTS.md
