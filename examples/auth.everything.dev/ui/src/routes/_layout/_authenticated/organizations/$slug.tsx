@@ -12,6 +12,7 @@ import {
 } from "@/app";
 import {
   ApiKeyForm,
+  type ApiKeyFormValues,
   ApiKeyReveal,
   Badge,
   Button,
@@ -201,8 +202,8 @@ function OrganizationDetail() {
   });
 
   const createApiKeyMutation = useMutation({
-    mutationFn: ({ name, permissions }: { name: string; permissions?: Record<string, string[]> }) =>
-      apiClient.auth.createApiKey({ organizationId: orgId, name, permissions }),
+    mutationFn: (values: ApiKeyFormValues) =>
+      apiClient.auth.createApiKey({ organizationId: orgId, ...values }),
     onSuccess: async (data) => {
       setCreatedApiKey(data);
       toast.success("API key created");
@@ -487,10 +488,7 @@ function OrganizationDetail() {
             <Card>
               <CardContent className="p-6">
                 <ApiKeyForm
-                  orgId={orgId}
-                  onCreate={(name, permissions) =>
-                    createApiKeyMutation.mutate({ name, permissions })
-                  }
+                  onCreate={(values) => createApiKeyMutation.mutate(values)}
                   isPending={createApiKeyMutation.isPending}
                 />
               </CardContent>
@@ -506,22 +504,33 @@ function OrganizationDetail() {
               {apiKeys.map((key) => (
                 <Card key={key.id}>
                   <CardContent className="p-5 space-y-3">
-                    <div className="space-y-1">
-                      <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
-                      <div className="text-xs text-muted-foreground font-mono">
-                        {key.prefix ?? "api_"}...
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
+                        <div className="text-xs text-muted-foreground font-mono">
+                          {key.prefix ?? "api_"}...{key.start ?? ""}
+                        </div>
                       </div>
+                      <Badge variant="outline">{key.enabled ? "enabled" : "disabled"}</Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      created {new Date(key.createdAt).toLocaleString()}
+                    <div className="grid gap-1 text-xs text-muted-foreground">
+                      <div>created {new Date(key.createdAt).toLocaleString()}</div>
+                      {key.expiresAt && (
+                        <div>expires {new Date(key.expiresAt).toLocaleString()}</div>
+                      )}
+                      {key.rateLimitEnabled && key.rateLimitMax && key.rateLimitTimeWindow && (
+                        <div>
+                          rate limit {key.rateLimitMax}/{key.rateLimitTimeWindow}ms
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => handleCopyApiKey(key.start || "", "Key copied")}
+                        onClick={() => handleCopyApiKey(key.start || "", "Key prefix copied")}
                         variant="outline"
                         size="sm"
                       >
-                        copy
+                        copy id
                       </Button>
                       {canManageMembers && (
                         <Button

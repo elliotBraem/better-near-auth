@@ -7,16 +7,34 @@ import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 
+export interface ApiKeyFormValues {
+  name: string;
+  permissions?: Record<string, string[]>;
+  expiresIn?: number;
+  rateLimit?: { enabled: boolean; max: number; timeWindow: number };
+}
+
 interface ApiKeyFormProps {
-  orgId: string;
-  onCreate: (name: string, permissions?: Record<string, string[]>) => void;
+  onCreate: (values: ApiKeyFormValues) => void;
   isPending: boolean;
 }
 
-export function ApiKeyForm({ orgId: _orgId, onCreate, isPending }: ApiKeyFormProps) {
+const EXPIRATION_PRESETS = [
+  { label: "no expiry", value: 0 },
+  { label: "7 days", value: 7 * 24 * 60 * 60 },
+  { label: "30 days", value: 30 * 24 * 60 * 60 },
+  { label: "90 days", value: 90 * 24 * 60 * 60 },
+  { label: "1 year", value: 365 * 24 * 60 * 60 },
+] as const;
+
+export function ApiKeyForm({ onCreate, isPending }: ApiKeyFormProps) {
   const [name, setName] = useState("");
   const [permissionTag, setPermissionTag] = useState("");
   const [permissions, setPermissions] = useState<Record<string, string[]>>({});
+  const [expiresInSeconds, setExpiresInSeconds] = useState<number>(0);
+  const [rateLimitEnabled, setRateLimitEnabled] = useState(false);
+  const [rateLimitMax, setRateLimitMax] = useState<string>("10");
+  const [rateLimitWindowMs, setRateLimitWindowMs] = useState<string>("86400000");
 
   const addPermission = () => {
     if (!permissionTag.trim()) return;
@@ -48,9 +66,28 @@ export function ApiKeyForm({ orgId: _orgId, onCreate, isPending }: ApiKeyFormPro
       },
       {} as Record<string, string[]>,
     );
-    onCreate(name.trim(), Object.keys(cleanPermissions).length > 0 ? cleanPermissions : undefined);
+
+    const max = Number.parseInt(rateLimitMax, 10);
+    const timeWindow = Number.parseInt(rateLimitWindowMs, 10);
+    if (rateLimitEnabled && (!Number.isFinite(max) || max <= 0)) {
+      toast.error("Rate limit max must be a positive number");
+      return;
+    }
+    if (rateLimitEnabled && (!Number.isFinite(timeWindow) || timeWindow <= 0)) {
+      toast.error("Rate limit window must be a positive number");
+      return;
+    }
+
+    onCreate({
+      name: name.trim(),
+      permissions: Object.keys(cleanPermissions).length > 0 ? cleanPermissions : undefined,
+      expiresIn: expiresInSeconds > 0 ? expiresInSeconds : undefined,
+      rateLimit: rateLimitEnabled ? { enabled: true, max, timeWindow } : undefined,
+    });
     setName("");
     setPermissions({});
+    setExpiresInSeconds(0);
+    setRateLimitEnabled(false);
   };
 
   const hasPermissions = Object.values(permissions).some((a) => a.length > 0);
@@ -65,6 +102,23 @@ export function ApiKeyForm({ orgId: _orgId, onCreate, isPending }: ApiKeyFormPro
           onChange={(e) => setName(e.target.value)}
           placeholder="API key name"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground uppercase tracking-wide">expiration</Label>
+        <div className="flex flex-wrap gap-2">
+          {EXPIRATION_PRESETS.map((preset) => (
+            <Button
+              key={preset.value}
+              type="button"
+              variant={expiresInSeconds === preset.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setExpiresInSeconds(preset.value)}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -107,6 +161,39 @@ export function ApiKeyForm({ orgId: _orgId, onCreate, isPending }: ApiKeyFormPro
                 </Badge>
               )),
             )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide cursor-pointer">
+          <input
+            type="checkbox"
+            checked={rateLimitEnabled}
+            onChange={(e) => setRateLimitEnabled(e.target.checked)}
+          />
+          rate limit
+        </label>
+        {rateLimitEnabled && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">max requests</Label>
+              <Input
+                type="number"
+                min={1}
+                value={rateLimitMax}
+                onChange={(e) => setRateLimitMax(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">window (ms)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={rateLimitWindowMs}
+                onChange={(e) => setRateLimitWindowMs(e.target.value)}
+              />
+            </div>
           </div>
         )}
       </div>

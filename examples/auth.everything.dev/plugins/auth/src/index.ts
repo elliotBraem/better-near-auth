@@ -487,10 +487,17 @@ export default createPlugin({
         }),
 
       listApiKeys: builder.listApiKeys.use(requireAuth).handler(async ({ context, input }) => {
+        const query: Record<string, string | number> = {};
+        if (input?.organizationId) query.organizationId = input.organizationId;
+        if (input?.limit !== undefined) query.limit = input.limit;
+        if (input?.offset !== undefined) query.offset = input.offset;
+        if (input?.sortBy) query.sortBy = input.sortBy;
+        if (input?.sortDirection) query.sortDirection = input.sortDirection;
+
         const result = await safeAuthApi(() =>
           services.auth.api.listApiKeys({
             headers: createHeaders(context.reqHeaders),
-            query: input?.organizationId ? { organizationId: input.organizationId } : undefined,
+            query: Object.keys(query).length > 0 ? query : undefined,
           }),
         );
         return (result as { apiKeys?: Array<z.infer<typeof apiKeySchema>> }).apiKeys ?? [];
@@ -499,10 +506,17 @@ export default createPlugin({
       createApiKey: builder.createApiKey.use(requireAuth).handler(async ({ input, context }) => {
         const result = await safeAuthApi(() =>
           services.auth.api.createApiKey({
-            headers: createHeaders(context.reqHeaders),
             body: {
-              ...input,
+              userId: context.userId,
+              name: input.name,
+              prefix: input.prefix,
+              expiresIn: input.expiresIn,
               permissions: input.permissions,
+              metadata: input.metadata,
+              organizationId: input.organizationId,
+              rateLimitEnabled: input.rateLimit?.enabled,
+              rateLimitMax: input.rateLimit?.max,
+              rateLimitTimeWindow: input.rateLimit?.timeWindow,
             },
           }),
         );
@@ -512,13 +526,17 @@ export default createPlugin({
       updateApiKey: builder.updateApiKey.use(requireAuth).handler(async ({ input, context }) => {
         const result = await safeAuthApi(() =>
           services.auth.api.updateApiKey({
-            headers: createHeaders(context.reqHeaders),
             body: {
+              userId: context.userId,
               keyId: input.id,
               name: input.name,
+              enabled: input.enabled,
               permissions: input.permissions,
               metadata: input.metadata,
-              expiresAt: input.expiresAt,
+              expiresIn: input.expiresIn,
+              rateLimitEnabled: input.rateLimit?.enabled,
+              rateLimitMax: input.rateLimit?.max,
+              rateLimitTimeWindow: input.rateLimit?.timeWindow,
             },
           }),
         );
@@ -537,6 +555,30 @@ export default createPlugin({
         } catch {
           throw new ORPCError("NOT_FOUND", { message: "API key not found" });
         }
+      }),
+
+      verifyApiKey: builder.verifyApiKey.handler(async ({ input, context }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.verifyApiKey({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              key: input.key,
+              permissions: input.permissions,
+            },
+          }),
+        );
+        const r = result as {
+          valid: boolean;
+          error?: { code?: string; message?: string } | null;
+          key?: z.infer<typeof apiKeySchema> | null;
+        };
+        return {
+          valid: r.valid,
+          error: r.error
+            ? { code: r.error.code ?? "UNKNOWN", message: r.error.message ?? undefined }
+            : null,
+          key: r.key ?? null,
+        };
       }),
 
       listMembers: builder.listMembers.use(requireAuth).handler(async ({ input }) => {
