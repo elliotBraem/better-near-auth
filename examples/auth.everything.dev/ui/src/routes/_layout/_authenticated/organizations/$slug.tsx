@@ -1,10 +1,10 @@
-import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Edit2, Key, Mail, Trash2, Users } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { Edit2, Key, LogOut, Mail, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  type AuthClient,
+  type ApiClient,
   type Organization,
   type SessionData,
   useApiClient,
@@ -27,56 +27,23 @@ import {
   TabsTrigger,
 } from "@/components";
 
-type ApiClient = import("@/app").ApiClient;
+type AuthClientType = import("@/app").AuthClient;
+
+type MembersResponse = Awaited<ReturnType<AuthClientType["organization"]["listMembers"]>>;
+type MemberItem = NonNullable<MembersResponse["data"]>["members"][number];
+
+type InvitationsResponse = Awaited<ReturnType<AuthClientType["organization"]["listInvitations"]>>;
+type InvitationItem = NonNullable<InvitationsResponse["data"]>[number];
+
 type OrgApiKeysResult = Awaited<ReturnType<ApiClient["auth"]["listApiKeys"]>>;
+type ApiKeyItem = OrgApiKeysResult[number];
 type CreatedApiKey = Awaited<ReturnType<ApiClient["auth"]["createApiKey"]>>;
-type OrgMembersResult = Awaited<ReturnType<ApiClient["auth"]["listMembers"]>>;
-type OrgInvitationsResult = Awaited<ReturnType<ApiClient["auth"]["listInvitations"]>>;
 
 const orgMembersQueryKey = (orgId: string) => ["org-members", orgId] as const;
 const orgInvitationsQueryKey = (orgId: string) => ["org-invitations", orgId] as const;
 const orgApiKeysQueryKey = (orgId: string) => ["org-api-keys", orgId] as const;
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/$slug")({
-  loader: async ({
-    context,
-    params,
-  }: {
-    context: { queryClient: QueryClient; apiClient: ApiClient; authClient: AuthClient };
-    params: { slug: string };
-  }) => {
-    const orgs = await context.queryClient.ensureQueryData({
-      queryKey: ["organizations"],
-      queryFn: async () => {
-        const { data } = await context.authClient.organization.list();
-        return (data || []) as Organization[];
-      },
-      staleTime: 30 * 1000,
-    });
-
-    const org = orgs.find((o: Organization) => o.slug === params.slug);
-    const orgId = org?.id;
-
-    if (!orgId) throw notFound();
-
-    await Promise.all([
-      context.queryClient.ensureQueryData({
-        queryKey: orgMembersQueryKey(orgId),
-        queryFn: async (): Promise<OrgMembersResult> =>
-          context.apiClient.auth.listMembers({ organizationId: orgId }),
-      }),
-      context.queryClient.ensureQueryData({
-        queryKey: orgInvitationsQueryKey(orgId),
-        queryFn: async (): Promise<OrgInvitationsResult> =>
-          context.apiClient.auth.listInvitations({ organizationId: orgId }),
-      }),
-      context.queryClient.ensureQueryData({
-        queryKey: orgApiKeysQueryKey(orgId),
-        queryFn: async (): Promise<OrgApiKeysResult> =>
-          context.apiClient.auth.listApiKeys({ organizationId: orgId }),
-      }),
-    ]);
-  },
   head: () => ({
     meta: [
       { title: "Organization | app" },
@@ -88,9 +55,11 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/$slu
 
 function OrganizationDetail() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { slug: orgSlug } = Route.useParams();
-  const apiClient = useApiClient();
   const auth = useAuthClient();
+  const apiClient = useApiClient();
+
   const { data: session } = useQuery<SessionData | null>({
     queryKey: ["session"],
     queryFn: async () => {
@@ -99,7 +68,8 @@ function OrganizationDetail() {
     },
     staleTime: 60 * 1000,
   });
-  const { data: organizations = [] } = useQuery({
+
+  const { data: organizations = [], isLoading: isLoadingOrgs } = useQuery({
     queryKey: ["organizations"],
     queryFn: async () => {
       const { data } = await auth.organization.list();
@@ -112,24 +82,37 @@ function OrganizationDetail() {
   const orgId = org?.id ?? "";
   const activeOrgId = session?.session?.activeOrganizationId;
   const isActive = orgId === activeOrgId;
+
   const members =
     useQuery({
       queryKey: orgMembersQueryKey(orgId),
-      queryFn: async (): Promise<OrgMembersResult> =>
-        apiClient.auth.listMembers({ organizationId: orgId }),
+      queryFn: async (): Promise<MemberItem[]> => {
+        const { data, error } = await auth.organization.listMembers({
+          query: { organizationId: orgId },
+        });
+        if (error) throw new Error(error.message);
+        return (data?.members ?? []) as MemberItem[];
+      },
       enabled: !!orgId,
     }).data ?? [];
+
   const invitations =
     useQuery({
       queryKey: orgInvitationsQueryKey(orgId),
-      queryFn: async (): Promise<OrgInvitationsResult> =>
-        apiClient.auth.listInvitations({ organizationId: orgId }),
+      queryFn: async (): Promise<InvitationItem[]> => {
+        const { data, error } = await auth.organization.listInvitations({
+          query: { organizationId: orgId },
+        });
+        if (error) throw new Error(error.message);
+        return (data ?? []) as InvitationItem[];
+      },
       enabled: !!orgId,
     }).data ?? [];
+
   const apiKeys =
     useQuery({
       queryKey: orgApiKeysQueryKey(orgId),
-      queryFn: async (): Promise<OrgApiKeysResult> =>
+      queryFn: (): Promise<OrgApiKeysResult> =>
         apiClient.auth.listApiKeys({ organizationId: orgId }),
       enabled: !!orgId,
     }).data ?? [];
@@ -137,6 +120,8 @@ function OrganizationDetail() {
   const myMembership = members.find((m) => m.userId === session?.user?.id);
   const canManageMembers = myMembership?.role === "owner" || myMembership?.role === "admin";
   const isOwner = myMembership?.role === "owner";
+
+  const pendingInvitationsCount = invitations.filter((i) => i.status === "pending").length;
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
@@ -156,7 +141,10 @@ function OrganizationDetail() {
       const { error } = await auth.organization.setActive({ organizationId: orgId });
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => toast.success("Switched to this organization"),
+    onSuccess: async () => {
+      toast.success("Switched to this organization");
+      await queryClient.invalidateQueries({ queryKey: ["session"] });
+    },
     onError: (error: Error) => toast.error(error.message || "Failed to switch organization"),
   });
 
@@ -180,7 +168,10 @@ function OrganizationDetail() {
   });
 
   const cancelInvitationMutation = useMutation({
-    mutationFn: (invitationId: string) => apiClient.auth.cancelInvitation({ id: invitationId }),
+    mutationFn: async (invitationId: string) => {
+      const { error } = await auth.organization.cancelInvitation({ invitationId });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: async () => {
       toast.success("Invitation cancelled");
       await queryClient.invalidateQueries({ queryKey: orgInvitationsQueryKey(orgId) });
@@ -191,7 +182,15 @@ function OrganizationDetail() {
   });
 
   const resendInvitationMutation = useMutation({
-    mutationFn: (invitationId: string) => apiClient.auth.resendInvitation({ id: invitationId }),
+    mutationFn: async (invitation: InvitationItem) => {
+      const { error } = await auth.organization.inviteMember({
+        organizationId: orgId,
+        email: invitation.email,
+        role: invitation.role as "admin" | "member" | "owner",
+        resend: true,
+      });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: async () => {
       toast.success("Invitation resent");
       await queryClient.invalidateQueries({ queryKey: orgInvitationsQueryKey(orgId) });
@@ -205,7 +204,7 @@ function OrganizationDetail() {
     mutationFn: (values: ApiKeyFormValues) =>
       apiClient.auth.createApiKey({ organizationId: orgId, ...values }),
     onSuccess: async (data) => {
-      setCreatedApiKey(data);
+      if (data) setCreatedApiKey(data);
       toast.success("API key created");
       await queryClient.invalidateQueries({ queryKey: orgApiKeysQueryKey(orgId) });
     },
@@ -218,15 +217,12 @@ function OrganizationDetail() {
     mutationFn: (keyId: string) => apiClient.auth.deleteApiKey({ id: keyId }),
     onMutate: async (keyId) => {
       await queryClient.cancelQueries({ queryKey: orgApiKeysQueryKey(orgId) });
-      const previousKeys = queryClient.getQueryData<OrgApiKeysResult>(orgApiKeysQueryKey(orgId));
+      const previousKeys = queryClient.getQueryData<ApiKeyItem[]>(orgApiKeysQueryKey(orgId));
 
-      queryClient.setQueryData<OrgApiKeysResult>(
-        orgApiKeysQueryKey(orgId),
-        (current: OrgApiKeysResult | undefined) => {
-          if (!current) return current;
-          return current.filter((key) => key.id !== keyId);
-        },
-      );
+      queryClient.setQueryData<ApiKeyItem[]>(orgApiKeysQueryKey(orgId), (current) => {
+        if (!current) return current;
+        return current.filter((key) => key.id !== keyId);
+      });
 
       return { previousKeys };
     },
@@ -243,8 +239,14 @@ function OrganizationDetail() {
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: (memberId: string) =>
-      apiClient.auth.removeMember({ id: memberId, organizationId: orgId }),
+    mutationFn: async (member: MemberItem) => {
+      const memberIdOrEmail = member.user?.email ?? member.userId;
+      const { error } = await auth.organization.removeMember({
+        memberIdOrEmail,
+        organizationId: orgId,
+      });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: async () => {
       toast.success("Member removed");
       await queryClient.invalidateQueries({ queryKey: orgMembersQueryKey(orgId) });
@@ -255,21 +257,66 @@ function OrganizationDetail() {
   });
 
   const updateOrgMutation = useMutation({
-    mutationFn: ({ name, slug }: { name: string; slug: string }) =>
-      apiClient.auth.updateOrganization({ id: orgId, name, slug }),
+    mutationFn: async ({ name, slug }: { name: string; slug: string }) => {
+      const { error } = await auth.organization.update({
+        organizationId: orgId,
+        data: { name, slug },
+      });
+      if (error) throw new Error(error.message);
+    },
     onSuccess: async () => {
       toast.success("Organization updated");
       await queryClient.invalidateQueries({ queryKey: ["organizations"] });
       await queryClient.invalidateQueries({ queryKey: orgMembersQueryKey(orgId) });
+      setIsEditing(false);
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to update organization");
     },
   });
 
+  const isPersonal = session?.user
+    ? org?.slug === session.user.id ||
+      (org?.metadata as { isPersonal?: boolean } | null | undefined)?.isPersonal === true
+    : false;
+
+  const leaveOrgMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await auth.organization.leave({ organizationId: orgId });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: async () => {
+      toast.success("You have left the organization");
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      await router.navigate({ to: "/organizations" });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to leave organization"),
+  });
+
+  const deleteOrgMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await auth.organization.delete({ organizationId: orgId });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: async () => {
+      toast.success("Organization deleted");
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      await router.navigate({ to: "/organizations" });
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to delete organization"),
+  });
+
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(org?.name || "");
-  const [editSlug, setEditSlug] = useState(org?.slug || "");
+  const [editName, setEditName] = useState("");
+  const [editSlug, setEditSlug] = useState("");
+
+  if (isLoadingOrgs) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <p className="text-sm text-muted-foreground">Loading organization...</p>
+      </div>
+    );
+  }
 
   if (!org) {
     return (
@@ -300,6 +347,7 @@ function OrganizationDetail() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">organization</Badge>
               {isActive && <Badge variant="outline">active</Badge>}
+              {isPersonal && <Badge variant="outline">personal</Badge>}
             </div>
             <div className="space-y-2">
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">{org.name}</h1>
@@ -321,7 +369,7 @@ function OrganizationDetail() {
               <Button asChild variant="outline" size="sm">
                 <Link to="/organizations">back to organizations</Link>
               </Button>
-              {isOwner && (
+              {isOwner && !isPersonal && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -335,6 +383,36 @@ function OrganizationDetail() {
                   edit
                 </Button>
               )}
+              {!isPersonal && !isOwner && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm(`Leave "${org.name}"?`)) {
+                      leaveOrgMutation.mutate();
+                    }
+                  }}
+                  disabled={leaveOrgMutation.isPending}
+                >
+                  <LogOut className="h-3.5 w-3.5 mr-1" />
+                  {leaveOrgMutation.isPending ? "leaving..." : "leave"}
+                </Button>
+              )}
+              {isOwner && !isPersonal && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm(`Delete "${org.name}"? This cannot be undone.`)) {
+                      deleteOrgMutation.mutate();
+                    }
+                  }}
+                  disabled={deleteOrgMutation.isPending}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  {deleteOrgMutation.isPending ? "deleting..." : "delete org"}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -342,7 +420,7 @@ function OrganizationDetail() {
         <Card>
           <CardContent className="p-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <StatBox label="members" value={String(members.length)} />
-            <StatBox label="invitations" value={String(invitations.length)} />
+            <StatBox label="invitations" value={String(pendingInvitationsCount)} />
             <StatBox label="api keys" value={String(apiKeys.length)} />
             <StatBox
               label="created"
@@ -398,7 +476,7 @@ function OrganizationDetail() {
           </TabsTrigger>
           <TabsTrigger value="invitations">
             <Mail className="h-4 w-4 mr-1.5" />
-            Invitations ({invitations.length})
+            Invitations ({pendingInvitationsCount})
           </TabsTrigger>
           <TabsTrigger value="apikeys">
             <Key className="h-4 w-4 mr-1.5" />
@@ -412,9 +490,9 @@ function OrganizationDetail() {
               {members.map((member) => (
                 <MemberCard
                   key={member.id}
-                  member={member}
+                  member={member as never}
                   canManage={canManageMembers && member.userId !== session?.user?.id}
-                  onRemove={() => removeMemberMutation.mutate(member.id)}
+                  onRemove={() => removeMemberMutation.mutate(member)}
                   isRemoving={removeMemberMutation.isPending}
                 />
               ))}
@@ -425,7 +503,7 @@ function OrganizationDetail() {
         </TabsContent>
 
         <TabsContent value="invitations" className="space-y-6 pt-4">
-          {canManageMembers && (
+          {canManageMembers && !isPersonal && (
             <Card>
               <CardContent className="p-6 space-y-4">
                 <div className="font-medium">Invite member</div>
@@ -457,30 +535,33 @@ function OrganizationDetail() {
             </Card>
           )}
 
-          {invitations.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {invitations.map((invitation) => (
-                <InvitationCard
-                  key={invitation.id}
-                  invitation={invitation}
-                  onCancel={
-                    canManageMembers
-                      ? () => cancelInvitationMutation.mutate(invitation.id)
-                      : undefined
-                  }
-                  onResend={
-                    canManageMembers
-                      ? () => resendInvitationMutation.mutate(invitation.id)
-                      : undefined
-                  }
-                  isCancelling={cancelInvitationMutation.isPending}
-                  isResending={resendInvitationMutation.isPending}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyCard label="No pending invitations" />
-          )}
+          {(() => {
+            const pendingInvitations = invitations.filter((i) => i.status === "pending");
+            return pendingInvitations.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {pendingInvitations.map((invitation) => (
+                  <InvitationCard
+                    key={invitation.id}
+                    invitation={invitation as never}
+                    onCancel={
+                      canManageMembers
+                        ? () => cancelInvitationMutation.mutate(invitation.id)
+                        : undefined
+                    }
+                    onResend={
+                      canManageMembers
+                        ? () => resendInvitationMutation.mutate(invitation)
+                        : undefined
+                    }
+                    isCancelling={cancelInvitationMutation.isPending}
+                    isResending={resendInvitationMutation.isPending}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyCard label="No pending invitations" />
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="apikeys" className="space-y-6 pt-4">
@@ -496,7 +577,10 @@ function OrganizationDetail() {
           )}
 
           {createdApiKey && (
-            <ApiKeyReveal apiKey={createdApiKey} onDismiss={() => setCreatedApiKey(null)} />
+            <ApiKeyReveal
+              apiKey={createdApiKey as never}
+              onDismiss={() => setCreatedApiKey(null)}
+            />
           )}
 
           {apiKeys.length > 0 ? (

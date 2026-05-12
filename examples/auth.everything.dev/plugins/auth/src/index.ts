@@ -366,6 +366,164 @@ export default createPlugin({
         };
       }),
 
+      listOrganizations: builder.listOrganizations.use(requireAuth).handler(async ({ context }) => {
+        const memberships = await services.db.query.member.findMany({
+          where: eq(schema.member.userId, context.userId),
+          with: { organization: true },
+        });
+        return memberships
+          .filter((m) => m.organization != null)
+          .map((m) => ({
+            id: m.organization!.id,
+            name: m.organization!.name,
+            slug: m.organization!.slug,
+            logo: m.organization!.logo,
+            metadata: tryJsonParse<Record<string, unknown>>(m.organization!.metadata),
+            createdAt: m.organization!.createdAt,
+            role: m.role,
+          }));
+      }),
+
+      createOrganization: builder.createOrganization
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const result = await safeAuthApi(() =>
+            services.auth.api.createOrganization({
+              headers: createHeaders(context.reqHeaders),
+              body: {
+                name: input.name,
+                slug: input.slug,
+                logo: input.logo,
+                metadata: input.metadata,
+              },
+            }),
+          );
+          const org = result as {
+            id: string;
+            name: string;
+            slug: string;
+            logo?: string | null;
+            metadata?: unknown;
+            createdAt: Date | string;
+          };
+          return {
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            logo: org.logo ?? null,
+            metadata:
+              typeof org.metadata === "string"
+                ? tryJsonParse<Record<string, unknown>>(org.metadata)
+                : (org.metadata as Record<string, unknown> | undefined),
+            createdAt: org.createdAt instanceof Date ? org.createdAt : new Date(org.createdAt),
+          };
+        }),
+
+      setActiveOrganization: builder.setActiveOrganization
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          await safeAuthApi(() =>
+            services.auth.api.setActiveOrganization({
+              headers: createHeaders(context.reqHeaders),
+              body: { organizationId: input.organizationId },
+            }),
+          );
+          return { success: true };
+        }),
+
+      leaveOrganization: builder.leaveOrganization
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const org = await services.db.query.organization.findFirst({
+            where: eq(schema.organization.id, input.id),
+          });
+          if (!org) throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
+          if (org.slug === context.userId) {
+            throw new ORPCError("BAD_REQUEST", {
+              message: "Cannot leave your personal organization",
+            });
+          }
+
+          const membership = await services.db.query.member.findFirst({
+            where: and(
+              eq(schema.member.userId, context.userId),
+              eq(schema.member.organizationId, input.id),
+            ),
+          });
+          if (!membership) {
+            throw new ORPCError("NOT_FOUND", {
+              message: "You are not a member of this organization",
+            });
+          }
+
+          if (membership.role === "owner") {
+            const owners = await services.db.query.member.findMany({
+              where: and(
+                eq(schema.member.organizationId, input.id),
+                eq(schema.member.role, "owner"),
+              ),
+            });
+            if (owners.length <= 1) {
+              throw new ORPCError("BAD_REQUEST", {
+                message: "Transfer ownership before leaving — you are the last owner",
+              });
+            }
+          }
+
+          await services.db.delete(schema.member).where(eq(schema.member.id, membership.id));
+          return { success: true };
+        }),
+
+      inviteMember: builder.inviteMember.use(requireAuth).handler(async ({ input, context }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.createInvitation({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              email: input.email,
+              role: input.role,
+              organizationId: input.organizationId,
+              resend: input.resend,
+            },
+          }),
+        );
+        const inv = result as typeof schema.invitation.$inferSelect;
+        return {
+          id: inv.id,
+          organizationId: inv.organizationId,
+          email: inv.email,
+          role: inv.role,
+          status: inv.status,
+          expiresAt: inv.expiresAt,
+          inviterId: inv.inviterId,
+        };
+      }),
+
+      getInvitation: builder.getInvitation.handler(async ({ input }) => {
+        const invitation = await services.db.query.invitation.findFirst({
+          where: eq(schema.invitation.id, input.id),
+          with: { organization: true },
+        });
+        if (!invitation) return null;
+        return {
+          id: invitation.id,
+          organizationId: invitation.organizationId,
+          email: invitation.email,
+          role: invitation.role,
+          status: invitation.status,
+          expiresAt: invitation.expiresAt,
+          inviterId: invitation.inviterId,
+          organization: invitation.organization
+            ? {
+                id: invitation.organization.id,
+                name: invitation.organization.name,
+                slug: invitation.organization.slug,
+                logo: invitation.organization.logo,
+                metadata: tryJsonParse<Record<string, unknown>>(invitation.organization.metadata),
+              }
+            : null,
+        };
+      }),
+
       getOrganization: builder.getOrganization
         .use(requireAuth)
         .handler(async ({ input, context }) => {

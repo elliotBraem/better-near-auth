@@ -247,6 +247,43 @@ export const contract = oc.router({
 
   // ── Organization ─────────────────────────────────────────────────────
 
+  listOrganizations: oc
+    .route({ method: "GET", path: "/v1/auth/organizations" })
+    .output(
+      z.array(
+        organizationInfoSchema.extend({
+          createdAt: z.date(),
+          role: z.string(),
+        }),
+      ),
+    )
+    .errors(Errors),
+
+  createOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations" })
+    .input(
+      z.object({
+        name: z.string(),
+        slug: z.string(),
+        logo: z.string().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .output(organizationInfoSchema.extend({ createdAt: z.date() }))
+    .errors(Errors),
+
+  setActiveOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/set-active" })
+    .input(z.object({ organizationId: z.string().nullable() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  leaveOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/{id}/leave" })
+    .input(z.object({ id: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
   getOrganization: oc
     .route({ method: "GET", path: "/v1/auth/organizations/{id}" })
     .input(z.object({ id: z.string() }))
@@ -320,6 +357,31 @@ export const contract = oc.router({
     .errors(Errors),
 
   // ── Invitations ──────────────────────────────────────────────────────
+
+  inviteMember: oc
+    .route({ method: "POST", path: "/v1/auth/invitations" })
+    .input(
+      z.object({
+        email: z.string(),
+        role: z.enum(["owner", "admin", "member"]),
+        organizationId: z.string().optional(),
+        resend: z.boolean().optional(),
+      }),
+    )
+    .output(invitationSchema)
+    .errors(Errors),
+
+  getInvitation: oc
+    .route({ method: "GET", path: "/v1/auth/invitations/{id}" })
+    .input(z.object({ id: z.string() }))
+    .output(
+      invitationSchema
+        .extend({
+          organization: organizationInfoSchema.nullable(),
+        })
+        .nullable(),
+    )
+    .errors(Errors),
 
   listInvitations: oc
     .route({ method: "GET", path: "/v1/auth/invitations" })
