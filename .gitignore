@@ -63,6 +63,6 @@ examples/*/*.db
 examples/*/apps/*/*.db
 examples/*/plugins/*/*.db
 
-# Agents files
-CLAUDE.md
+# Agent files
 AGENTS.md
+CLAUDE.md

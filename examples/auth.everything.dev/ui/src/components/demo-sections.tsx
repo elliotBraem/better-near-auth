@@ -645,11 +645,11 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
 
           {recentlyLinked && (
             <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-green-50 dark:bg-green-900/20 p-3 text-sm">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-green-600 dark:text-green-400 font-medium">
                   ✓ Linked successfully:
                 </span>
-                <span className="font-mono">{recentlyLinked.accountId}</span>
+                <span className="font-mono break-all">{recentlyLinked.accountId}</span>
                 <span className="text-muted-foreground">
                   ({getProviderConfig(recentlyLinked.provider).name})
                 </span>
@@ -665,16 +665,16 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                   Can&apos;t be unlinked
                 </Badge>
               </h4>
-              <div className="flex items-center justify-between p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-3 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3 sm:items-center">
                   <span className="text-lg">
                     {getProviderConfig(getAccountProviderId(primaryAccount)).icon}
                   </span>
-                  <div>
-                    <span className="font-medium">
+                  <div className="min-w-0">
+                    <span className="font-medium block sm:inline">
                       {getProviderConfig(getAccountProviderId(primaryAccount)).name}
                     </span>
-                    <span className="text-sm text-muted-foreground ml-2">
+                    <span className="text-sm text-muted-foreground break-all sm:ml-2">
                       {primaryAccount.accountId}
                     </span>
                   </div>
@@ -690,22 +690,22 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
               {secondaryAccounts.map((account) => (
                 <div
                   key={accountKey(account)}
-                  className="flex items-center justify-between p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]"
+                  className="flex flex-col gap-3 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-start gap-3 sm:items-center">
                     <span className="text-lg">
                       {getProviderConfig(getAccountProviderId(account)).icon}
                     </span>
-                    <div>
-                      <span className="font-medium">
+                    <div className="min-w-0">
+                      <span className="font-medium block sm:inline">
                         {getProviderConfig(getAccountProviderId(account)).name}
                       </span>
-                      <span className="text-sm text-muted-foreground ml-2">
+                      <span className="text-sm text-muted-foreground break-all sm:ml-2">
                         {account.accountId}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {getAccountProviderId(account) === "siwn" && (
                       <Button
                         variant="outline"

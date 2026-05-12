@@ -161,13 +161,13 @@ function AdminDashboard() {
                     </div>
 
                     <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                      <div>id: {user.id}</div>
+                      <div className="break-all">id: {user.id}</div>
                       <div>
                         created:{" "}
                         {user.createdAt ? new Date(user.createdAt).toLocaleString() : "unknown"}
                       </div>
                       {user.banReason && (
-                        <div className="sm:col-span-2">ban reason: {user.banReason}</div>
+                        <div className="break-all sm:col-span-2">ban reason: {user.banReason}</div>
                       )}
                     </div>
 

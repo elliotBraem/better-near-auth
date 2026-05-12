@@ -309,7 +309,7 @@ export function UserApiKeysPanel() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 min-w-0">
                     <div className="font-medium break-all">{key.name ?? "unnamed"}</div>
-                    <div className="text-xs text-muted-foreground font-mono">
+                    <div className="text-xs text-muted-foreground font-mono break-all">
                       {key.prefix ?? "api_"}...{key.start ?? ""}
                     </div>
                   </div>

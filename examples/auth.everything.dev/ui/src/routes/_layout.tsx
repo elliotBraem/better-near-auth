@@ -182,11 +182,11 @@ function Layout() {
 
           {isAuthenticated && (
             <nav className="fixed bottom-0 left-0 right-0 sm:hidden border-t border-border bg-card animate-fade-in z-40">
-              <div className="flex items-center justify-around px-2 py-2 safe-area-inset-bottom">
+              <div className="flex items-center justify-start gap-2 overflow-x-auto px-2 py-2 safe-area-inset-bottom">
                 {sidebarItems.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item);
-                  const className = `flex flex-col items-center justify-center gap-0.5 p-1.5 transition-colors duration-200 ${active ? "text-foreground" : "text-muted-foreground"}`;
+                  const className = `flex shrink-0 min-w-14 flex-col items-center justify-center gap-0.5 p-1.5 transition-colors duration-200 ${active ? "text-foreground" : "text-muted-foreground"}`;
 
                   return (
                     <Link key={item.label} to={item.to} className={className}>

@@ -486,17 +486,17 @@ function OrganizationDetail() {
         </Card>
       )}
 
-      <Tabs defaultValue="members" className="w-full">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="members">
+      <Tabs defaultValue="members" className="w-full min-w-0">
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="members" className="shrink-0">
             <Users className="h-4 w-4 mr-1.5" />
             Members ({members.length})
           </TabsTrigger>
-          <TabsTrigger value="invitations">
+          <TabsTrigger value="invitations" className="shrink-0">
             <Mail className="h-4 w-4 mr-1.5" />
             Invitations ({pendingInvitationsCount})
           </TabsTrigger>
-          <TabsTrigger value="apikeys">
+          <TabsTrigger value="apikeys" className="shrink-0">
             <Key className="h-4 w-4 mr-1.5" />
             API Keys ({apiKeys.length})
           </TabsTrigger>
