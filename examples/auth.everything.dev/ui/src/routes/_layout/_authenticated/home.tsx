@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   Check,
   CheckCircle2,
@@ -85,6 +85,10 @@ function relayerExplorerUrl(accountId: string): string {
   return `https://near.rocks/account/${accountId}`;
 }
 
+function getAccountProviderId(account: any): string {
+  return account?.providerId ?? (account?.accountId ? "siwn" : "unknown");
+}
+
 export const Route = createFileRoute("/_layout/_authenticated/home")({
   head: () => ({
     meta: [
@@ -100,16 +104,22 @@ function DashboardPage() {
   const { data: session } = useQuery<SessionData | null>(sessionQueryOptions(auth));
   const user = session?.user ?? null;
 
-  const { data: linkedAccounts = [] } = useQuery({
+  const { data: nearAccountsData = { accounts: [], activeAccount: null } } = useQuery({
     queryKey: ["near-accounts"],
     queryFn: async () => {
       const res = await auth.near.listAccounts();
-      return Array.isArray(res?.data) ? res.data : [];
+      const data = res?.data as any;
+      return {
+        accounts: Array.isArray(data?.accounts) ? data.accounts : [],
+        activeAccount: data?.activeAccount ?? null,
+      };
     },
     enabled: !!session?.user,
   });
 
-  const nearAccountId = getNearAccountId(linkedAccounts);
+  const linkedAccounts = nearAccountsData.accounts;
+  const activeNearAccount = nearAccountsData.activeAccount;
+  const nearAccountId = activeNearAccount?.accountId ?? getNearAccountId(linkedAccounts);
   const linkedProviders = getLinkedProviders(linkedAccounts);
 
   const apiClient = useApiClient();
@@ -512,6 +522,7 @@ function RelayerCard() {
 function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; user: any }) {
   const auth = useAuthClient();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
   const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
   const [isProcessingNear, setIsProcessingNear] = useState(false);
@@ -526,8 +537,9 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   const accounts = linkedAccounts;
 
   const invalidateAccounts = () => {
-    queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
-    queryClient.invalidateQueries({ queryKey: ["session"] });
+    void queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
+    void queryClient.invalidateQueries({ queryKey: ["session"] });
+    void router.invalidate();
   };
 
   const handleLinkSocial = async (providerId: "google" | "github") => {
@@ -586,10 +598,13 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
   const handleUnlinkNearAccount = async (account: any) => {
     setIsUnlinking(account.accountId);
     try {
-      const [accountId, network] = account.accountId.split(":");
+      const [accountId, fallbackNetwork] = account.accountId.split(":");
       const response = await auth.near.unlink({
         accountId,
-        network: (network as "mainnet" | "testnet") || "mainnet",
+        network:
+          (account.network as "mainnet" | "testnet") ||
+          (fallbackNetwork as "mainnet" | "testnet") ||
+          "mainnet",
       });
       if (response.data?.success) {
         toast.success("NEAR account unlinked successfully");
@@ -600,6 +615,27 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
     } catch (error) {
       console.error("Failed to unlink NEAR account:", error);
       toast.error("Failed to unlink NEAR account");
+    } finally {
+      setIsUnlinking(null);
+    }
+  };
+
+  const handleSetPrimaryNearAccount = async (account: any) => {
+    setIsUnlinking(account.accountId);
+    try {
+      const response = await (auth.near as any).setPrimaryAccount({
+        accountId: account.accountId,
+        network: account.network,
+      });
+      if (response.data?.success) {
+        toast.success("Active NEAR account updated");
+        invalidateAccounts();
+      } else {
+        toast.error("Failed to update active NEAR account");
+      }
+    } catch (error) {
+      console.error("Failed to update active NEAR account:", error);
+      toast.error("Failed to update active NEAR account");
     } finally {
       setIsUnlinking(null);
     }
@@ -619,10 +655,10 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
     }
   };
 
-  const primaryAccount = accounts.find((acc) => acc.providerId === "siwn") || accounts[0];
+  const primaryAccount = accounts.find((acc) => acc.isActive || acc.isPrimary) || accounts[0];
   const secondaryAccounts = accounts.filter((acc) => acc !== primaryAccount);
   const isProviderLinked = (providerId: string) =>
-    accounts.some((a) => a.providerId === providerId);
+    accounts.some((a) => getAccountProviderId(a) === providerId);
   const canUnlinkAccount = (account: any) => account !== primaryAccount && accounts.length > 1;
 
   return (
@@ -668,11 +704,11 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
               <div className="flex items-center justify-between p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30">
                 <div className="flex items-center gap-3">
                   <span className="text-lg">
-                    {getProviderConfig(primaryAccount.providerId).icon}
+                    {getProviderConfig(getAccountProviderId(primaryAccount)).icon}
                   </span>
                   <div>
                     <span className="font-medium">
-                      {getProviderConfig(primaryAccount.providerId).name}
+                      {getProviderConfig(getAccountProviderId(primaryAccount)).name}
                     </span>
                     <span className="text-sm text-muted-foreground ml-2">
                       {primaryAccount.accountId}
@@ -693,34 +729,48 @@ function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; u
                   className="flex items-center justify-between p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-lg">{getProviderConfig(account.providerId).icon}</span>
+                    <span className="text-lg">
+                      {getProviderConfig(getAccountProviderId(account)).icon}
+                    </span>
                     <div>
                       <span className="font-medium">
-                        {getProviderConfig(account.providerId).name}
+                        {getProviderConfig(getAccountProviderId(account)).name}
                       </span>
                       <span className="text-sm text-muted-foreground ml-2">
                         {account.accountId}
                       </span>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      account.providerId === "siwn"
-                        ? handleUnlinkNearAccount(account)
-                        : handleUnlinkAccount(account.providerId)
-                    }
-                    disabled={
-                      isUnlinking === (account.providerId || account.accountId) ||
-                      !canUnlinkAccount(account)
-                    }
-                    className="text-destructive hover:text-destructive"
-                  >
-                    {isUnlinking === (account.providerId || account.accountId)
-                      ? "Unlinking..."
-                      : "Unlink"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {getAccountProviderId(account) === "siwn" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSetPrimaryNearAccount(account)}
+                        disabled={isUnlinking === (account.providerId || account.accountId)}
+                      >
+                        Set active
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        getAccountProviderId(account) === "siwn"
+                          ? handleUnlinkNearAccount(account)
+                          : handleUnlinkAccount(account.providerId)
+                      }
+                      disabled={
+                        isUnlinking === (account.providerId || account.accountId) ||
+                        !canUnlinkAccount(account)
+                      }
+                      className="text-destructive hover:text-destructive"
+                    >
+                      {isUnlinking === (account.providerId || account.accountId)
+                        ? "Unlinking..."
+                        : "Unlink"}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -1,12 +1,18 @@
 /**
  * Extract NEAR accountId from linked accounts
  */
+function getProviderId(account: any): string | null {
+  return typeof account?.providerId === "string" && account.providerId.length > 0
+    ? account.providerId
+    : null;
+}
+
 export function getNearAccountId(linkedAccounts: any[]): string | null {
   if (!Array.isArray(linkedAccounts)) {
     return null;
   }
-  const nearAccount = linkedAccounts.find((account) => account.providerId === "siwn");
-  return nearAccount?.accountId?.split(":")[0] || nearAccount?.providerId || null;
+  const nearAccount = linkedAccounts.find((account) => getProviderId(account) === "siwn");
+  return nearAccount?.accountId?.split(":")[0] || null;
 }
 
 /**
@@ -16,7 +22,7 @@ export function getLinkedProviders(linkedAccounts: any[]): string[] {
   if (!Array.isArray(linkedAccounts)) {
     return [];
   }
-  return linkedAccounts.map((account) => account.providerId);
+  return linkedAccounts.map((account) => getProviderId(account) ?? "unknown");
 }
 
 /**
