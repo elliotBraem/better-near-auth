@@ -12,6 +12,9 @@ export default {
       domain: process.env.DOMAIN || "http://localhost:3000",
       githubClientId: process.env.GITHUB_CLIENT_ID,
       githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
+      passkeyRpId: process.env.PASSKEY_RP_ID,
+      passkeyRpName: process.env.PASSKEY_RP_NAME,
+      passkeyOrigin: process.env.PASSKEY_ORIGIN,
     },
     secrets: {
       AUTH_DATABASE_URL: process.env.AUTH_DATABASE_URL || "pglite:.bos/auth/:memory:",

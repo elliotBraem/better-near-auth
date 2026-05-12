@@ -122,6 +122,11 @@
       "development": "local:plugins/auth",
       "production": "https://elliot-braem-3605-everything-dev-auth-plugin-bett-f19f96ec0-ze.zephyrcloud.app",
       "integrity": "sha384-0+6PBccgYZwLDVxJJ3LDeA0EledPagot9TwxGvq59+qoJaBVc8qHJcxPTJNiHI6X",
+      "variables": {
+        "account": "auth.everything.near",
+        "domain": "everything.dev",
+        "passkeyRpName": "Everything Dev"
+      },
       "secrets": [
         "AUTH_DATABASE_URL",
         "BETTER_AUTH_SECRET",

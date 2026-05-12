@@ -29,6 +29,9 @@ export interface AuthConfig {
   trustedOrigins?: string[];
   githubClientId?: string;
   githubClientSecret?: string;
+  passkeyRpId?: string;
+  passkeyRpName?: string;
+  passkeyOrigin?: string;
   fastnearApiKey?: string;
   nearRpcUrl?: string;
   isProduction?: boolean;

@@ -39,6 +39,9 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 | `domain` | `string` | — | Optional. Base URL of the auth server |
 | `githubClientId` | `string` | — | Optional. GitHub OAuth client ID |
 | `githubClientSecret` | `string` | — | Optional. GitHub OAuth client secret |
+| `passkeyRpId` | `string` | Derived from `domain` | Optional. WebAuthn relying party ID, usually the registrable domain such as `everything.dev` or `localhost` |
+| `passkeyRpName` | `string` | `Everything Dev` | Optional. Human-readable passkey relying party name shown by authenticators |
+| `passkeyOrigin` | `string` | Derived from `domain` | Optional. Browser origin where passkeys are created and used, without a trailing path |
 
 ### Plugin Secrets
 
@@ -63,6 +66,9 @@ The plugin itself does **not** read `process.env`. The host passes all configura
 | `DOMAIN` | Base URL of the auth server (dev fallback) |
 | `GITHUB_CLIENT_ID` | GitHub OAuth client ID (dev fallback) |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret (dev fallback) |
+| `PASSKEY_RP_ID` | WebAuthn relying party ID override (dev fallback) |
+| `PASSKEY_RP_NAME` | WebAuthn relying party display name override (dev fallback) |
+| `PASSKEY_ORIGIN` | WebAuthn origin override (dev fallback) |
 | `AUTH_DATABASE_URL` | Database URL (dev fallback) |
 | `BETTER_AUTH_SECRET` | Session signing secret (dev fallback) |
 
@@ -96,6 +102,8 @@ AUTH_DATABASE_URL=postgres://user:pass@host:5432/dbname
 ### Passkeys (FIDO2/WebAuthn)
 - Uses `@better-auth/passkey`
 - `@simplewebauthn/server` required at dev time
+- Configures `rpID`, `rpName`, and `origin` explicitly from plugin variables so passkeys work on localhost, staging, and production domains
+- Users can sign in with passkeys and manage registered credentials from settings
 
 ### Anonymous Accounts
 - Instant sign-up without credentials
