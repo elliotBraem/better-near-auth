@@ -227,7 +227,7 @@ function OrganizationsList() {
           {orgs.map((org: Organization) => {
             const isActive = org.id === activeOrgId;
             const isPersonal = user
-              ? org.slug === user.id || (org.metadata as any)?.isPersonal === true
+              ? org.slug === user.id || org.metadata?.isPersonal === true
               : false;
 
             return (

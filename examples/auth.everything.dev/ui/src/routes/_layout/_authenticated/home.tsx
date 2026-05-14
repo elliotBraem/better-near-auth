@@ -67,10 +67,7 @@ function WorkspacePage() {
   const { data: session } = useSessionData();
   const user = session?.user ?? null;
   const workspace = useWorkspaceData(session);
-  const nearAccountId = getActiveNearAccountId({
-    accounts: workspace.linkedAccounts,
-    activeAccount: workspace.linkedAccounts.find((account) => account.isActive || account.isPrimary) ?? null,
-  });
+  const nearAccountId = getActiveNearAccountId({ accounts: workspace.linkedAccounts });
 
   return (
     <div className="space-y-6">
