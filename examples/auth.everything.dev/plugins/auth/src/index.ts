@@ -162,9 +162,20 @@ export default createPlugin({
         config.variables.domain,
         config.secrets.CORS_ORIGIN,
       );
-      const passkeyOrigin = config.variables.passkeyOrigin
-        ? ensureOrigin(config.variables.passkeyOrigin)
-        : undefined;
+      // When CORS_ORIGIN is a localhost URL the server is running in local dev.
+      // The production passkey variables (rpId / origin) won't match localhost
+      // and the browser will reject the WebAuthn ceremony.  Derive both values
+      // from the first CORS_ORIGIN entry instead so no extra config is needed.
+      const firstCorsOrigin = config.secrets.CORS_ORIGIN?.split(",")[0]?.trim();
+      const isLocalCorsOrigin = !!firstCorsOrigin &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(firstCorsOrigin);
+
+      const passkeyOrigin = isLocalCorsOrigin
+        ? firstCorsOrigin
+        : config.variables.passkeyOrigin
+          ? ensureOrigin(config.variables.passkeyOrigin)
+          : undefined;
+      const passkeyRpId = isLocalCorsOrigin ? undefined : config.variables.passkeyRpId;
 
       const auth = createAuthInstance(
         {
@@ -174,7 +185,7 @@ export default createPlugin({
           trustedOrigins,
           githubClientId: config.variables.githubClientId,
           githubClientSecret: config.variables.githubClientSecret,
-          passkeyRpId: config.variables.passkeyRpId,
+          passkeyRpId,
           passkeyRpName: config.variables.passkeyRpName,
           passkeyOrigin: passkeyOrigin ?? undefined,
         },
