@@ -8,6 +8,7 @@ import {
   ApiKeyForm,
   type ApiKeyFormValues,
   ApiKeyReveal,
+  type ApiKeyRevealProps,
   Badge,
   Button,
   Card,
@@ -39,10 +40,7 @@ type ApiKeyItem = {
   metadata?: Record<string, unknown> | null;
 };
 
-type CreatedApiKey =
-  Awaited<ReturnType<AuthClientType["apiKey"]["create"]>> extends { data: infer D }
-    ? NonNullable<D>
-    : never;
+type CreatedApiKey = ApiKeyRevealProps["apiKey"];
 
 const orgMembersQueryKey = (orgId: string) => ["org-members", orgId] as const;
 const orgInvitationsQueryKey = (orgId: string) => ["org-invitations", orgId] as const;
@@ -50,8 +48,8 @@ const orgApiKeysQueryKey = (orgId: string) => ["org-api-keys", orgId] as const;
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/$slug")({
   head: () => ({
+    title: "Organization | auth.everything.dev",
     meta: [
-      { title: "Organization | app" },
       { name: "description", content: "Manage organization details and members." },
     ],
   }),
@@ -121,11 +119,7 @@ function OrganizationDetail() {
           query: { configId: "org-keys", organizationId: orgId },
         });
         if (error) throw new Error(error.message);
-        if (!data) return [];
-        const list = Array.isArray(data)
-          ? data
-          : ((data as { apiKeys?: ApiKeyItem[] }).apiKeys ?? []);
-        return list as ApiKeyItem[];
+        return (data?.apiKeys ?? []) as ApiKeyItem[];
       },
       enabled: !!orgId,
     }).data ?? [];
@@ -492,17 +486,17 @@ function OrganizationDetail() {
         </Card>
       )}
 
-      <Tabs defaultValue="members" className="w-full">
-        <TabsList className="w-full justify-start">
-          <TabsTrigger value="members">
+      <Tabs defaultValue="members" className="w-full min-w-0">
+        <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsTrigger value="members" className="shrink-0">
             <Users className="h-4 w-4 mr-1.5" />
             Members ({members.length})
           </TabsTrigger>
-          <TabsTrigger value="invitations">
+          <TabsTrigger value="invitations" className="shrink-0">
             <Mail className="h-4 w-4 mr-1.5" />
             Invitations ({pendingInvitationsCount})
           </TabsTrigger>
-          <TabsTrigger value="apikeys">
+          <TabsTrigger value="apikeys" className="shrink-0">
             <Key className="h-4 w-4 mr-1.5" />
             API Keys ({apiKeys.length})
           </TabsTrigger>
@@ -602,7 +596,7 @@ function OrganizationDetail() {
 
           {createdApiKey && (
             <ApiKeyReveal
-              apiKey={createdApiKey as never}
+              apiKey={createdApiKey}
               onDismiss={() => setCreatedApiKey(null)}
             />
           )}

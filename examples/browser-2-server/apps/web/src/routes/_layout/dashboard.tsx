@@ -158,6 +158,17 @@ function ProfileCard({ user, nearAccountId, linkedProviders, linkedAccounts }: {
   const displayName = user?.name || nearAccountId || "User";
   const displayEmail = user?.email;
   const initial = (displayName)?.charAt(0).toUpperCase();
+  const currentNearAccount = linkedAccounts.find(
+    (account) =>
+      getAccountProviderId(account) === "siwn" &&
+      account.accountId?.split(":")[0] === nearAccountId,
+  );
+  const canUnlinkNearAccount = Boolean(
+    currentNearAccount &&
+      !currentNearAccount.isActive &&
+      !currentNearAccount.isPrimary &&
+      linkedAccounts.length > 1,
+  );
 
   return (
     <Card>
@@ -210,14 +221,21 @@ function ProfileCard({ user, nearAccountId, linkedProviders, linkedAccounts }: {
               <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
                 <a href={`/profile/${nearAccountId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
                   <ExternalLink className="h-3 w-3" />
+                  Social
                 </a>
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                disabled={isUnlinking}
+                disabled={isUnlinking || !canUnlinkNearAccount}
+                title={
+                  canUnlinkNearAccount
+                    ? "Unlink NEAR account"
+                    : "Active NEAR account can't be unlinked here"
+                }
                 onClick={async () => {
+                  if (!canUnlinkNearAccount) return;
                   setIsUnlinking(true);
                   try {
                     const [accountId, network] = nearAccountId.includes(":")
@@ -225,7 +243,10 @@ function ProfileCard({ user, nearAccountId, linkedProviders, linkedAccounts }: {
                       : [nearAccountId, "mainnet"];
                     const response = await authClient.near.unlink({
                       accountId,
-                      network: (network as "mainnet" | "testnet") || "mainnet",
+                      network:
+                        (currentNearAccount?.network as "mainnet" | "testnet") ||
+                        (network as "mainnet" | "testnet") ||
+                        "mainnet",
                     });
                     if (response.data?.success) {
                       toast.success("NEAR account unlinked");
@@ -823,9 +844,16 @@ function SessionInfoCard({ user, nearAccountId, linkedAccounts, privateData }: {
   linkedAccounts: any[];
   privateData: any;
 }) {
-  const providerCount = linkedAccounts.length;
-  const nearAccountCount = linkedAccounts.filter(a => a.providerId === "siwn").length;
-  const socialAccountCount = providerCount - nearAccountCount;
+  const nearAccountCount = linkedAccounts.filter(a => getAccountProviderId(a) === "siwn").length;
+  const oauthAccountCount = linkedAccounts.filter(a => {
+    const providerId = getAccountProviderId(a);
+    return providerId !== "siwn" && providerId !== "unknown";
+  }).length;
+  const providerCount = nearAccountCount + oauthAccountCount;
+  const sessionId = privateData?.sessionId ?? null;
+  const expiresAt = privateData?.expiresAt ?? null;
+  const sessionIdLabel = typeof sessionId === "string" && sessionId.length > 0 ? `${sessionId.slice(0, 12)}...` : "N/A";
+  const expiresLabel = expiresAt ? new Date(expiresAt).toLocaleString() : "N/A";
 
   return (
     <div className="space-y-4">
@@ -843,21 +871,19 @@ function SessionInfoCard({ user, nearAccountId, linkedAccounts, privateData }: {
           </div>
           {privateData && (
             <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Key className="h-3.5 w-3.5" /> Session ID
                 </span>
                 <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                  {privateData.sessionId?.slice(0, 12)}...
+                  {sessionIdLabel}
                 </code>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5" /> Expires
                 </span>
-                <span className="text-xs">
-                  {privateData.expiresAt ? new Date(privateData.expiresAt).toLocaleString() : "N/A"}
-                </span>
+                <span className="text-xs text-right">{expiresLabel}</span>
               </div>
             </div>
           )}
@@ -872,27 +898,27 @@ function SessionInfoCard({ user, nearAccountId, linkedAccounts, privateData }: {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-4 text-sm">
             <span className="text-muted-foreground">User</span>
-            <span className="font-medium">{user?.name || nearAccountId || "Unknown"}</span>
+            <span className="font-medium text-right">{user?.name || nearAccountId || "Unknown"}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-4 text-sm">
             <span className="text-muted-foreground">Email</span>
-            <span className="text-xs">{user?.email || "N/A"}</span>
+            <span className="text-xs text-right break-all">{user?.email || "N/A"}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-4 text-sm">
             <span className="text-muted-foreground">NEAR Account</span>
             {nearAccountId ? (
-              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{nearAccountId}</code>
+              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-right break-all">{nearAccountId}</code>
             ) : (
               <span className="text-xs text-muted-foreground">None</span>
             )}
           </div>
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-4 text-sm">
             <span className="text-muted-foreground">Linked Providers</span>
             <div className="flex gap-1">
-              {nearAccountCount > 0 && <Badge variant="secondary" className="text-xs">NEAR</Badge>}
-              {socialAccountCount > 0 && <Badge variant="secondary" className="text-xs">{socialAccountCount} OAuth</Badge>}
+              {nearAccountCount > 0 && <Badge variant="secondary" className="text-xs">{nearAccountCount} NEAR</Badge>}
+              {oauthAccountCount > 0 && <Badge variant="secondary" className="text-xs">{oauthAccountCount} OAuth</Badge>}
               {providerCount === 0 && <span className="text-xs text-muted-foreground">None</span>}
             </div>
           </div>

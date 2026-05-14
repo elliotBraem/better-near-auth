@@ -166,7 +166,10 @@ const nearAccountSchema = z.object({
   accountId: z.string(),
   network: z.string(),
   publicKey: z.string(),
+  providerId: z.literal("siwn").optional(),
   isPrimary: z.boolean(),
+  isActive: z.boolean().optional(),
+  isAvailable: z.boolean().optional(),
   createdAt: z.date(),
 });
 
@@ -593,7 +596,13 @@ export const contract = oc.router({
 
   nearListAccounts: oc
     .route({ method: "GET", path: "/v1/near/accounts" })
-    .output(z.object({ accounts: z.array(nearAccountSchema) }))
+    .output(
+      z.object({
+        accounts: z.array(nearAccountSchema),
+        activeAccount: nearAccountSchema.nullable().optional(),
+        availableAccounts: z.array(nearAccountSchema).optional(),
+      }),
+    )
     .errors(Errors),
 
   nearRelay: oc

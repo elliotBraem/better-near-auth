@@ -13,8 +13,8 @@ type UserInvitationItem = NonNullable<UserInvitationsResponse["data"]>[number];
 
 export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
   head: () => ({
+    title: "Organizations | auth.everything.dev",
     meta: [
-      { title: "Organizations | app" },
       { name: "description", content: "Manage your organizations and teams." },
     ],
   }),
@@ -110,50 +110,32 @@ function OrganizationsList() {
   const orgs = organizations || [];
 
   return (
-    <div className="space-y-8">
-      <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card>
-          <CardContent className="p-6 sm:p-8 space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">organizations</Badge>
-              {activeOrgId && <Badge variant="outline">active set</Badge>}
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-                Workspace Groups
-              </h1>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Switch contexts, create new organizations, and open team-specific member and API key
-                management flows.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild>
-                <Link to="/organizations/new">
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  new organization
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/home">back to workspace</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Organizations</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage workspaces, members, invitations, and organization API keys.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/organizations/new">
+            <Plus className="h-4 w-4 mr-1.5" />
+            new organization
+          </Link>
+        </Button>
+      </div>
 
-        <Card>
-          <CardContent className="p-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <StatBox label="total" value={String(orgs.length)} />
-            <StatBox label="active" value={activeOrgId ? "yes" : "no"} />
-            <StatBox label="invites" value={String(pendingInvitations.length)} />
-          </CardContent>
-        </Card>
-      </section>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <StatBox label="total" value={String(orgs.length)} />
+        <StatBox label="active" value={activeOrgId ? "yes" : "no"} />
+        <StatBox label="invites" value={String(pendingInvitations.length)} />
+      </div>
 
       {pendingInvitations.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-xs font-mono text-muted-foreground border-b border-border pb-2">
-            pending invitations ({pendingInvitations.length})
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Pending Invitations ({pendingInvitations.length})
           </h2>
           <div className="grid gap-3 md:grid-cols-2">
             {pendingInvitations.map((invitation) => (

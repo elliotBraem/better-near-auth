@@ -125,6 +125,8 @@
       "variables": {
         "account": "auth.everything.near",
         "domain": "everything.dev",
+        "passkeyRpId": "auth.everything.dev",
+        "passkeyOrigin": "https://auth.everything.dev",
         "passkeyRpName": "Everything Dev"
       },
       "secrets": [

@@ -2,13 +2,12 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
-import type { AuthClient } from "./auth-client.gen";
+import type { PluginsClient } from "./lib/plugins-types.gen";
 import { contract } from "./contract";
 import { createDatabase } from "./db";
 import { migrate } from "./db/migrator";
-import type { PluginsClient } from "./plugins-client.gen";
 
-type ApiPluginsClient = PluginsClient & { auth: AuthClient };
+type ApiPluginsClient = PluginsClient;
 
 export interface AuthContext {
   userId: string;
