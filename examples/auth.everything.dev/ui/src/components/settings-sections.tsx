@@ -258,7 +258,7 @@ export function UserApiKeysPanel() {
 
   const deleteMutation = useMutation({
     mutationFn: async (keyId: string) => {
-      const { error } = await auth.apiKey.delete({ keyId });
+      const { error } = await auth.apiKey.delete({ keyId, configId: "user-keys" });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {

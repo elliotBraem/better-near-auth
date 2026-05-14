@@ -18,9 +18,7 @@ export const Route = createFileRoute("/_layout/_authenticated/accounts")({
 function AccountsPage() {
   const { data: session } = useSessionData();
   const user = session?.user ?? null;
-  const { data: nearAccountsData = { accounts: [], activeAccount: null } } = useNearAccountsData(
-    !!session?.user,
-  );
+  const { data: nearAccountsData = { accounts: [] } } = useNearAccountsData(!!session?.user);
   const linkedAccounts = nearAccountsData.accounts;
 
   return (

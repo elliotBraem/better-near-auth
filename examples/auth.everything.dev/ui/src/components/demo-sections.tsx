@@ -54,7 +54,6 @@ export interface RelayerData {
 
 export interface NearAccountsData {
   accounts: any[];
-  activeAccount: any | null;
 }
 
 function explorerTxUrl(txHash: string) {
@@ -101,10 +100,9 @@ export function useNearAccountsData(enabled = true) {
     queryKey: ["near-accounts"],
     queryFn: async () => {
       const res = await auth.near.listAccounts();
-      const data = res?.data as any;
+      const accounts = res?.data?.accounts;
       return {
-        accounts: Array.isArray(data?.accounts) ? data.accounts : [],
-        activeAccount: data?.activeAccount ?? null,
+        accounts: Array.isArray(accounts) ? accounts : [],
       };
     },
     enabled,
@@ -157,14 +155,15 @@ export function useGuestbookGreeting(enabled = true) {
         contractId: GUESTBOOK_CONTRACT,
         methodName: "get_greeting",
       });
-      return (res as any)?.data?.result as string | undefined;
+      const result = res?.data?.result;
+      return typeof result === "string" ? result : undefined;
     },
     enabled,
   });
 }
 
 export function getActiveNearAccountId(nearAccountsData: NearAccountsData) {
-  return nearAccountsData.activeAccount?.accountId ?? getNearAccountId(nearAccountsData.accounts);
+  return getNearAccountId(nearAccountsData.accounts);
 }
 
 export function getLinkedNearProviders(accounts: any[]) {
@@ -578,27 +577,6 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
     }
   };
 
-  const handleSetPrimaryNearAccount = async (account: any) => {
-    setIsUnlinking(account.accountId);
-    try {
-      const response = await (auth.near as any).setPrimaryAccount({
-        accountId: account.accountId,
-        network: account.network,
-      });
-      if (response.data?.success) {
-        toast.success("Active NEAR account updated");
-        invalidateAccounts();
-      } else {
-        toast.error("Failed to update active NEAR account");
-      }
-    } catch (error) {
-      console.error("Failed to update active NEAR account:", error);
-      toast.error("Failed to update active NEAR account");
-    } finally {
-      setIsUnlinking(null);
-    }
-  };
-
   const handleUnlinkAccount = async (providerId: string) => {
     setIsUnlinking(providerId);
     try {
@@ -706,16 +684,6 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {getAccountProviderId(account) === "siwn" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSetPrimaryNearAccount(account)}
-                        disabled={isUnlinking === accountActionId(account)}
-                      >
-                        Set active
-                      </Button>
-                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -814,7 +782,8 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
         contractId: GUESTBOOK_CONTRACT,
         methodName: "get_greeting",
       });
-      return (res as any)?.data?.result as string;
+      const result = res?.data?.result;
+      return typeof result === "string" ? result : "";
     },
     initialData: initialGreeting,
   });
@@ -1262,7 +1231,7 @@ export function useWorkspaceData(session: SessionData | null | undefined) {
   const privateDataQuery = usePrivateData(!!session?.user);
   const greetingQuery = useGuestbookGreeting(!!session?.user);
   const relayerQuery = useRelayerInfo();
-  const nearAccountsData = nearAccountsQuery.data ?? { accounts: [], activeAccount: null };
+  const nearAccountsData = nearAccountsQuery.data ?? { accounts: [] };
   const linkedAccounts = nearAccountsData.accounts;
   const nearAccountId = getActiveNearAccountId(nearAccountsData);
   const linkedProviders = getLinkedNearProviders(linkedAccounts);
