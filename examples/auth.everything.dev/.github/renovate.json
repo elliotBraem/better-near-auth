@@ -1,0 +1,57 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":separateMajorMinor",
+    ":separatePatchMinor",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "minimumReleaseAge": "3 days",
+  "schedule": ["on wednesday"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "ignoreScripts": true,
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["@tanstack/*"],
+      "groupName": "tanstack packages",
+      "separateMajorMinor": true,
+      "minimumReleaseAge": "5 days"
+    },
+    {
+      "matchPackagePatterns": ["^@rspack/", "^@rsbuild/"],
+      "allowedVersions": "<2.0.0"
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "matchDepTypes": ["dependencies", "peerDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": false
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "matchPackagePatterns": ["*"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": false
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["on the first day of the month"]
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": "1 day"
+  },
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps"
+}

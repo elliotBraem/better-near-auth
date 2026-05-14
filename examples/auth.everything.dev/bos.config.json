@@ -1,12 +1,44 @@
 {
-  "account": "auth.everything.near",
   "extends": "bos://dev.everything.near/everything.dev",
+  "account": "auth.everything.near",
   "domain": "everything.dev",
   "testnet": "dev.allthethings.testnet",
   "staging": {
     "domain": "staging.dev.everything.dev"
   },
   "repository": "https://github.com/nearbuilders/everything-dev",
+  "app": {
+    "ui": {
+      "name": "ui",
+      "development": "local:ui"
+    },
+    "api": {
+      "name": "api",
+      "development": "local:api",
+      "secrets": [
+        "API_DATABASE_URL"
+      ]
+    },
+    "auth": {
+      "name": "everything-dev_auth-plugin",
+      "development": "local:plugins/auth",
+      "production": "https://elliot-braem-3605-everything-dev-auth-plugin-bett-f19f96ec0-ze.zephyrcloud.app",
+      "integrity": "sha384-0+6PBccgYZwLDVxJJ3LDeA0EledPagot9TwxGvq59+qoJaBVc8qHJcxPTJNiHI6X",
+      "secrets": [
+        "AUTH_DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "CORS_ORIGIN",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "PASSKEY_RP_ID",
+        "PASSKEY_RP_NAME",
+        "PASSKEY_ORIGIN",
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_PHONE_NUMBER"
+      ]
+    }
+  },
   "shared": {
     "ui": {
       "effect": {
@@ -60,85 +92,5 @@
       }
     },
     "plugins": {}
-  },
-  "plugins": {
-    "template": {
-      "development": "local:plugins/_template",
-      "production": "https://elliot-braem-3538-every-plugin-template-everythin-8374a78ab-ze.zephyrcloud.app",
-      "integrity": "sha384-2h1px6DIx1xv3rSeg1MTi+HMHRwgXgCmCk7qwtnoy04EeqVxzGXBQGCw6cmidNTn",
-      "routes": [
-        "ui/src/routes/_layout/_authenticated/settings.tsx"
-      ]
-    },
-    "registry": {
-      "development": "local:plugins/registry",
-      "production": "https://elliot-braem-3539-everything-dev-registry-plugin--53676005f-ze.zephyrcloud.app",
-      "integrity": "sha384-CVIUbz+YppH93cO30F3OO/WG7YE9PYjOvxY0U9mmUZxTRHG1So4/XwIJ7KQ1oyUs",
-      "variables": {
-        "registryNamespace": "dev.everything.near"
-      },
-      "routes": [
-        "ui/src/routes/_layout/apps/**",
-        "ui/src/routes/_layout/about.tsx"
-      ]
-    },
-    "projects": {
-      "development": "local:plugins/projects",
-      "production": "https://elliot-braem-3540-everything-dev-projects-plugin--9958a8ba1-ze.zephyrcloud.app",
-      "integrity": "sha384-Fq3b3KS1D0nt3hIgvJ8cu/JzDJj/F+rKLJEOauT3hHY4DocvDavZYaitERjD7mPU",
-      "secrets": [
-        "PROJECTS_DATABASE_URL"
-      ],
-      "routes": [
-        "ui/src/routes/_layout/_authenticated/organizations/**",
-        "ui/src/routes/_layout/_authenticated/projects/**"
-      ]
-    }
-  },
-  "app": {
-    "host": {
-      "development": "local:host",
-      "production": "https://elliot-braem-3541-host-everything-dev-nearbuilder-ed5b79d99-ze.zephyrcloud.app",
-      "integrity": "sha384-Tsu6qanLw+Pn81PyT0VmuOM6bcae5ki20tZ09x1AUPMygsYj7QwoV2eGG299Zj+T"
-    },
-    "ui": {
-      "name": "ui",
-      "development": "local:ui",
-      "production": "https://elliot-braem-3448-ui-better-near-auth-elliotbraem-26f0bb49f-ze.zephyrcloud.app",
-      "integrity": "sha384-J2VzE+e0iXKtKghgK2+Q/37MhPKcwR37WV7odgbZuHcJUqrfToWI0qOm4ImF4Yr3",
-      "ssr": "https://elliot-braem-3603-ui-better-near-auth-elliotbraem-57d421e6d-ze.zephyrcloud.app"
-    },
-    "api": {
-      "name": "api",
-      "development": "local:api",
-      "production": "https://elliot-braem-3604-api-better-near-auth-elliotbrae-f1ee91342-ze.zephyrcloud.app",
-      "integrity": "sha384-0S3x1EDidzN+aOCYIX3ty+P49osWi8D/UK7lh3pd9Iy6xo9c8mmKRH004GS35tJ2",
-      "secrets": [
-        "API_DATABASE_URL"
-      ]
-    },
-    "auth": {
-      "name": "everything-dev_auth-plugin",
-      "development": "local:plugins/auth",
-      "production": "https://elliot-braem-3605-everything-dev-auth-plugin-bett-f19f96ec0-ze.zephyrcloud.app",
-      "integrity": "sha384-0+6PBccgYZwLDVxJJ3LDeA0EledPagot9TwxGvq59+qoJaBVc8qHJcxPTJNiHI6X",
-      "variables": {
-        "account": "auth.everything.near",
-        "domain": "everything.dev"
-      },
-      "secrets": [
-        "AUTH_DATABASE_URL",
-        "BETTER_AUTH_SECRET",
-        "CORS_ORIGIN",
-        "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET",
-        "PASSKEY_RP_ID",
-        "PASSKEY_RP_NAME",
-        "PASSKEY_ORIGIN",
-        "TWILIO_ACCOUNT_SID",
-        "TWILIO_AUTH_TOKEN",
-        "TWILIO_PHONE_NUMBER"
-      ]
-    }
   }
 }

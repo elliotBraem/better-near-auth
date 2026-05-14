@@ -19,6 +19,21 @@ const __dirname = path.dirname(__filename);
 
 const shouldDeploy = process.env.DEPLOY === "true";
 
+const resolvedConfigPath = path.resolve(__dirname, "../.bos/bos.resolved-config.json");
+const bosConfigPath = path.resolve(__dirname, "../bos.config.json");
+
+function readBosConfig() {
+  const configPath = fs.existsSync(resolvedConfigPath) ? resolvedConfigPath : bosConfigPath;
+  const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  if (raw._resolved) {
+    const { _resolved, ...data } = raw;
+    return data;
+  }
+  return raw;
+}
+
+const _bosConfig = readBosConfig();
+
 function updateHostConfig(name, url, integrity) {
   try {
     const configPath = path.resolve(__dirname, "../bos.config.json");

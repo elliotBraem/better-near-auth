@@ -230,6 +230,40 @@ const { runtimeConfig } = Route.useLoaderData();
 const appName = getActiveRuntime(runtimeConfig)?.title ?? getAccount(runtimeConfig);
 ```
 
+## Security
+
+### Shared Singleton Trust Model
+
+Module Federation shares React, TanStack Query, and TanStack Router as singletons across remotes. A compromise of these packages affects all remotes simultaneously. Defense:
+
+- **Catalog pinning** — versions are locked in root `package.json` catalogs. Bump versions deliberately, not reactively.
+- **Renovate `minimumReleaseAge`** — 3 days general, 5 days for `@tanstack/*`. Malicious versions detected within hours are blocked from auto-merge.
+- **Minor bumps never automerged** — supply chain attacks typically ship as minor version bumps. All minor updates require manual review.
+
+### Dependency Security
+
+- **Renovate** manages dependency updates (not Dependabot). Config: `.github/renovate.json`
+- **`--ignore-scripts`** — all CI workflows use `bun install --frozen-lockfile --ignore-scripts`. Lifecycle scripts (the TanStack attack vector) never execute during install.
+- **`dependency-review-action`** runs on every PR to flag known vulnerabilities.
+- **`bun audit`** runs in CI and fails on critical/high findings.
+- **GitHub Actions pinned to commit SHAs** — all `uses:` references are SHA-pinned to prevent tag-hijacking attacks (e.g. tj-actions).
+
+### Supply Chain Incident Response
+
+If a dependency is compromised:
+
+1. **Catalog pin protects all remotes** — all workspaces resolve from the same catalog, so pinning one version secures everything.
+2. **Independent deployment enables instant containment** — update the compromised remote's URL in `bos.config.json` and publish. No host rebuild needed.
+3. **On-chain config is verifiable** — `bos.config.json` is published to FastKV. URL changes are inspectable and auditable on-chain.
+4. **Runtime isolation limits blast radius** — a compromised UI dep cannot access API database secrets or auth keys. Remotes run in separate processes.
+
+### CI Hardening
+
+- No `pull_request_target` in any workflow — prevents the "Pwn Request" cache-poisoning pattern used in the TanStack compromise.
+- Secrets scoped to individual steps, not job-level env — limits exposure if any step is compromised.
+- `id-token: write` removed from job-level permissions — only granted where explicitly needed.
+- `permissions:` set to minimum required on every workflow.
+
 ## Troubleshooting
 
 **Process won't start:**

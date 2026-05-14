@@ -148,7 +148,7 @@ const renderToStream = async (request: Request, renderOptions: RenderOptions) =>
           assetsUrl: renderOptions.assetsUrl,
           runtimeConfig: renderOptions.runtimeConfig,
           apiClient: renderOptions.apiClient,
-          authClient: createAuthClient(renderOptions.runtimeConfig),
+          authClient: renderOptions.authClient ?? createAuthClient(renderOptions.runtimeConfig),
           session: renderOptions.session,
         },
       });

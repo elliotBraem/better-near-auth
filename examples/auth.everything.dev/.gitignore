@@ -154,6 +154,7 @@ web_modules/
 
 # dotenv environment variables file
 .env
+.env.test
 .env.bos
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -282,6 +283,7 @@ fabric.properties
 
 # documentation
 .docs
+/content
 
 # dependencies
 .npmrc
