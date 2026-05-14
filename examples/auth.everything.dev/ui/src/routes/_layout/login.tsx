@@ -226,19 +226,24 @@ function LoginPage() {
             setIsPending(false);
             await handleSuccess("Passkey created — you're signed in");
           },
-          onError: (ctx) => {
+          onError: async (ctx) => {
             callbackHandled = true;
             setIsPending(false);
+            await auth.signOut();
             handleError(new Error(ctx.error?.message || "Failed to create passkey"));
           },
         },
       });
       if (!callbackHandled) {
         setIsPending(false);
-        if (result?.error) handleError(new Error(result.error.message || "Failed to create passkey"));
+        if (result?.error) {
+          await auth.signOut();
+          handleError(new Error(result.error.message || "Failed to create passkey"));
+        }
       }
     } catch (error) {
       setIsPending(false);
+      await auth.signOut();
       handleError(error instanceof Error ? error : new Error("Failed to create passkey"));
     }
   };

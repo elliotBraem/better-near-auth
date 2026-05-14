@@ -132,7 +132,10 @@
       "secrets": [
         "AUTH_DATABASE_URL",
         "BETTER_AUTH_SECRET",
-        "CORS_ORIGIN"
+        "CORS_ORIGIN",
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_PHONE_NUMBER"
       ]
     }
   }

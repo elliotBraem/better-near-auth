@@ -139,6 +139,9 @@ export default createPlugin({
     AUTH_DATABASE_URL: z.string(),
     BETTER_AUTH_SECRET: z.string(),
     CORS_ORIGIN: z.string().optional(),
+    TWILIO_ACCOUNT_SID: z.string().optional(),
+    TWILIO_AUTH_TOKEN: z.string().optional(),
+    TWILIO_PHONE_NUMBER: z.string().optional(),
   }),
 
   context: z.object({
@@ -188,6 +191,9 @@ export default createPlugin({
           passkeyRpId,
           passkeyRpName: config.variables.passkeyRpName,
           passkeyOrigin: passkeyOrigin ?? undefined,
+          twilioAccountSid: config.secrets.TWILIO_ACCOUNT_SID,
+          twilioAuthToken: config.secrets.TWILIO_AUTH_TOKEN,
+          twilioPhoneNumber: config.secrets.TWILIO_PHONE_NUMBER,
         },
         driver.db,
       );
