@@ -128,17 +128,20 @@ export default createPlugin({
   variables: z.object({
     account: z.string().optional(),
     domain: z.string().optional(),
-    githubClientId: z.string().optional(),
-    githubClientSecret: z.string().optional(),
-    passkeyRpId: z.string().optional(),
-    passkeyRpName: z.string().optional(),
-    passkeyOrigin: z.string().optional(),
   }),
 
   secrets: z.object({
     AUTH_DATABASE_URL: z.string(),
     BETTER_AUTH_SECRET: z.string(),
     CORS_ORIGIN: z.string().optional(),
+    GITHUB_CLIENT_ID: z.string().optional(),
+    GITHUB_CLIENT_SECRET: z.string().optional(),
+    PASSKEY_RP_ID: z.string().optional(),
+    PASSKEY_RP_NAME: z.string().optional(),
+    PASSKEY_ORIGIN: z.string().optional(),
+    TWILIO_ACCOUNT_SID: z.string().optional(),
+    TWILIO_AUTH_TOKEN: z.string().optional(),
+    TWILIO_PHONE_NUMBER: z.string().optional(),
   }),
 
   context: z.object({
@@ -162,9 +165,20 @@ export default createPlugin({
         config.variables.domain,
         config.secrets.CORS_ORIGIN,
       );
-      const passkeyOrigin = config.variables.passkeyOrigin
-        ? ensureOrigin(config.variables.passkeyOrigin)
-        : undefined;
+      // When CORS_ORIGIN is a localhost URL the server is running in local dev.
+      // The production passkey secrets (rpId / origin) won't match localhost
+      // and the browser will reject the WebAuthn ceremony.  Derive both values
+      // from the first CORS_ORIGIN entry instead so no extra config is needed.
+      const firstCorsOrigin = config.secrets.CORS_ORIGIN?.split(",")[0]?.trim();
+      const isLocalCorsOrigin = !!firstCorsOrigin &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(firstCorsOrigin);
+
+      const passkeyOrigin = isLocalCorsOrigin
+        ? firstCorsOrigin
+        : config.secrets.PASSKEY_ORIGIN
+          ? ensureOrigin(config.secrets.PASSKEY_ORIGIN)
+          : undefined;
+      const passkeyRpId = isLocalCorsOrigin ? undefined : config.secrets.PASSKEY_RP_ID;
 
       const auth = createAuthInstance(
         {
@@ -172,11 +186,14 @@ export default createPlugin({
           baseUrl,
           account: config.variables.account || "dev.everything.near",
           trustedOrigins,
-          githubClientId: config.variables.githubClientId,
-          githubClientSecret: config.variables.githubClientSecret,
-          passkeyRpId: config.variables.passkeyRpId,
-          passkeyRpName: config.variables.passkeyRpName,
+          githubClientId: config.secrets.GITHUB_CLIENT_ID,
+          githubClientSecret: config.secrets.GITHUB_CLIENT_SECRET,
+          passkeyRpId,
+          passkeyRpName: config.secrets.PASSKEY_RP_NAME,
           passkeyOrigin: passkeyOrigin ?? undefined,
+          twilioAccountSid: config.secrets.TWILIO_ACCOUNT_SID,
+          twilioAuthToken: config.secrets.TWILIO_AUTH_TOKEN,
+          twilioPhoneNumber: config.secrets.TWILIO_PHONE_NUMBER,
         },
         driver.db,
       );

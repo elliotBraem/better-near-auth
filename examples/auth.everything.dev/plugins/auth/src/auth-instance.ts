@@ -92,7 +92,33 @@ async function sendEmail({ to, subject, text }: { to: string; subject: string; t
   console.log(`================================================================\n`);
 }
 
-async function sendSMS({ phoneNumber, code }: { phoneNumber: string; code: string }) {
+async function sendSMS(
+  { phoneNumber, code }: { phoneNumber: string; code: string },
+  twilio?: { accountSid: string; authToken: string; phoneNumber: string },
+) {
+  if (twilio) {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${twilio.accountSid}/Messages.json`;
+    const body = new URLSearchParams({
+      To: phoneNumber,
+      From: twilio.phoneNumber,
+      Body: `Your verification code is: ${code}`,
+    });
+    const res = await fetch(url, {
+      method: "POST",
+      signal: AbortSignal.timeout(10_000),
+      headers: {
+        Authorization: `Basic ${btoa(`${twilio.accountSid}:${twilio.authToken}`)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Twilio error ${res.status}: ${text}`);
+    }
+    return;
+  }
+
   console.log(`\n📱 [SMS Preview] ================================================`);
   console.log(`To: ${phoneNumber}`);
   console.log(`Code: ${code}`);
@@ -146,6 +172,14 @@ async function createPersonalOrganization(
 
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
   const passkeyOptions = resolvePasskeyRelyingPartyOptions(config);
+  const twilioConfig =
+    config.twilioAccountSid && config.twilioAuthToken && config.twilioPhoneNumber
+      ? {
+          accountSid: config.twilioAccountSid,
+          authToken: config.twilioAuthToken,
+          phoneNumber: config.twilioPhoneNumber,
+        }
+      : undefined;
 
   return betterAuth({
     database: drizzleAdapter(db, {
@@ -170,15 +204,19 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       }),
       admin({ defaultRole: "user", adminRoles: ["admin"] }),
       anonymous({ emailDomainName: config.account }),
-      phoneNumber({
-        sendOTP: async ({ phoneNumber, code }) => {
-          await sendSMS({ phoneNumber, code });
-        },
-        signUpOnVerification: {
-          getTempEmail: (phoneNumber) => `${phoneNumber}@${config.account}`,
-          getTempName: (phoneNumber) => phoneNumber,
-        },
-      }),
+      ...(twilioConfig
+        ? [
+            phoneNumber({
+              sendOTP: async ({ phoneNumber, code }) => {
+                await sendSMS({ phoneNumber, code }, twilioConfig);
+              },
+              signUpOnVerification: {
+                getTempEmail: (phoneNumber) => `${phoneNumber}@${config.account}`,
+                getTempName: (phoneNumber) => phoneNumber,
+              },
+            }),
+          ]
+        : []),
       passkey(passkeyOptions),
       organization({
         ac: orgAc,

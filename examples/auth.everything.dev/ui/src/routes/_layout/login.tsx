@@ -122,29 +122,21 @@ function LoginPage() {
         return;
       }
 
-      let callbackHandled = false;
       const result = await auth.signIn.passkey({
         autoFill: true,
         fetchOptions: {
           onSuccess: async () => {
             if (!isActive) return;
-            callbackHandled = true;
             await handleSuccess("Signed in with passkey");
           },
-          onError: (ctx) => {
-            if (!isActive) return;
-            callbackHandled = true;
-            handleError(new Error(ctx.error?.message || "Passkey sign in failed"));
-          },
+          // Silence errors — Firefox always rejects conditional requests,
+          // and the user may dismiss. Never toast for a background probe.
+          onError: () => {},
         },
       });
 
-      if (!callbackHandled && result?.error && isActive) {
-        handleError(new Error(result.error.message || "Passkey sign in failed"));
-      }
-    })().catch(() => {
-      // Conditional UI can be dismissed by the browser without a user-facing error.
-    });
+      void result;
+    })().catch(() => {});
 
     return () => {
       isActive = false;
@@ -200,6 +192,57 @@ function LoginPage() {
       if (!callbackHandled) {
         handleError(error instanceof Error ? error : new Error("Passkey sign in failed"));
       }
+    }
+  };
+
+  const handlePasskeySignUp = async () => {
+    if (passkeySupportError) {
+      toast.error(passkeySupportError);
+      return;
+    }
+    setIsPending(true);
+    try {
+      let anonOk = false;
+      await auth.signIn.anonymous({
+        fetchOptions: {
+          onSuccess: () => { anonOk = true; },
+          onError: (ctx) => {
+            handleError(new Error(ctx.error?.message || "Failed to create account"));
+          },
+        },
+      });
+      if (!anonOk) {
+        setIsPending(false);
+        return;
+      }
+
+      let callbackHandled = false;
+      const result = await auth.passkey.addPasskey({
+        fetchOptions: {
+          onSuccess: async () => {
+            callbackHandled = true;
+            setIsPending(false);
+            await handleSuccess("Passkey created — you're signed in");
+          },
+          onError: async (ctx) => {
+            callbackHandled = true;
+            setIsPending(false);
+            await auth.signOut();
+            handleError(new Error(ctx.error?.message || "Failed to create passkey"));
+          },
+        },
+      });
+      if (!callbackHandled) {
+        setIsPending(false);
+        if (result?.error) {
+          await auth.signOut();
+          handleError(new Error(result.error.message || "Failed to create passkey"));
+        }
+      }
+    } catch (error) {
+      setIsPending(false);
+      await auth.signOut();
+      handleError(error instanceof Error ? error : new Error("Failed to create passkey"));
     }
   };
 
@@ -372,12 +415,6 @@ function LoginPage() {
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               Use Face ID, Touch ID, or security key
             </p>
-            <Input
-              type="text"
-              autoComplete="username webauthn"
-              placeholder="email or username"
-              aria-label="Passkey account"
-            />
             {passkeySupportError && (
               <p className="text-xs text-destructive text-center leading-relaxed">
                 {passkeySupportError}
@@ -389,6 +426,14 @@ function LoginPage() {
               className="w-full"
             >
               {isPending ? "authenticating..." : "sign in with passkey"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handlePasskeySignUp}
+              disabled={isPending || !!passkeySupportError}
+              className="w-full"
+            >
+              {isPending ? "setting up..." : "sign up with passkey"}
             </Button>
           </div>
         );

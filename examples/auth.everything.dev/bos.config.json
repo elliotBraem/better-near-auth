@@ -124,15 +124,20 @@
       "integrity": "sha384-0+6PBccgYZwLDVxJJ3LDeA0EledPagot9TwxGvq59+qoJaBVc8qHJcxPTJNiHI6X",
       "variables": {
         "account": "auth.everything.near",
-        "domain": "everything.dev",
-        "passkeyRpId": "auth.everything.dev",
-        "passkeyOrigin": "https://auth.everything.dev",
-        "passkeyRpName": "Everything Dev"
+        "domain": "everything.dev"
       },
       "secrets": [
         "AUTH_DATABASE_URL",
         "BETTER_AUTH_SECRET",
-        "CORS_ORIGIN"
+        "CORS_ORIGIN",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "PASSKEY_RP_ID",
+        "PASSKEY_RP_NAME",
+        "PASSKEY_ORIGIN",
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_PHONE_NUMBER"
       ]
     }
   }

@@ -35,6 +35,9 @@ export interface AuthConfig {
   fastnearApiKey?: string;
   nearRpcUrl?: string;
   isProduction?: boolean;
+  twilioAccountSid?: string;
+  twilioAuthToken?: string;
+  twilioPhoneNumber?: string;
 }
 
 export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
