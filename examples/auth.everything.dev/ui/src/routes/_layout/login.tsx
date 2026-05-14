@@ -129,14 +129,12 @@ function LoginPage() {
             if (!isActive) return;
             await handleSuccess("Signed in with passkey");
           },
-          // Conditional autofill failures are silent — the browser had no
-          // credential to offer, the user dismissed, or Firefox rejected the
-          // request.  Never show an error toast for a background probe.
+          // Silence errors — Firefox always rejects conditional requests,
+          // and the user may dismiss. Never toast for a background probe.
           onError: () => {},
         },
       });
 
-      // Same: swallow result errors from the background conditional request.
       void result;
     })().catch(() => {});
 
