@@ -119,9 +119,9 @@ export function AuthMethodsPanel({
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MethodCard title="email" status={user.email ? "linked" : "missing"}>
-          <p className="text-sm text-muted-foreground">
+          <p className={`text-sm text-muted-foreground${user.email ? " break-all" : ""}`}>
             {user.email ?? "Email login has not been linked for this account yet."}
           </p>
         </MethodCard>
@@ -163,7 +163,7 @@ export function AuthMethodsPanel({
                   key={passkey.id}
                   className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 p-3 flex items-center justify-between gap-3"
                 >
-                  <span className="text-sm truncate">{passkey.name || "Passkey"}</span>
+                  <span className="text-sm truncate min-w-0 flex-1">{passkey.name || "Passkey"}</span>
                   <Button
                     onClick={() => setPasskeyToDelete(passkey)}
                     disabled={removePasskeyMutation.isPending}
@@ -364,7 +364,7 @@ function MethodCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="font-medium">{title}</div>

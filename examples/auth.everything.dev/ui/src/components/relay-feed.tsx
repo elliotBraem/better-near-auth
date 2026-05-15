@@ -95,21 +95,21 @@ export default function RelayFeed() {
         >
           <StatusIcon status={tx.status} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <a
                 href={explorerTxUrl(tx.txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-mono hover:underline truncate"
+                className="text-sm font-mono hover:underline truncate min-w-0 flex-1"
               >
                 {truncateHash(tx.txHash)}
               </a>
               <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0" />
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-muted-foreground">{tx.receiverId}</span>
+            <div className="flex items-center gap-2 mt-0.5 min-w-0">
+              <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">{tx.receiverId}</span>
               {tx.gasUsed && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground shrink-0">
                   {(Number(tx.gasUsed) / 1e12).toFixed(1)} Tgas
                 </span>
               )}
