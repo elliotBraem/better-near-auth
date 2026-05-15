@@ -14,19 +14,16 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   release:
     name: Build, Deploy & Publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
     env:
-      ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
-      ZE_SERVER_TOKEN: ${{ secrets.ZEPHYR_SERVER_AUTH_TOKEN }}
-      ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
       BOS_INSTALL_NEAR_CLI: "true"
-      NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
