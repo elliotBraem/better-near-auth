@@ -1,19 +1,17 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Clock, Key, Link2, Search, ShieldCheck, UserRound, Zap } from "lucide-react";
+import { Badge, Button, Card, CardContent } from "@/components";
 import {
   getActiveNearAccountId,
   StatCard,
   useSessionData,
   useWorkspaceData,
 } from "@/components/demo-sections";
-import { Badge, Button, Card, CardContent } from "@/components";
 
 export const Route = createFileRoute("/_layout/_authenticated/home")({
   head: () => ({
     title: "Workspace | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Your authenticated demo workspace." },
-    ],
+    meta: [{ name: "description", content: "Your authenticated demo workspace." }],
   }),
   component: WorkspacePage,
 });
@@ -75,21 +73,40 @@ function WorkspacePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Workspace</h1>
           <p className="text-sm text-muted-foreground">
-            Welcome back, {user?.name || nearAccountId || "User"}. Choose a plugin capability to explore.
+            Welcome back, {user?.name || nearAccountId || "User"}. Choose a plugin capability to
+            explore.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="Linked Accounts" value={String(workspace.linkedAccounts.length)} icon={<Link2 className="h-4 w-4" />} />
-        <StatCard label="Organizations" value={String(workspace.organizations.length)} icon={<ShieldCheck className="h-4 w-4" />} />
-        <StatCard label="Relayer" value={workspace.relayerData?.enabled ? "Active" : "Inactive"} icon={<Zap className="h-4 w-4" />} />
-        <StatCard label="Session" value={user ? "Valid" : "Expired"} icon={<Clock className="h-4 w-4" />} />
+        <StatCard
+          label="Linked Accounts"
+          value={String(workspace.linkedAccounts.length)}
+          icon={<Link2 className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Organizations"
+          value={String(workspace.organizations.length)}
+          icon={<ShieldCheck className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Relayer"
+          value={workspace.relayerData?.enabled ? "Active" : "Inactive"}
+          icon={<Zap className="h-4 w-4" />}
+        />
+        <StatCard
+          label="Session"
+          value={user ? "Valid" : "Expired"}
+          icon={<Clock className="h-4 w-4" />}
+        />
       </div>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Capabilities</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Capabilities
+          </h2>
           <Badge variant="outline">better-near-auth</Badge>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

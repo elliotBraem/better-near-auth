@@ -4,9 +4,7 @@ import { UserApiKeysPanel } from "@/components/settings-sections";
 export const Route = createFileRoute("/_layout/_authenticated/api-keys")({
   head: () => ({
     title: "API Keys | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Manage personal API keys." },
-    ],
+    meta: [{ name: "description", content: "Manage personal API keys." }],
   }),
   component: ApiKeysPage,
 });

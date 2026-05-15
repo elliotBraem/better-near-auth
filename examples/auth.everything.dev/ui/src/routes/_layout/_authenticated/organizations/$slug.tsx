@@ -49,9 +49,7 @@ const orgApiKeysQueryKey = (orgId: string) => ["org-api-keys", orgId] as const;
 export const Route = createFileRoute("/_layout/_authenticated/organizations/$slug")({
   head: () => ({
     title: "Organization | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Manage organization details and members." },
-    ],
+    meta: [{ name: "description", content: "Manage organization details and members." }],
   }),
   component: OrganizationDetail,
 });
@@ -595,10 +593,7 @@ function OrganizationDetail() {
           )}
 
           {createdApiKey && (
-            <ApiKeyReveal
-              apiKey={createdApiKey}
-              onDismiss={() => setCreatedApiKey(null)}
-            />
+            <ApiKeyReveal apiKey={createdApiKey} onDismiss={() => setCreatedApiKey(null)} />
           )}
 
           {apiKeys.length > 0 ? (

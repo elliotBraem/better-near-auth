@@ -4,9 +4,7 @@ import { NearProfileSearchCard } from "@/components/demo-sections";
 export const Route = createFileRoute("/_layout/_authenticated/account")({
   head: () => ({
     title: "NEAR Profiles | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Search NEAR Social profiles by account ID." },
-    ],
+    meta: [{ name: "description", content: "Search NEAR Social profiles by account ID." }],
   }),
   component: AccountSearchPage,
 });

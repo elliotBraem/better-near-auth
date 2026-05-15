@@ -1,12 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { GuestbookCard, RelayerCard, RelayFeedCard, useGuestbookGreeting } from "@/components/demo-sections";
+import {
+  GuestbookCard,
+  RelayerCard,
+  RelayFeedCard,
+  useGuestbookGreeting,
+} from "@/components/demo-sections";
 
 export const Route = createFileRoute("/_layout/_authenticated/guestbook")({
   head: () => ({
     title: "Guestbook | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Try gasless relayed NEAR guestbook signing." },
-    ],
+    meta: [{ name: "description", content: "Try gasless relayed NEAR guestbook signing." }],
   }),
   component: GuestbookPage,
 });

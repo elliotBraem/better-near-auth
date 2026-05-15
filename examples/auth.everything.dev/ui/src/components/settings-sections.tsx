@@ -131,9 +131,7 @@ export function AuthMethodsPanel({
           status={phoneNumber ? (user.phoneNumberVerified ? "verified" : "linked") : "available"}
         >
           <p className="text-sm text-muted-foreground">
-            {phoneNumber
-              ? phoneNumber
-              : "Phone OTP sign-in is available from the login screen."}
+            {phoneNumber ? phoneNumber : "Phone OTP sign-in is available from the login screen."}
           </p>
         </MethodCard>
 

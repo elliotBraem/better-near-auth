@@ -3,8 +3,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { type SessionData, sessionQueryOptions, useAuthClient } from "@/app";
-import { useUserPasskeys } from "@/components/settings-sections";
 import { Button, Card, CardContent } from "@/components";
+import { useUserPasskeys } from "@/components/settings-sections";
 import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/_layout/_authenticated/settings")({
@@ -36,9 +36,7 @@ function Settings() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage identity and session security.
-          </p>
+          <p className="text-sm text-muted-foreground">Manage identity and session security.</p>
         </div>
         <Button asChild variant="outline" size="sm">
           <Link to="/home">back to workspace</Link>
@@ -53,12 +51,16 @@ function Settings() {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Identity</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Identity
+        </h2>
         <IdentityTab user={user} />
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Security</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Security
+        </h2>
         <SecurityTab user={user} />
       </section>
     </div>

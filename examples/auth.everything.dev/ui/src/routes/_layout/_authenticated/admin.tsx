@@ -30,9 +30,7 @@ export const Route = createFileRoute("/_layout/_authenticated/admin")({
   },
   head: () => ({
     title: "Admin | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Manage users and admin-only auth controls." },
-    ],
+    meta: [{ name: "description", content: "Manage users and admin-only auth controls." }],
   }),
   component: AdminDashboard,
 });
