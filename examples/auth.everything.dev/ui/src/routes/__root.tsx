@@ -47,10 +47,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     const siteUrl = runtimeConfig?.hostUrl
       ? `${runtimeConfig.hostUrl}${runtimeBasePath === "/" ? "" : runtimeBasePath}`
       : "";
-    const title = runtimeConfig?.runtime?.title ?? runtimeConfig?.account ?? "every.near";
-    const description =
-      "Open runtime for apps on NEAR, composed from published config and loaded through a shared host, UI, and API runtime.";
-    const siteName = title;
+    const title = runtimeConfig?.runtime?.title ?? runtimeConfig?.account ?? "";
+    const description = runtimeConfig?.runtime?.description ?? "";
     const ogImage = `${assetsUrl}/metadata.png`;
 
     const structuredData = {
@@ -72,7 +70,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         { name: "description", content: description },
         { name: "theme-color", content: "#ffffff" },
         { name: "color-scheme", content: "light dark" },
-        { name: "application-name", content: siteName },
+        { name: "application-name", content: title },
         { name: "mobile-web-app-capable", content: "yes" },
         {
           name: "apple-mobile-web-app-status-bar-style",
@@ -84,7 +82,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           imageUrl: ogImage,
           title,
           description,
-          siteName,
+          siteName: title,
           siteUrl,
           alt: "app preview",
         }),

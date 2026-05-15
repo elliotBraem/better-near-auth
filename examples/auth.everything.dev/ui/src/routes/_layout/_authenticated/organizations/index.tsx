@@ -14,9 +14,7 @@ type UserInvitationItem = NonNullable<UserInvitationsResponse["data"]>[number];
 export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
   head: () => ({
     title: "Organizations | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Manage your organizations and teams." },
-    ],
+    meta: [{ name: "description", content: "Manage your organizations and teams." }],
   }),
   component: OrganizationsList,
 });

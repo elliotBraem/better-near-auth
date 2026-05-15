@@ -8,9 +8,7 @@ import {
 export const Route = createFileRoute("/_layout/_authenticated/accounts")({
   head: () => ({
     title: "Accounts | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Manage linked NEAR and OAuth accounts." },
-    ],
+    meta: [{ name: "description", content: "Manage linked NEAR and OAuth accounts." }],
   }),
   component: AccountsPage,
 });

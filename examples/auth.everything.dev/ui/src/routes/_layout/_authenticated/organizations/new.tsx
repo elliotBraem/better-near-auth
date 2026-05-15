@@ -8,9 +8,7 @@ import { Button, Card, CardContent, Input } from "@/components";
 export const Route = createFileRoute("/_layout/_authenticated/organizations/new")({
   head: () => ({
     title: "New Organization | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Create a new organization." },
-    ],
+    meta: [{ name: "description", content: "Create a new organization." }],
   }),
   component: NewOrganization,
 });

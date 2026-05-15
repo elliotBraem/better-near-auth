@@ -170,8 +170,8 @@ export default createPlugin({
       // and the browser will reject the WebAuthn ceremony.  Derive both values
       // from the first CORS_ORIGIN entry instead so no extra config is needed.
       const firstCorsOrigin = config.secrets.CORS_ORIGIN?.split(",")[0]?.trim();
-      const isLocalCorsOrigin = !!firstCorsOrigin &&
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(firstCorsOrigin);
+      const isLocalCorsOrigin =
+        !!firstCorsOrigin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(firstCorsOrigin);
 
       const passkeyOrigin = isLocalCorsOrigin
         ? firstCorsOrigin

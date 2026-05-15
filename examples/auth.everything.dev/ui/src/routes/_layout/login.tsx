@@ -81,17 +81,20 @@ function LoginPage() {
   const queryClient = useQueryClient();
   const passkeySupportError = authMethod === "passkey" ? getPasskeySupportError() : null;
 
-  const handleSuccess = useCallback(async (message: string) => {
-    const redirectTo = redirect?.startsWith("/") ? redirect : "/home";
-    toast.success(message);
-    queryClient.removeQueries({ queryKey: ["passkeys"] });
-    const { data: freshSession } = await auth.getSession();
-    if (freshSession) {
-      queryClient.setQueryData(["session"], freshSession);
-    }
-    await queryClient.invalidateQueries({ queryKey: ["session"] });
-    navigate({ to: redirectTo, replace: true, search: {} });
-  }, [auth, navigate, queryClient, redirect]);
+  const handleSuccess = useCallback(
+    async (message: string) => {
+      const redirectTo = redirect?.startsWith("/") ? redirect : "/home";
+      toast.success(message);
+      queryClient.removeQueries({ queryKey: ["passkeys"] });
+      const { data: freshSession } = await auth.getSession();
+      if (freshSession) {
+        queryClient.setQueryData(["session"], freshSession);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      navigate({ to: redirectTo, replace: true, search: {} });
+    },
+    [auth, navigate, queryClient, redirect],
+  );
 
   const handleError = useCallback((error: { code?: string; message?: string } | Error) => {
     const code = "code" in error ? error.code : undefined;
@@ -205,7 +208,9 @@ function LoginPage() {
       let anonOk = false;
       await auth.signIn.anonymous({
         fetchOptions: {
-          onSuccess: () => { anonOk = true; },
+          onSuccess: () => {
+            anonOk = true;
+          },
           onError: (ctx) => {
             handleError(new Error(ctx.error?.message || "Failed to create account"));
           },

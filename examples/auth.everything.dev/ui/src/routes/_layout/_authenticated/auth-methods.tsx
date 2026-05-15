@@ -6,9 +6,7 @@ import { AuthMethodsPanel, useUserPasskeys } from "@/components/settings-section
 export const Route = createFileRoute("/_layout/_authenticated/auth-methods")({
   head: () => ({
     title: "Auth Methods | auth.everything.dev",
-    meta: [
-      { name: "description", content: "Manage linked authentication methods." },
-    ],
+    meta: [{ name: "description", content: "Manage linked authentication methods." }],
   }),
   component: AuthMethodsPage,
 });

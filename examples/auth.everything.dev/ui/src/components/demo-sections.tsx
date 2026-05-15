@@ -26,7 +26,15 @@ import {
   useApiClient,
   useAuthClient,
 } from "@/app";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components";
 import { Input } from "@/components/ui/input";
 import { getLinkedProviders, getNearAccountId, getProviderConfig } from "@/lib/auth-utils";
 import { NearProfile } from "./near-profile";
@@ -693,14 +701,11 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                           : handleUnlinkAccount(account.providerId)
                       }
                       disabled={
-                        isUnlinking === accountActionId(account) ||
-                        !canUnlinkAccount(account)
+                        isUnlinking === accountActionId(account) || !canUnlinkAccount(account)
                       }
                       className="text-destructive hover:text-destructive"
                     >
-                      {isUnlinking === accountActionId(account)
-                        ? "Unlinking..."
-                        : "Unlink"}
+                      {isUnlinking === accountActionId(account) ? "Unlinking..." : "Unlink"}
                     </Button>
                   </div>
                 </div>
@@ -759,7 +764,6 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
           )}
         </CardContent>
       </Card>
-
     </div>
   );
 }

@@ -1,8 +1,9 @@
 /**
- * Public UI surface — thin barrel only.
+ * Public UI surface — runtime helpers, client factories, and router types.
  *
- * This file re-exports everything that UI route code needs.
- * Do not create clients, add app logic, or define types here.
+ * This file re-exports everything that UI route code needs and defines
+ * thin runtime helpers (getAccount, getAppName, etc.) derived from
+ * the injected runtime config.
  *
  * Framework file roles (understand this boundary — don't dig into host):
  *
@@ -26,7 +27,7 @@
  *                        and ./lib/auth. Also re-exports router-facing
  *                        public types.
  *
- * Boundary rule: The host loads UI remotely via Module Federation and
+ *   Boundary rule: The host loads UI remotely via Module Federation and
  * provides runtime config + auth/API routing. Work within the typed
  * surface exported here. Only investigate host internals if something
  * is genuinely broken and a host PR is warranted.
@@ -43,21 +44,32 @@ import {
 
 export { buildPublishedAccountHref, buildPublishedGatewayHref, buildRuntimeHref, getRuntimeConfig };
 
-export function getAppName(): string {
-  const cfg = getRuntimeConfig();
-  return cfg?.runtime?.title ?? cfg?.account ?? "app";
+type RuntimeConfigInput = Partial<import("everything-dev/types").ClientRuntimeConfig> | undefined;
+
+function readRuntimeConfig(config?: RuntimeConfigInput) {
+  if (config) return config;
+  if (typeof window === "undefined") return undefined;
+  try {
+    return getRuntimeConfig();
+  } catch {
+    return undefined;
+  }
 }
 
-export function getAccount(): string | undefined {
-  return getRuntimeConfig()?.account;
+export function getActiveRuntime(config?: RuntimeConfigInput) {
+  return readRuntimeConfig(config)?.runtime;
 }
 
-export function getRepository(): string | undefined {
-  return getRuntimeConfig()?.repository;
+export function getAccount(config?: RuntimeConfigInput): string {
+  return readRuntimeConfig(config)?.account ?? "every.near";
 }
 
-export function getActiveRuntime() {
-  return getRuntimeConfig()?.runtime;
+export function getRepository(config?: RuntimeConfigInput): string | undefined {
+  return readRuntimeConfig(config)?.repository;
+}
+
+export function getAppName(config?: RuntimeConfigInput): string {
+  return getActiveRuntime(config)?.title ?? getAccount(config);
 }
 
 import type { ApiClient } from "./lib/api";
@@ -101,4 +113,5 @@ export interface CreateRouterOptions
 export interface RenderOptions extends Omit<BaseRenderOptions<SessionData>, "runtimeConfig"> {
   runtimeConfig: BaseRenderOptions<SessionData>["runtimeConfig"];
   apiClient: ApiClient;
+  authClient?: AuthClientType;
 }
