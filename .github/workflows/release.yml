@@ -40,10 +40,7 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          version: >-
-            pnpm run version
-            && node scripts/sync-example-version.mjs
-            && cd examples/auth.everything.dev && bun install --lockfile-only
+          version: pnpm run version
           publish: pnpm release
           title: "chore: version packages"
           commit: "chore: version packages"
