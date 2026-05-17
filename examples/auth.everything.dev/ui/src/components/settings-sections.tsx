@@ -163,7 +163,9 @@ export function AuthMethodsPanel({
                   key={passkey.id}
                   className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 p-3 flex items-center justify-between gap-3"
                 >
-                  <span className="text-sm truncate min-w-0 flex-1">{passkey.name || "Passkey"}</span>
+                  <span className="text-sm truncate min-w-0 flex-1">
+                    {passkey.name || "Passkey"}
+                  </span>
                   <Button
                     onClick={() => setPasskeyToDelete(passkey)}
                     disabled={removePasskeyMutation.isPending}

@@ -107,7 +107,9 @@ export default function RelayFeed() {
               <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0" />
             </div>
             <div className="flex items-center gap-2 mt-0.5 min-w-0">
-              <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">{tx.receiverId}</span>
+              <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">
+                {tx.receiverId}
+              </span>
               {tx.gasUsed && (
                 <span className="text-xs text-muted-foreground shrink-0">
                   {(Number(tx.gasUsed) / 1e12).toFixed(1)} Tgas
