@@ -1,8 +1,9 @@
 name: Update Example Version
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
 
 permissions:
   contents: write
@@ -10,11 +11,13 @@ permissions:
 jobs:
   update-version:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -24,17 +27,23 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Get version from release
+      - name: Get version from release tag
         id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          git fetch --force --tags
+          tag="$(git tag --points-at "${{ github.event.workflow_run.head_sha }}" | awk '/^v[0-9]/{ print }' | sort -V | tail -n 1)"
+          echo "TAG=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - name: Update example package.json
+        if: steps.get_version.outputs.TAG != ''
         run: |
           cd examples/browser-2-server/apps/server
           cat package.json | jq '.dependencies["better-near-auth"] = "^${{ steps.get_version.outputs.VERSION }}"' > package.json.tmp
           mv package.json.tmp package.json
 
       - name: Commit and push
+        if: steps.get_version.outputs.TAG != ''
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -43,9 +52,11 @@ jobs:
           git push
 
       - name: Wait for Railway deployment
+        if: steps.get_version.outputs.TAG != ''
         run: sleep 120
 
       - name: Revert to workspace dependency
+        if: steps.get_version.outputs.TAG != ''
         run: |
           cd examples/browser-2-server/apps/server
           cat package.json | jq '.dependencies["better-near-auth"] = "workspace:*"' > package.json.tmp
