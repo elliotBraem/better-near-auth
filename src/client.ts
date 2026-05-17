@@ -1,6 +1,5 @@
 import { Near, fromNearConnect, generateNonce, TransactionBuilder } from "near-kit";
 import type { Near as NearType, SignedMessage } from "near-kit";
-import { NearConnector } from "@hot-labs/near-connect";
 import type { EventMap } from "@hot-labs/near-connect";
 import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
@@ -69,9 +68,17 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 	const network = config.networkId || "mainnet";
 
-	let connector: NearConnector | null = null;
+	let connector: InstanceType<typeof import("@hot-labs/near-connect").NearConnector> | null = null;
 	let near: Near | null = null;
 	let clientInitialized = false;
+	let connectorModulePromise: Promise<typeof import("@hot-labs/near-connect")> | null = null;
+	let initClientPromise: Promise<boolean> | null = null;
+
+	const loadConnector = async () => {
+		connectorModulePromise ??= import("@hot-labs/near-connect");
+		const { NearConnector } = await connectorModulePromise;
+		return NearConnector;
+	};
 
 	const handleAccountConnection = async (accountId: string, publicKey?: string | null) => {
 		if (!accountId) return;
@@ -83,52 +90,64 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		walletConnected.set(true);
 	};
 
-	const initClient = ($fetch?: BetterFetch): boolean => {
+	const initClient = async ($fetch?: BetterFetch): Promise<boolean> => {
 		if (clientInitialized) return true;
+		if (initClientPromise) return initClientPromise;
 		if (typeof (globalThis as any).window === "undefined") return false;
 
-		connector = new NearConnector({ network, cspNonce: config.cspNonce });
-		near = new Near({
-			network,
-			wallet: fromNearConnect(connector),
-		});
+		initClientPromise = (async () => {
+			const NearConnector = await loadConnector();
+			connector = new NearConnector({ network, cspNonce: config.cspNonce });
+			near = new Near({
+				network,
+				wallet: fromNearConnect(connector),
+			});
 
-		connector.on("wallet:signIn", async (data: EventMap["wallet:signIn"]) => {
-			const accountId = data.accounts?.[0]?.accountId;
-			const publicKey = data.accounts?.[0]?.publicKey;
-			if (accountId) {
-				await handleAccountConnection(accountId, publicKey);
-			}
-		});
+			connector.on("wallet:signIn", async (data: EventMap["wallet:signIn"]) => {
+				const accountId = data.accounts?.[0]?.accountId;
+				const publicKey = data.accounts?.[0]?.publicKey;
+				if (accountId) {
+					await handleAccountConnection(accountId, publicKey);
+				}
+			});
 
-		connector.on("wallet:signOut", () => {
-			walletConnected.set(false);
-			const state = nearState.get();
-			if (state) {
-				nearState.set({ accountId: state.accountId, publicKey: null, networkId: state.networkId });
-			}
-		});
+			connector.on("wallet:signOut", () => {
+				walletConnected.set(false);
+				const state = nearState.get();
+				if (state) {
+					nearState.set({ accountId: state.accountId, publicKey: null, networkId: state.networkId });
+				}
+			});
 
-		connector.getConnectedWallet().then(({ accounts }) => {
-			const account = accounts?.[0];
-			if (account?.accountId && !nearState.get()) {
-				nearState.set({
-					accountId: account.accountId,
-					publicKey: account.publicKey ?? null,
-					networkId: network,
-				});
-			}
-			if (account?.accountId) {
-				walletConnected.set(true);
-			}
-		}).catch(() => {});
+			void connector.getConnectedWallet().then(({ accounts }) => {
+				const account = accounts?.[0];
+				if (account?.accountId && !nearState.get()) {
+					nearState.set({
+						accountId: account.accountId,
+						publicKey: account.publicKey ?? null,
+						networkId: network,
+					});
+				}
+				if (account?.accountId) {
+					walletConnected.set(true);
+				}
+			}).catch(() => {});
 
-		if ($fetch) {
-			restoreFromSession($fetch);
+			if ($fetch) {
+				void restoreFromSession($fetch);
+			}
+
+			clientInitialized = true;
+			return true;
+		})();
+
+		try {
+			return await initClientPromise;
+		} finally {
+			if (!clientInitialized) {
+				initClientPromise = null;
+			}
 		}
-
-		clientInitialized = true;
-		return true;
 	};
 
 	let sessionRestored = false;
@@ -158,7 +177,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		sessionRestored = true;
 	};
 
-	const requireConnector = (): NearConnector => {
+	const requireConnector = async () => {
 		if (!connector) throw new Error("Wallet not initialized — this operation requires a browser environment");
 		return connector;
 	};
@@ -169,7 +188,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	};
 
 	const ensureWalletConnected = async (): Promise<boolean> => {
-		const conn = requireConnector();
+		const conn = await requireConnector();
 		if (walletConnected.get()) {
 			try {
 				const { accounts } = await conn.getConnectedWallet();
@@ -199,7 +218,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	};
 
 	const signWithWallet = async (): Promise<SignWithWalletResult> => {
-		const conn = requireConnector();
+		const conn = await requireConnector();
 		const nearClient = requireNear();
 
 		const nonceBytes = generateNonce();
@@ -301,7 +320,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		}),
 
 		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined): SIWNClientActions => {
-			initClient($fetch);
+			void initClient($fetch);
 
 			return {
 				near: {
@@ -341,11 +360,11 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					isWalletConnected: () => walletConnected.get(),
 					ensureConnected: async () => {
 						if (!clientInitialized) {
-							if (!initClient()) return false;
+							if (!(await initClient())) return false;
 						}
 						if (walletConnected.get()) {
 							try {
-								const { accounts } = await requireConnector().getConnectedWallet();
+								const { accounts } = await (await requireConnector()).getConnectedWallet();
 								if (accounts?.length) return true;
 		} catch (err) {
 			console.error("[siwn] restoreFromSession failed:", err instanceof Error ? err.message : err);

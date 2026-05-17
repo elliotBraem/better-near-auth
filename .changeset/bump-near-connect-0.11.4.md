@@ -2,4 +2,4 @@
 "better-near-auth": patch
 ---
 
-Bump `@hot-labs/near-connect` to 0.11.4
+Bundle `@hot-labs/near-connect` into the lazy-loaded client wallet code and switch builds to `tsdown`, so consuming apps no longer need to install `@hot-labs/near-connect` directly.
