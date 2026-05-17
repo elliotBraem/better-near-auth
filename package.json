@@ -59,7 +59,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@hot-labs/near-connect": "github:azbang/near-connect#v0.11.3",
+    "@hot-labs/near-connect": "github:azbang/near-connect#v0.11.4",
     "@scure/base": "^2.2.0",
     "nanostores": "^1.1.0",
     "near-kit": "^0.14.0",

@@ -40,7 +40,7 @@
     "@tanstack/react-table": "^8.21.3",
     "better-auth": "catalog:",
     "better-near-auth": "catalog:",
-    "@hot-labs/near-connect": "0.11.2",
+    "@hot-labs/near-connect": "0.11.4",
     "class-variance-authority": "^0.7.1",
     "effect": "catalog:",
     "clsx": "^2.1.1",

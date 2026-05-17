@@ -103,7 +103,7 @@
   "dependencies": {
     "@better-auth/api-key": "catalog:",
     "@better-auth/passkey": "catalog:",
-    "@hot-labs/near-connect": "0.11.2",
+    "@hot-labs/near-connect": "0.11.4",
     "@libsql/client": "^0.17.0",
     "@orpc/contract": "^1.13.14",
     "@orpc/server": "^1.13.14",
@@ -122,6 +122,6 @@
     "effect": "3.21.0",
     "@orpc/contract": "1.13.14",
     "@orpc/server": "1.13.14",
-    "@hot-labs/near-connect": "0.11.2"
+    "@hot-labs/near-connect": "0.11.4"
   }
 }
