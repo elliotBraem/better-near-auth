@@ -25,7 +25,7 @@
     "start:b2s": "cd examples/browser-2-server && pnpm dev",
     "typecheck": "tsc --noEmit",
     "changeset": "changeset",
-    "version": "changeset version && node scripts/sync-example-version.mjs && cd examples/auth.everything.dev && bun install --lockfile-only",
+    "version": "changeset version && node scripts/sync-example-version.mjs",
     "release": "pnpm build && changeset publish"
   },
   "keywords": [

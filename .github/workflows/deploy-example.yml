@@ -56,3 +56,10 @@ jobs:
       - name: Publish config to FastKV
         working-directory: examples/auth.everything.dev
         run: bun run publish
+
+      - name: Commit updated lockfile
+        if: github.event_name == 'release'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(deploy-example): update lockfile after release deploy"
+          file_pattern: examples/auth.everything.dev/bun.lock
