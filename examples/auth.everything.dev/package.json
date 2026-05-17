@@ -18,7 +18,7 @@
       "better-auth": "1.6.9",
       "@better-auth/api-key": "1.6.9",
       "@better-auth/passkey": "1.6.9",
-      "better-near-auth": "1.4.2",
+      "better-near-auth": "^1.5.0",
       "every-plugin": "^2.5.11",
       "typescript": "^5.9.3",
       "vitest": "^4.0.17",
@@ -122,7 +122,7 @@
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
-    "better-near-auth": "catalog:",
+    "better-near-auth": "^1.5.0",
     "@electric-sql/pglite": "catalog:"
   },
   "overrides": {

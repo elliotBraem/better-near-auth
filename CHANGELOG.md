@@ -1,5 +1,30 @@
 # better-near-auth
 
+## 1.5.0
+
+### Minor Changes
+
+- [`a311d3c`](https://github.com/elliotBraem/better-near-auth/commit/a311d3c52cb99119b9d16f9d0a0bc9dbc015b26a) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add `cspNonce` option to `SIWNClientConfig` for sites with nonce-based Content Security Policy
+
+  When the parent page uses nonce-based CSP (e.g. `script-src 'nonce-abc123'`), the `srcdoc` iframe's inline `<script>` tags are blocked because they have no `nonce` attribute. Pass `cspNonce` to propagate the parent's nonce into the wallet iframe so scripts execute correctly:
+
+  ```ts
+  const client = siwnClient({
+    recipient: "your-app.near",
+    cspNonce:
+      document.querySelector("script[nonce]")?.getAttribute("nonce") ??
+      undefined,
+  });
+  ```
+
+- [#34](https://github.com/elliotBraem/better-near-auth/pull/34) [`0b77de8`](https://github.com/elliotBraem/better-near-auth/commit/0b77de88a20f4bbaae188973b6282f270cef1718) Thanks [@itexpert120](https://github.com/itexpert120)! - Expose active and available NEAR account state from `listAccounts` and add `setPrimaryAccount` for selecting the active account.
+
+- [#40](https://github.com/elliotBraem/better-near-auth/pull/40) [`d5911ba`](https://github.com/elliotBraem/better-near-auth/commit/d5911baa51c7388dd4b78ba1aa78be00c6dc3f82) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Update example app: renovate config, CI improvements, build config updates, and lint fixes
+
+### Patch Changes
+
+- [`aadea18`](https://github.com/elliotBraem/better-near-auth/commit/aadea183e5b05356ebceccbe9476b6759700e4ee) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Bundle `@hot-labs/near-connect` into the lazy-loaded client wallet code and switch builds to `tsdown`, so consuming apps no longer need to install `@hot-labs/near-connect` directly.
+
 ## 1.4.2
 
 ### Patch Changes
