@@ -135,7 +135,7 @@ function Layout() {
                   <div className="hidden sm:flex items-center gap-2">
                     <span>{appName}</span>
                     <span>/</span>
-                    <span className="truncate">
+                    <span className="truncate min-w-0">
                       {pathname === "/" ? "home" : pathname.slice(1).split("/").join(" / ")}
                     </span>
                   </div>

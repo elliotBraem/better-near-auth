@@ -39,7 +39,7 @@ export function OrgSwitcher({ organizations, activeOrgId, onSwitch }: OrgSwitche
           className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground max-w-[180px]"
         >
           <Building2 className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{activeOrg?.name ?? "workspace"}</span>
+          <span className="truncate min-w-0">{activeOrg?.name ?? "workspace"}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -53,7 +53,7 @@ export function OrgSwitcher({ organizations, activeOrgId, onSwitch }: OrgSwitche
             className="flex items-center justify-between cursor-pointer"
             onClick={() => handleSwitch(org.id)}
           >
-            <span className="truncate">{org.name}</span>
+            <span className="truncate min-w-0 flex-1">{org.name}</span>
             {org.id === activeOrgId && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
           </DropdownMenuItem>
         ))}
