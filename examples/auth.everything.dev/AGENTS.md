@@ -33,7 +33,7 @@ skills:
 
 # Agent Instructions
 
-This document provides operational guidance for AI agents working on a BOS project scaffolded via `bos init`.
+This document provides operational guidance for AI agents working in the parent `everything.dev` repository.
 
 ## Quick Reference
 
@@ -44,15 +44,10 @@ bun install
 bun run dev
 ```
 
-**Sync from Parent:**
+**Sync and Publish:**
 ```bash
-bos sync              # Pull updates from parent template
+bos sync              # Pull updates from published config/template state
 bos upgrade           # Check for new versions, update, then sync
-bos status            # Show project health (extends, versions, .env, last sync)
-```
-
-**Publish:**
-```bash
 bos publish           # Publish config to the FastKV registry
 bos publish --deploy  # Build/deploy all workspaces, then publish
 ```
@@ -66,11 +61,11 @@ bos info      # Show configuration
 
 ## Architecture
 
-This is a **Module Federation monorepo** with runtime-loaded configuration. The host is **remote** — it is not in this repository. You work on `/ui`, `/api`, and `/plugins` (auth, registry, projects, etc.).
+This is the parent **Module Federation monorepo** for `everything.dev`. The host is in this repository under `host/`. You may work across `/host`, `/ui`, `/api`, `/plugins`, and `/packages`.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Host (Remote)                        │
+│                    Host (Server)                        │
 │  - Hono.js + oRPC router                               │
 │  - Runtime config loader (bos.config.json)              │
 │  - Module Federation host                               │
@@ -78,18 +73,18 @@ This is a **Module Federation monorepo** with runtime-loaded configuration. The 
 └─────────────────────────────────────────────────────────┘
             ↓                ↓                ↓
 ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│    UI (Local)    │ │  Auth Plugin     │ │  API + Plugins   │
+│       UI         │ │  Auth Plugin     │ │  API + Plugins   │
 │  - React 19      │ │  - every-plugin  │ │  - every-plugin  │
 │  - TanStack      │ │  - Better-Auth   │ │  - oRPC contract │
 │  - Module Fed.   │ │  - NEAR SIWN     │ │  - Effect svc    │
 └──────────────────┘ └──────────────────┘ └──────────────────┘
 ```
 
-The host loads UI and API at runtime from URLs in `bos.config.json`. No rebuild is needed when URLs change.
+The host loads UI and API at runtime from URLs in `bos.config.json`. In production today, the host still freezes one `RuntimeConfig` at startup and must restart to pick up a different published config.
 
 ### Runtime Config
 
-All runtime configuration lives in `bos.config.json`. The UI reads `window.__RUNTIME_CONFIG__` to get account, gateway, API base URL, etc.
+All runtime configuration lives in `bos.config.json`. The UI reads `window.__RUNTIME_CONFIG__` to get account, gateway, API base URL, etc. The host uses the same config to wire Module Federation remotes, auth, plugins, and SSR.
 
 Use these helpers from `@/app`:
 - `getAppName()` — active runtime title (falls back to account)
@@ -97,6 +92,8 @@ Use these helpers from `@/app`:
 - `getRepository()` — repository URL from config
 - `getActiveRuntime()` — active runtime info (accountId, gatewayId, title)
 - `getRuntimeConfig()` — full client config
+
+Important: `host/src/program.ts` already supports path-based runtime metadata overrides via `/_runtime/:account/:gateway`, but that is not yet full per-request config swapping. For that work, start from `plans/runtime-config-hot-swap.md`.
 
 ## Development Workflow
 
@@ -124,8 +121,10 @@ Use these helpers from `@/app`:
 ## Code Changes
 
 ### Making Changes
+- **Host Changes**: Edit `host/src/` when changing runtime resolution, auth wiring, SSR, proxying, or plugin mounting
 - **UI Changes**: Edit `ui/src/` files → hot reload automatically
 - **API Changes**: Edit `api/src/` files → hot reload automatically
+- **CLI/Scaffolding Changes**: Edit `packages/everything-dev/` when changing init/dev/publish flows or child-project scaffolding
 - **New Components**: Create in `ui/src/components/ui/`, export from `ui/src/components/index.ts`
 - **New Routes**: Create file in `ui/src/routes/`, TanStack Router auto-generates tree
 
@@ -147,7 +146,7 @@ Business logic is organized into independent plugins loaded via Module Federatio
 - **`plugins/auth/`** — Authentication and authorization (Better-Auth, NEAR SIWN, organizations, API keys)
 - **`plugins/registry/`** — FastKV app discovery, metadata publish/relay (no database)
 - **`plugins/projects/`** — Project and organization management
- - **`plugins/_template/`** — Scaffold for creating new plugins
+- **`plugins/_template/`** — Scaffold for creating new plugins
 
 Each plugin is self-contained with its own:
 - `contract.ts` — oRPC route definitions and Zod schemas
@@ -169,6 +168,14 @@ Plugin types resolve in two ways:
 - Remote URL → fetches bundled types from the deployed plugin manifest
 
 If you hand-edit `bos.config.json`, run `bos types gen` or restart `bos dev` to regenerate.
+
+## Parent vs Child
+
+This repo is the parent platform, not a generated child project.
+
+- Prefer changing `host/` and `packages/everything-dev/` when the request is about runtime resolution, domain routing, config loading, CLI behavior, or scaffolding.
+- Prefer changing child project repos when the request is about project-specific content, shell navigation, or app-specific plugin/sidebar composition.
+- Do not assume the host is remote-only or out of tree; that is true for many child repos, not for this one.
 
 ## Changesets
 

@@ -18,7 +18,7 @@
       "better-auth": "1.6.9",
       "@better-auth/api-key": "1.6.9",
       "@better-auth/passkey": "1.6.9",
-      "better-near-auth": "^1.4.2",
+      "better-near-auth": "1.4.2",
       "every-plugin": "^2.5.11",
       "typescript": "^5.9.3",
       "vitest": "^4.0.17",
@@ -48,7 +48,16 @@
       "@rspack/core": "1.7.11",
       "@rspack/cli": "1.7.11",
       "@rsbuild/core": "1.7.5",
-      "@rsbuild/plugin-react": "1.4.6"
+      "@rsbuild/plugin-react": "1.4.6",
+      "@tanstack/react-query-devtools": "^5.91.1",
+      "@tanstack/react-router-devtools": "1.157.16",
+      "@tanstack/router-plugin": "1.157.16",
+      "@tanstack/react-devtools": "^0.10.1",
+      "@tanstack/react-form": "^1.29.1",
+      "@tanstack/react-table": "^8.21.3",
+      "@tanstack/zod-form-adapter": "^0.42.1",
+      "zephyr-rspack-plugin": "^1.1.0",
+      "zephyr-rsbuild-plugin": "^1.0.1"
     }
   },
   "scripts": {
@@ -66,7 +75,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "start": "NODE_ENV=production node_modules/.bin/bos start --port ${PORT:-3000} --env ${APP_ENV:-production} --no-interactive ${BOS_ACCOUNT:+--account $BOS_ACCOUNT}",
+    "start": "NODE_ENV=production bun ./node_modules/everything-dev/dist/cli.mjs start --port ${PORT:-3000} --env ${APP_ENV:-production} --no-interactive ${BOS_ACCOUNT:+--account $BOS_ACCOUNT}",
     "changeset": "changeset",
     "version": "changeset version && bun run sync-catalog",
     "release": "echo 'Packages versioned - skipping npm publish'",
@@ -113,7 +122,7 @@
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
-    "better-near-auth": "^1.4.2",
+    "better-near-auth": "catalog:",
     "@electric-sql/pglite": "catalog:"
   },
   "overrides": {
