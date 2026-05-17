@@ -16,6 +16,7 @@ export interface AuthCallbacks {
 export interface SIWNClientConfig {
 	recipient: string;
 	networkId?: "mainnet" | "testnet";
+	cspNonce?: string;
 }
 
 interface SignWithWalletResult {
@@ -86,7 +87,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		if (clientInitialized) return true;
 		if (typeof (globalThis as any).window === "undefined") return false;
 
-		connector = new NearConnector({ network });
+		connector = new NearConnector({ network, cspNonce: config.cspNonce });
 		near = new Near({
 			network,
 			wallet: fromNearConnect(connector),
