@@ -36,6 +36,15 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Delete stale changeset release branch
+        run: |
+          git fetch origin
+          if git show-ref --verify --quiet refs/remotes/origin/changeset-release/main; then
+            git push origin --delete changeset-release/main || true
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
