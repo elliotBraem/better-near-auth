@@ -26,10 +26,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        if: github.event_name == 'push'
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 24
+        if: github.event_name == 'push'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.20"
+
+      - name: Install root dependencies
+        if: github.event_name == 'push'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and pack local better-near-auth
+        if: github.event_name == 'push'
+        id: pack_local
+        run: |
+          mkdir -p "$RUNNER_TEMP/better-near-auth-pack"
+          pnpm build
+          TARBALL=$(pnpm pack --pack-destination "$RUNNER_TEMP/better-near-auth-pack" --json | jq -r '.filename')
+          echo "TARBALL=$TARBALL" >> $GITHUB_OUTPUT
 
       - name: Get version from release
         id: get_version
@@ -45,15 +69,34 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Update better-near-auth version in example
-        working-directory: examples/auth.everything.dev
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          cat package.json | jq \
-            --arg v "$VERSION" \
-            '.workspaces.catalog["better-near-auth"] = "^" + $v |
-             .dependencies["better-near-auth"] = "^" + $v' \
-            > package.json.tmp
-          mv package.json.tmp package.json
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            TARBALL="${{ steps.pack_local.outputs.TARBALL }}"
+            jq --arg tarball "$TARBALL" '.dependencies["better-near-auth"] = $tarball' \
+              examples/auth.everything.dev/package.json > examples/auth.everything.dev/package.json.tmp
+            mv examples/auth.everything.dev/package.json.tmp examples/auth.everything.dev/package.json
+
+            jq --arg tarball "$TARBALL" '.dependencies["better-near-auth"] = $tarball' \
+              examples/auth.everything.dev/ui/package.json > examples/auth.everything.dev/ui/package.json.tmp
+            mv examples/auth.everything.dev/ui/package.json.tmp examples/auth.everything.dev/ui/package.json
+
+            jq --arg tarball "$TARBALL" '.dependencies["better-near-auth"] = $tarball' \
+              examples/auth.everything.dev/plugins/auth/package.json > examples/auth.everything.dev/plugins/auth/package.json.tmp
+            mv examples/auth.everything.dev/plugins/auth/package.json.tmp examples/auth.everything.dev/plugins/auth/package.json
+          else
+            VERSION="${{ steps.get_version.outputs.VERSION }}"
+            jq --arg v "$VERSION" '.workspaces.catalog["better-near-auth"] = "^" + $v | .dependencies["better-near-auth"] = "^" + $v' \
+              examples/auth.everything.dev/package.json > examples/auth.everything.dev/package.json.tmp
+            mv examples/auth.everything.dev/package.json.tmp examples/auth.everything.dev/package.json
+
+            jq --arg v "$VERSION" '.dependencies["better-near-auth"] = "catalog:"' \
+              examples/auth.everything.dev/ui/package.json > examples/auth.everything.dev/ui/package.json.tmp
+            mv examples/auth.everything.dev/ui/package.json.tmp examples/auth.everything.dev/ui/package.json
+
+            jq --arg v "$VERSION" '.dependencies["better-near-auth"] = "^" + $v' \
+              examples/auth.everything.dev/plugins/auth/package.json > examples/auth.everything.dev/plugins/auth/package.json.tmp
+            mv examples/auth.everything.dev/plugins/auth/package.json.tmp examples/auth.everything.dev/plugins/auth/package.json
+          fi
 
       - name: Install dependencies
         working-directory: examples/auth.everything.dev
@@ -74,10 +117,13 @@ jobs:
         run: bun run publish
 
       - name: Commit updated files
+        if: github.event_name == 'release'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(deploy-example): update to better-near-auth@${{ steps.get_version.outputs.VERSION }}"
           file_pattern: |
             examples/auth.everything.dev/package.json
+            examples/auth.everything.dev/ui/package.json
+            examples/auth.everything.dev/plugins/auth/package.json
             examples/auth.everything.dev/bun.lock
             examples/auth.everything.dev/bos.config.json
