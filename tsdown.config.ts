@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsdown'
 
-const external = [/^near-kit/, /^better-auth/, '@scure/base', 'nanostores', 'zod']
+const neverBundle = [/^near-kit/, /^better-auth/, '@scure/base', 'nanostores', 'zod']
 
 export default defineConfig([
 	{
@@ -9,7 +9,11 @@ export default defineConfig([
 		dts: false,
 		sourcemap: true,
 		hash: false,
-		external,
+		fixedExtension: false,
+		deps: {
+			neverBundle,
+			onlyBundle: false,
+		},
 	},
 	{
 		entry: ['src/client.ts'],
@@ -17,8 +21,12 @@ export default defineConfig([
 		dts: false,
 		sourcemap: true,
 		hash: false,
-		external,
-		noExternal: /@hot-labs\/near-connect/,
+		fixedExtension: false,
+		deps: {
+			neverBundle,
+			alwaysBundle: /@hot-labs\/near-connect/,
+			onlyBundle: false,
+		},
 		clean: false,
 	},
 ])
