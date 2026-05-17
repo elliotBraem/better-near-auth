@@ -41,7 +41,17 @@ jobs:
         uses: changesets/action@v1
         with:
           version: >-
-            pnpm run version && node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); const examplePath = 'examples/auth.everything.dev/package.json'; const example = JSON.parse(fs.readFileSync(examplePath, 'utf8')); example.workspaces.catalog['better-near-auth'] = '^' + pkg.version; fs.writeFileSync(examplePath, JSON.stringify(example, null, 2) + '\n');" && cd examples/auth.everything.dev && bun install --lockfile-only
+            pnpm run version
+            && VERSION=$(jq -r '.version' package.json)
+            && jq --arg v "$VERSION" \
+              '.workspaces.catalog["better-near-auth"] = "^" + $v | .dependencies["better-near-auth"] = "^" + $v' \
+              examples/auth.everything.dev/package.json > examples/auth.everything.dev/package.json.tmp
+            && mv examples/auth.everything.dev/package.json.tmp examples/auth.everything.dev/package.json
+            && jq --arg v "$VERSION" \
+              '.dependencies["better-near-auth"] = "^" + $v' \
+              examples/auth.everything.dev/plugins/auth/package.json > examples/auth.everything.dev/plugins/auth/package.json.tmp
+            && mv examples/auth.everything.dev/plugins/auth/package.json.tmp examples/auth.everything.dev/plugins/auth/package.json
+            && cd examples/auth.everything.dev && bun install --lockfile-only
           publish: pnpm release
           title: "chore: version packages"
           commit: "chore: version packages"
