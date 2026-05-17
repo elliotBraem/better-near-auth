@@ -1,8 +1,17 @@
 name: Deploy Example App
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'examples/auth.everything.dev/**'
+      - '!examples/auth.everything.dev/package.json'
+      - '!examples/auth.everything.dev/bun.lock'
+      - '!examples/auth.everything.dev/plugins/auth/package.json'
   release:
     types: [published]
+  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -22,34 +31,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.20"
-
-      - name: Get version from release
-        id: get_version
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
-          VERSION="${VERSION#*@}"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Update better-near-auth version in example
-        run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          # Root workspace catalog + direct dependency
-          jq --arg v "$VERSION" \
-            '.workspaces.catalog["better-near-auth"] = "^" + $v |
-             .dependencies["better-near-auth"] = "^" + $v' \
-            examples/auth.everything.dev/package.json > examples/auth.everything.dev/package.json.tmp
-          mv examples/auth.everything.dev/package.json.tmp examples/auth.everything.dev/package.json
-
-          # Plugin auth direct dependency
-          jq --arg v "$VERSION" \
-            '.dependencies["better-near-auth"] = "^" + $v' \
-            examples/auth.everything.dev/plugins/auth/package.json > examples/auth.everything.dev/plugins/auth/package.json.tmp
-          mv examples/auth.everything.dev/plugins/auth/package.json.tmp examples/auth.everything.dev/plugins/auth/package.json
 
       - name: Install dependencies
         working-directory: examples/auth.everything.dev
@@ -68,13 +56,3 @@ jobs:
       - name: Publish config to FastKV
         working-directory: examples/auth.everything.dev
         run: bun run publish
-
-      - name: Commit updated files
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore(deploy-example): update to better-near-auth@${{ steps.get_version.outputs.VERSION }}"
-          file_pattern: |
-            examples/auth.everything.dev/package.json
-            examples/auth.everything.dev/plugins/auth/package.json
-            examples/auth.everything.dev/bun.lock
-            examples/auth.everything.dev/bos.config.json
