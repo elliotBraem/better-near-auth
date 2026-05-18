@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { sessionQueryOptions } from "@/app";
 import {
   GuestbookCard,
   RelayerCard,
@@ -11,6 +12,28 @@ export const Route = createFileRoute("/_layout/_authenticated/guestbook")({
     title: "Guestbook | auth.everything.dev",
     meta: [{ name: "description", content: "Try gasless relayed NEAR guestbook signing." }],
   }),
+  loader: async ({ context }) => {
+    const session = await context.queryClient.ensureQueryData(
+      sessionQueryOptions(context.authClient, context.session),
+    );
+    if (session?.user) {
+      const network = (context.authClient.near.getState()?.networkId || "mainnet") as
+        | "mainnet"
+        | "testnet";
+      await context.queryClient.ensureQueryData({
+        queryKey: ["greeting", network],
+        queryFn: async () => {
+          const res = await context.authClient.near.view({
+            contractId: "hello.near-examples.near",
+            methodName: "get_greeting",
+          });
+          const result = res?.data?.result;
+          return typeof result === "string" ? result : undefined;
+        },
+        staleTime: 30_000,
+      });
+    }
+  },
   component: GuestbookPage,
 });
 

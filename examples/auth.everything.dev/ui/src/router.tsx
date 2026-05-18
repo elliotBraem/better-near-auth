@@ -30,8 +30,13 @@ export function createRouter(opts: CreateRouterOptions) {
     defaultPreload: "intent",
     scrollRestoration: true,
     defaultStructuralSharing: true,
-    defaultPreloadStaleTime: 0,
-    defaultPendingMinMs: 0,
+    defaultPreloadStaleTime: 30_000,
+    defaultPendingMinMs: 200,
+    defaultPendingComponent: () => (
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    ),
   });
 
   return { router, queryClient };

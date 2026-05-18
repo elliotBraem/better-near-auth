@@ -45,7 +45,13 @@ export const Route = createFileRoute("/_layout/_authenticated")({
       isBanned: session.user.banned || false,
     };
 
-    await queryClient.ensureQueryData({
+    return {
+      auth,
+      session,
+    };
+  },
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData({
       queryKey: ["organizations"],
       queryFn: async () => {
         const { data } = await context.authClient.organization.list();
@@ -53,11 +59,6 @@ export const Route = createFileRoute("/_layout/_authenticated")({
       },
       staleTime: 30 * 1000,
     });
-
-    return {
-      auth,
-      session,
-    };
   },
   component: AuthenticatedLayout,
 });

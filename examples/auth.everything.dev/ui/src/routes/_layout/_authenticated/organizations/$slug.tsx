@@ -3,7 +3,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Edit2, Key, LogOut, Mail, Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { type Organization, type SessionData, useAuthClient } from "@/app";
+import { type Organization, type SessionData, sessionQueryOptions, useAuthClient } from "@/app";
 import {
   ApiKeyForm,
   type ApiKeyFormValues,
@@ -51,6 +51,19 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/$slu
     title: "Organization | auth.everything.dev",
     meta: [{ name: "description", content: "Manage organization details and members." }],
   }),
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(
+      sessionQueryOptions(context.authClient, context.session),
+    );
+    await context.queryClient.ensureQueryData({
+      queryKey: ["organizations"],
+      queryFn: async () => {
+        const { data } = await context.authClient.organization.list();
+        return (data || []) as Organization[];
+      },
+      staleTime: 30 * 1000,
+    });
+  },
   component: OrganizationDetail,
 });
 

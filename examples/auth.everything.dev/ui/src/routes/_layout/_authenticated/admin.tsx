@@ -28,6 +28,22 @@ export const Route = createFileRoute("/_layout/_authenticated/admin")({
       throw redirect({ to: "/home" });
     }
   },
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(
+      sessionQueryOptions(context.authClient, context.session),
+    );
+    await context.queryClient.ensureQueryData({
+      queryKey: ["admin", "users"],
+      queryFn: async () => {
+        const { data, error } = await context.authClient.admin.listUsers({
+          query: { limit: 100, offset: 0, sortBy: "createdAt", sortDirection: "desc" },
+        });
+        if (error) throw new Error(error.message);
+        return normalizeUserList(data as AdminUserListData);
+      },
+      staleTime: 30_000,
+    });
+  },
   head: () => ({
     title: "Admin | auth.everything.dev",
     meta: [{ name: "description", content: "Manage users and admin-only auth controls." }],

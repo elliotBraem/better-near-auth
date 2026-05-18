@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Clock, Key, Link2, Search, ShieldCheck, UserRound, Zap } from "lucide-react";
+import { sessionQueryOptions } from "@/app";
 import { Badge, Button, Card, CardContent } from "@/components";
 import {
   getActiveNearAccountId,
@@ -13,6 +14,28 @@ export const Route = createFileRoute("/_layout/_authenticated/home")({
     title: "Workspace | auth.everything.dev",
     meta: [{ name: "description", content: "Your authenticated demo workspace." }],
   }),
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(
+      sessionQueryOptions(context.authClient, context.session),
+    );
+    await context.queryClient.ensureQueryData({
+      queryKey: ["near-accounts"],
+      queryFn: async () => {
+        const res = await context.authClient.near.listAccounts();
+        const accounts = res?.data?.accounts;
+        return { accounts: Array.isArray(accounts) ? accounts : [] };
+      },
+      staleTime: 30_000,
+    });
+    await context.queryClient.ensureQueryData({
+      queryKey: ["organizations"],
+      queryFn: async () => {
+        const { data } = await context.authClient.organization.list();
+        return (data || []) as any[];
+      },
+      staleTime: 30_000,
+    });
+  },
   component: WorkspacePage,
 });
 

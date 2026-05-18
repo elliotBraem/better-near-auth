@@ -9,6 +9,23 @@ export const Route = createFileRoute("/_layout/_authenticated/accept-invitation/
   head: () => ({
     meta: [{ title: `Accept Invitation | ${getAppName()}` }],
   }),
+  loader: async ({ context, params }) => {
+    await context.queryClient.ensureQueryData({
+      queryKey: ["invitation", params.id],
+      queryFn: async () => {
+        const { data, error } = await context.authClient.organization.getInvitation({
+          query: { id: params.id },
+        });
+        if (error) {
+          if (error.status === 400 || error.status === 404) return null;
+          throw new Error(error.message || "Failed to load invitation");
+        }
+        return data;
+      },
+      staleTime: 30 * 1000,
+      retry: false,
+    });
+  },
   component: AcceptInvitation,
 });
 

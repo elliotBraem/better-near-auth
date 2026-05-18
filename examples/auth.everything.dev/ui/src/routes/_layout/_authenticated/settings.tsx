@@ -17,6 +17,19 @@ export const Route = createFileRoute("/_layout/_authenticated/settings")({
       },
     ],
   }),
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(
+      sessionQueryOptions(context.authClient, context.session),
+    );
+    await context.queryClient.ensureQueryData({
+      queryKey: ["passkeys"],
+      queryFn: async () => {
+        const { data } = await context.authClient.passkey.listUserPasskeys();
+        return (data || []) as any[];
+      },
+      staleTime: 60 * 1000,
+    });
+  },
   component: Settings,
 });
 

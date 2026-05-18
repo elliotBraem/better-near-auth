@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Building2, Mail, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { type Organization, type SessionData, useAuthClient } from "@/app";
+import { type Organization, type SessionData, sessionQueryOptions, useAuthClient } from "@/app";
 import { Badge, Button, Card, CardContent, Skeleton } from "@/components";
 
 type AuthClientType = import("@/app").AuthClient;
@@ -16,6 +16,28 @@ export const Route = createFileRoute("/_layout/_authenticated/organizations/")({
     title: "Organizations | auth.everything.dev",
     meta: [{ name: "description", content: "Manage your organizations and teams." }],
   }),
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData(
+      sessionQueryOptions(context.authClient, context.session),
+    );
+    await context.queryClient.ensureQueryData({
+      queryKey: ["organizations"],
+      queryFn: async () => {
+        const { data } = await context.authClient.organization.list();
+        return (data || []) as Organization[];
+      },
+      staleTime: 30 * 1000,
+    });
+    await context.queryClient.ensureQueryData({
+      queryKey: ["user-invitations"],
+      queryFn: async (): Promise<UserInvitationItem[]> => {
+        const { data, error } = await context.authClient.organization.listUserInvitations();
+        if (error) throw new Error(error.message);
+        return (data ?? []) as UserInvitationItem[];
+      },
+      staleTime: 30 * 1000,
+    });
+  },
   component: OrganizationsList,
 });
 

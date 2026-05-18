@@ -6,6 +6,19 @@ export const Route = createFileRoute("/_layout/_authenticated/api-keys")({
     title: "API Keys | auth.everything.dev",
     meta: [{ name: "description", content: "Manage personal API keys." }],
   }),
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData({
+      queryKey: ["user-api-keys"],
+      queryFn: async () => {
+        const { data, error } = await context.authClient.apiKey.list({
+          query: { configId: "user-keys" },
+        });
+        if (error) throw new Error(error.message);
+        return (data?.apiKeys ?? []) as any[];
+      },
+      staleTime: 30_000,
+    });
+  },
   component: ApiKeysPage,
 });
 
