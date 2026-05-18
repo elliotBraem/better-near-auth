@@ -13,6 +13,7 @@
     "generate-metadata": "bun run ./scripts/generate-metadata.ts",
     "preview": "rsbuild preview",
     "test": "vitest run",
+    "generate-routes": "bunx --bun @tanstack/router-cli generate",
     "typecheck": "tsc --noEmit",
     "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist/types"
   },

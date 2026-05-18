@@ -55,6 +55,11 @@ jobs:
         working-directory: examples/auth.everything.dev
         run: bun install
 
+      - name: Generate route tree
+        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
+        working-directory: examples/auth.everything.dev/ui
+        run: bun run generate-routes
+
       - name: Lint and typecheck
         if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev
