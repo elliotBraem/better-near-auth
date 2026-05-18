@@ -2,6 +2,8 @@
   "extends": "bos://dev.everything.near/everything.dev",
   "account": "auth.everything.near",
   "domain": "everything.dev",
+  "title": "Better NEAR Auth",
+  "description": "Authentication example app showcasing better-near-auth with NEAR Sign-In, passkeys, GitHub OAuth, organizations, and API keys",
   "testnet": "dev.allthethings.testnet",
   "staging": {
     "domain": "staging.dev.everything.dev"
