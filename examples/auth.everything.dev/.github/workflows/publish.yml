@@ -1,0 +1,159 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Force app deploy before publish"
+        required: false
+        default: false
+        type: boolean
+      ref:
+        description: "Git ref or SHA to publish"
+        required: false
+        default: ""
+        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  detect-publish:
+    name: Detect Publish Work
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    outputs:
+      should_publish: ${{ steps.detect.outputs.should_publish }}
+      should_deploy: ${{ steps.detect.outputs.should_deploy }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 2
+          ref: ${{ inputs.ref != '' && inputs.ref || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
+
+      - name: Detect deploy/publish intent
+        id: detect
+        env:
+          TARGET_SHA: ${{ inputs.ref != '' && inputs.ref || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
+          FORCE_DEPLOY: ${{ inputs.deploy && 'true' || 'false' }}
+        run: |
+          node <<'EOF' >> "$GITHUB_OUTPUT"
+          const { execSync } = require("node:child_process")
+          const { existsSync, readdirSync, readFileSync } = require("node:fs")
+          const { join } = require("node:path")
+
+          const isManual = process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
+          const forceDeploy = process.env.FORCE_DEPLOY === "true"
+
+          const deployablePackageJsons = []
+          for (const dir of ["ui", "api", "host"]) {
+            const packageJsonPath = join(dir, "package.json")
+            if (existsSync(packageJsonPath)) {
+              deployablePackageJsons.push(packageJsonPath)
+            }
+          }
+          if (existsSync("plugins")) {
+            for (const entry of readdirSync("plugins", { withFileTypes: true })) {
+              if (!entry.isDirectory()) continue
+              const packageJsonPath = join("plugins", entry.name, "package.json")
+              if (existsSync(packageJsonPath)) {
+                deployablePackageJsons.push(packageJsonPath)
+              }
+            }
+          }
+
+          const deployablePackages = new Set(
+            deployablePackageJsons
+              .map((packageJsonPath) => JSON.parse(readFileSync(packageJsonPath, "utf8"))?.name)
+              .filter(Boolean),
+          )
+
+          let appChanges = false
+          if (existsSync(".changeset")) {
+            for (const entry of readdirSync(".changeset")) {
+              if (!entry.endsWith(".md") || entry === "README.md") continue
+              const content = readFileSync(join(".changeset", entry), "utf8")
+              const match = content.match(/^---\n([\s\S]*?)\n---/)
+              if (!match?.[1]) continue
+              const frontmatter = match[1]
+              for (const pkgMatch of frontmatter.matchAll(/["']([^"']+)["']\s*:\s*(major|minor|patch)/g)) {
+                if (deployablePackages.has(pkgMatch[1])) {
+                  appChanges = true
+                  break
+                }
+              }
+              if (appChanges) break
+            }
+          }
+
+          let configChanged = false
+          try {
+            const changed = execSync(`git show --name-only --pretty="" ${process.env.TARGET_SHA} -- bos.config.json`, {
+              encoding: "utf8",
+            })
+            configChanged = changed.split(/\r?\n/).includes("bos.config.json")
+          } catch {}
+
+          const shouldDeploy = forceDeploy || appChanges
+          const shouldPublish = shouldDeploy || configChanged || isManual
+
+          console.log(`should_deploy=${shouldDeploy}`)
+          console.log(`should_publish=${shouldPublish}`)
+          EOF
+
+  publish:
+    needs: [detect-publish]
+    if: needs.detect-publish.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.2.20"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build every-plugin
+        run: bun run --cwd packages/every-plugin build
+
+      - name: Run postinstall
+        run: bun run postinstall
+
+      - name: Publish app
+        env:
+          BOS_INSTALL_NEAR_CLI: "true"
+          NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
+          ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
+          ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
+          SHOULD_DEPLOY: ${{ needs.detect-publish.outputs.should_deploy }}
+        run: |
+          if [ "$SHOULD_DEPLOY" = "true" ]; then
+            bun run publish --deploy
+          else
+            bun run publish
+          fi
+
+      - name: Commit bos.config.json updates
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5.2.0
+        with:
+          commit_message: "chore: update deployment URLs [skip ci]"
+          file_pattern: "**/bos.config.json"

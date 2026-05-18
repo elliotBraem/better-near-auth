@@ -3,6 +3,7 @@ import {
   ClientOnly,
   createRootRouteWithContext,
   HeadContent,
+  Link,
   Outlet,
   Scripts,
 } from "@tanstack/react-router";
@@ -13,6 +14,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import type { RouterContext } from "@/app";
 import { getBaseStyles } from "@/app";
+import { sessionQueryKey } from "@/lib/auth";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 
 export const Route = createRootRouteWithContext<RouterContext>()({
@@ -31,7 +33,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
     // Pre-populate session cache from SSR data
     if (session && queryClient) {
-      queryClient.setQueryData(["session"], session);
+      queryClient.setQueryData(sessionQueryKey, session);
     }
 
     return {
@@ -84,7 +86,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           description,
           siteName: title,
           siteUrl,
-          alt: "app preview",
+          alt: description,
         }),
       ],
       links: [
@@ -123,6 +125,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     };
   },
   component: RootComponent,
+  notFoundComponent: RootNotFound,
+  errorComponent: RootError,
 });
 
 function RootComponent() {
@@ -133,7 +137,7 @@ function RootComponent() {
         <style dangerouslySetInnerHTML={{ __html: getBaseStyles() }} />
       </head>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <div id="root">
             <Outlet />
           </div>
@@ -156,5 +160,39 @@ function RootComponent() {
         )}
       </body>
     </html>
+  );
+}
+
+function RootNotFound() {
+  return (
+    <DocumentFallback title="Page not found" body="The page you requested doesn't exist here." />
+  );
+}
+
+function RootError() {
+  return (
+    <DocumentFallback
+      title="Application error"
+      body="Something went wrong before the app layout could render."
+    />
+  );
+}
+
+function DocumentFallback({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="min-h-dvh bg-background text-foreground flex items-center justify-center px-6">
+      <div className="max-w-md text-center space-y-4">
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-sm text-muted-foreground">{body}</p>
+        <div>
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center h-10 px-4 border border-border bg-card hover:bg-accent transition-colors"
+          >
+            Back home
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

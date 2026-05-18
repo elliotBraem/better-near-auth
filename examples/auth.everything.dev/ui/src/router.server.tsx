@@ -72,11 +72,11 @@ const createRouter = (opts: CreateRouterOptions) => {
     defaultPreload: "intent",
     scrollRestoration: true,
     defaultStructuralSharing: true,
-    defaultPreloadStaleTime: 30_000,
+    defaultPreloadStaleTime: 0,
     defaultErrorComponent,
     defaultNotFoundComponent,
     defaultPendingComponent,
-    defaultPendingMinMs: 200,
+    defaultPendingMinMs: 0,
     dehydrate: () => {
       if (typeof window === "undefined") {
         return { queryClientState: dehydrate(queryClient) };

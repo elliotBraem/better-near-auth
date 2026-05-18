@@ -16,10 +16,10 @@
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@libsql/client": "0.17.0",
+    "@libsql/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
-    "@types/pg": "^8.11.6",
+    "@types/pg": "catalog:",
     "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@effect/language-service": "^0.85.1",
-    "@electric-sql/pglite": "^0.4.5",
+    "@electric-sql/pglite": "catalog:",
     "@module-federation/node": "catalog:",
     "@proj-airi/unplugin-drizzle-orm-migrations": "^0.1.4",
     "@rspack/cli": "catalog:",

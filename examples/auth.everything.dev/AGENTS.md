@@ -27,6 +27,12 @@ skills:
     use: "every-plugin#plugin-testing"
   - when: "Development workflow for everything-dev projects using bos dev, bos start, and the Module Federation runtime. Use when starting dev servers, debugging hot reload, or understanding the service-descriptor architecture."
     use: "everything-dev#dev-workflow"
+  - when: "How bos.config.json extends chains work, deep merge semantics, resolved config lifecycle, env-specific parents, tenant runtime inheritance, or debugging config merge behavior."
+    use: "everything-dev#extends-config"
+  - when: "Scaffold a new project, extend an existing project from a parent runtime, sync upstream files, upgrade framework packages, or choose local override sections for ui/api/host/plugins."
+    use: "everything-dev#init-upgrade"
+  - when: "Build a super app with a shared host and shared API, set up fixed-core tenant mode, configure tenant UI overrides, or create custom tenant apps that extend a base runtime."
+    use: "everything-dev#super-app"
   - when: "Publish bos.config.json to the FastKV registry, sync from upstream, and upgrade workspace packages. Use when deploying, syncing, or managing runtime configuration across projects."
     use: "everything-dev#publish-sync"
 <!-- intent-skills:end -->
@@ -80,7 +86,7 @@ This is the parent **Module Federation monorepo** for `everything.dev`. The host
 └──────────────────┘ └──────────────────┘ └──────────────────┘
 ```
 
-The host loads UI and API at runtime from URLs in `bos.config.json`. In production today, the host still freezes one `RuntimeConfig` at startup and must restart to pick up a different published config.
+The host loads UI and API at runtime from URLs in `bos.config.json`. In production today, the host still boots one base `RuntimeConfig` snapshot at startup, but it can resolve tenant-specific UI overrides per request while keeping the server core fixed.
 
 ### Runtime Config
 
@@ -93,7 +99,18 @@ Use these helpers from `@/app`:
 - `getActiveRuntime()` — active runtime info (accountId, gatewayId, title)
 - `getRuntimeConfig()` — full client config
 
-Important: `host/src/program.ts` already supports path-based runtime metadata overrides via `/_runtime/:account/:gateway`, but that is not yet full per-request config swapping. For that work, start from `plans/runtime-config-hot-swap.md`.
+Important: fixed-core tenant runtime composition now lives primarily in:
+- `host/src/services/tenant-runtime.ts`
+- `host/src/program.ts`
+- `host/src/services/federation.server.ts`
+
+Tenant rules:
+- subdomain convention maps `alice.<domain>` to `alice.near` or `alice.testnet` based on `NETWORK_ID`
+- tenant config must extend the base BOS runtime
+- supported tenant overrides are `ui`, existing `plugins.<id>.ui`, and existing `plugins.<id>.sidebar`
+- tenant SSR is gated by `TENANT_WHITELIST` and `ALLOW_UNTRUSTED_SSR`
+
+For full per-request host/plugin/auth/api swapping, start from `plans/runtime-config-hot-swap.md`.
 
 ## Development Workflow
 
@@ -184,6 +201,11 @@ This repo is the parent platform, not a generated child project.
 - Breaking changes
 - Skip for: docs-only changes, internal refactors, test-only changes
 
+**Release flow:**
+- Parent repo production releases run through `.github/workflows/packages-release.yml`, which creates or updates the `chore: version packages` PR when changesets are pending.
+- After that version PR is merged, `packages-release.yml` calls `.github/workflows/release.yml`, which runs `bun run deploy`, publishes `bos.config.json` to FastKV, and commits the updated deployment URLs.
+- Generated child repos use the same `CI` -> `Packages Release` -> `Release` pattern, but only version and deploy their local workspaces and runtime surfaces.
+
 **Create changeset:**
 ```bash
 bun run changeset
@@ -249,7 +271,7 @@ Module Federation shares React, TanStack Query, and TanStack Router as singleton
 
 ### Dependency Security
 
-- **Renovate** manages dependency updates (not Dependabot). Config: `.github/renovate.json`
+- **Renovate** manages dependency updates for this parent repo (not Dependabot). Config: `.github/renovate.json`. New generated child repos no longer scaffold that config by default.
 - **`--ignore-scripts`** — all CI workflows use `bun install --frozen-lockfile --ignore-scripts`. Lifecycle scripts (the TanStack attack vector) never execute during install.
 - **`dependency-review-action`** runs on every PR to flag known vulnerabilities.
 - **`bun audit`** runs in CI and fails on critical/high findings.
