@@ -9,6 +9,7 @@ import {
   Focus,
   Key,
   Loader2,
+  RefreshCw,
   Search,
   ShieldCheck,
   Unlink,
@@ -30,6 +31,7 @@ import {
   Badge,
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -68,17 +70,32 @@ function explorerTxUrl(txHash: string) {
   return `https://near.rocks/tx/${txHash}`;
 }
 
-function formatNear(yoctoNear: string): string {
-  const near = Number(yoctoNear) / 1e24;
+function isYoctoNearAmount(value: string): boolean {
+  return /^\d+$/.test(value.trim());
+}
+
+function formatNear(balance: string): string {
+  const trimmed = balance.trim();
+  if (!trimmed) return "0";
+
+  const near = isYoctoNearAmount(trimmed) ? Number(trimmed) / 1e24 : Number.parseFloat(trimmed);
+
+  if (!Number.isFinite(near)) return trimmed;
   if (near >= 1) return near.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  if (near > 0) return near.toExponential(2);
+  if (near > 0) return near.toLocaleString(undefined, { maximumFractionDigits: 6 });
   return "0";
 }
 
-function hasPositiveYoctoBalance(balance?: string): boolean {
+function hasPositiveNearBalance(balance?: string): boolean {
   if (!balance?.trim()) return false;
+  const trimmed = balance.trim();
+
   try {
-    return BigInt(balance) > 0n;
+    if (isYoctoNearAmount(trimmed)) {
+      return BigInt(trimmed) > 0n;
+    }
+    const near = Number.parseFloat(trimmed);
+    return Number.isFinite(near) && near > 0;
   } catch {
     return false;
   }
@@ -332,7 +349,7 @@ export function ProfileCard({
 
 export function RelayerCard() {
   const [copied, setCopied] = useState(false);
-  const { data, isLoading } = useRelayerInfo();
+  const { data, isLoading, isFetching, refetch } = useRelayerInfo();
 
   const handleCopy = async (text: string) => {
     try {
@@ -386,17 +403,29 @@ export function RelayerCard() {
     );
   }
 
-  const isFunded = hasPositiveYoctoBalance(data.balance);
+  const isFunded = hasPositiveNearBalance(data.balance) || hasPositiveNearBalance(data.available);
   const statusLabel = isFunded ? "Active" : "Unfunded";
   const statusColor = isFunded ? "bg-green-500" : "bg-amber-500";
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="grid grid-cols-[1fr_auto] items-center gap-2">
         <CardTitle className="flex items-center gap-2">
           <Wallet className="h-5 w-5" />
           Relayer
         </CardTitle>
+        <CardAction>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            title="Refresh balance"
+            aria-label="Refresh relayer balance"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
@@ -770,11 +799,16 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
 
 export function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   const auth = useAuthClient();
+  const { data: session } = useSessionData();
+  const { data: nearAccountsData } = useNearAccountsData(!!session?.user);
   const [newGreeting, setNewGreeting] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>("relay");
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [relayTxHash, setRelayTxHash] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const hasLinkedNear = Boolean(getActiveNearAccountId(nearAccountsData ?? { accounts: [] }));
+  const canSignGuestbook = hasLinkedNear;
 
   const network = (auth.near.getState()?.networkId || "mainnet") as "mainnet" | "testnet";
   const queryKey = useMemo(() => getGuestbookGreetingQueryKey(network), [network]);
@@ -909,6 +943,10 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
   const isPending = isRelaying || isDirecting;
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSignGuestbook || !auth.near.getAccountId()) {
+      toast.error("Please connect a NEAR account");
+      return;
+    }
     if (!newGreeting.trim()) return;
     sendMode === "relay" ? addMessageRelay(newGreeting) : addMessageDirect(newGreeting);
   };
@@ -946,13 +984,15 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
       <CardContent className="space-y-4">
         <form onSubmit={onSubmit} className="flex gap-2">
           <Input
-            placeholder="Leave a message..."
+            placeholder={
+              canSignGuestbook ? "Leave a message..." : "Connect a NEAR account to sign..."
+            }
             value={newGreeting}
             onChange={(e) => setNewGreeting(e.target.value)}
-            disabled={isPending}
+            disabled={isPending || !canSignGuestbook}
             className="flex-1"
           />
-          <Button type="submit" disabled={isPending || !newGreeting.trim()}>
+          <Button type="submit" disabled={isPending || !newGreeting.trim() || !canSignGuestbook}>
             {isPending ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -963,6 +1003,16 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
             )}
           </Button>
         </form>
+
+        {!canSignGuestbook && (
+          <p className="text-sm text-muted-foreground">
+            Please{" "}
+            <Link to="/accounts" className="text-foreground underline underline-offset-4">
+              connect a NEAR account
+            </Link>{" "}
+            to sign the guestbook.
+          </p>
+        )}
 
         {sendMode === "relay" && relayStatus !== "idle" && (
           <div className="flex items-center gap-2 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/50">

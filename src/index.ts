@@ -1,7 +1,8 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User, DBAdapter } from "better-auth/types";
-import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
+import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore, formatAmount, STORAGE_AMOUNT_PER_BYTE } from "near-kit";
+import type { AccountState } from "near-kit";
 import type { SignedMessage, SignMessageParams, SignedDelegateAction } from "near-kit";
 import { hex, base58 } from "@scure/base";
 import z from "zod";
@@ -230,6 +231,72 @@ async function initRelayer(
 		network,
 		mode: "ephemeral",
 		createdAt: new Date(),
+	};
+}
+
+const RELAYER_BALANCE_PRECISION = 6;
+
+function calculateAvailableBalanceYocto(
+	amount: string,
+	locked: string,
+	storageUsage: number,
+): bigint {
+	const amountBigInt = BigInt(amount);
+	const lockedBigInt = BigInt(locked);
+	const storageRequired = STORAGE_AMOUNT_PER_BYTE * BigInt(storageUsage);
+
+	if (lockedBigInt >= storageRequired) {
+		return amountBigInt;
+	}
+
+	const reservedForStorage = storageRequired - lockedBigInt;
+	if (reservedForStorage >= amountBigInt) {
+		return BigInt(0);
+	}
+
+	return amountBigInt - reservedForStorage;
+}
+
+type RawNearAccountView = {
+	amount: string;
+	locked: string;
+	storage_usage: number;
+	code_hash: string;
+};
+
+async function getRelayerAccountState(
+	near: Near,
+	accountId: string,
+): Promise<AccountState> {
+	const account = await (
+		near as unknown as {
+			rpc: { getAccount: (id: string) => Promise<RawNearAccountView> };
+		}
+	).rpc.getAccount(accountId);
+	const available = calculateAvailableBalanceYocto(
+		account.amount,
+		account.locked,
+		account.storage_usage,
+	);
+	const storageRequired = STORAGE_AMOUNT_PER_BYTE * BigInt(account.storage_usage);
+	const emptyCodeHash = "11111111111111111111111111111111";
+	const balanceFormat = {
+		precision: RELAYER_BALANCE_PRECISION,
+		includeSuffix: false,
+		trimZeros: true,
+	} as const;
+
+	return {
+		balance: formatAmount(account.amount, balanceFormat),
+		available: formatAmount(available.toString(), balanceFormat),
+		staked: formatAmount(account.locked, balanceFormat),
+		storageUsage: formatAmount(storageRequired.toString(), {
+			precision: 4,
+			includeSuffix: false,
+		}),
+		storageBytes: account.storage_usage,
+		hasContract: account.code_hash !== emptyCodeHash,
+		codeHash: account.code_hash,
 	};
 }
 
@@ -1136,17 +1203,26 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						],
 					});
 
-					const network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
+					let network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
+					if (!nearAccount) {
+						const storedKeys = await ctx.context.adapter.findMany<{ network: string }>({
+							model: "relayerKey",
+						});
+						const storedNetwork = storedKeys?.[0]?.network;
+						if (storedNetwork === "mainnet" || storedNetwork === "testnet") {
+							network = storedNetwork;
+						}
+					}
+
 					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
 
 					if (!rState) {
 						return ctx.json({ enabled: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
 					}
 
-					const near = getNear(network);
-					let account;
+					let account: AccountState;
 					try {
-						account = await near.getAccount(rState.accountId);
+						account = await getRelayerAccountState(rState.near, rState.accountId);
 					} catch {
 						account = {
 							balance: "0",
