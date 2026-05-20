@@ -201,6 +201,7 @@ async function initRelayer(
 
 	const publicKeyBase58 = keyPair.publicKey.toString().replace("ed25519:", "");
 	const accountId = bytesToHex(keyPair.publicKey.data);
+	const createdAt = new Date();
 
 	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, secret);
 
@@ -212,7 +213,8 @@ async function initRelayer(
 				iv,
 				publicKey: `ed25519:${publicKeyBase58}`,
 				network,
-				createdAt: new Date(),
+				createdAt,
+				lastUsedAt: createdAt,
 			},
 		});
 
@@ -229,7 +231,8 @@ async function initRelayer(
 		accountId,
 		network,
 		mode: "ephemeral",
-		createdAt: new Date(),
+		createdAt,
+		lastUsedAt: createdAt,
 	};
 }
 
@@ -279,8 +282,9 @@ export interface SIWNPluginOptions {
 
 export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 	const apiKey = options.apiKey;
-	let relayerState: RelayerState | null = null;
-	let relayerInitialized = false;
+	const runtimeNetwork = getNetworkFromAccountId(options.recipient);
+	const relayerStates = new Map<"mainnet" | "testnet", RelayerState | null>();
+	const relayerInitPromises = new Map<"mainnet" | "testnet", Promise<RelayerState | null>>();
 
 	const headers: Record<string, string> = {};
 	if (apiKey) {
@@ -288,10 +292,24 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 	}
 
 	const ensureRelayer = async (adapter: DBAdapter, secret: string | undefined, network: "mainnet" | "testnet") => {
-		if (relayerInitialized) return relayerState;
-		relayerInitialized = true;
-		relayerState = await initRelayer(options.relayer, network, adapter, secret, apiKey, options.rpcUrl);
-		return relayerState;
+		if (relayerStates.has(network)) return relayerStates.get(network) ?? null;
+
+		const existingInit = relayerInitPromises.get(network);
+		if (existingInit) return existingInit;
+
+		const initPromise = initRelayer(options.relayer, network, adapter, secret, apiKey, options.rpcUrl)
+			.then((state) => {
+				relayerStates.set(network, state);
+				relayerInitPromises.delete(network);
+				return state;
+			})
+			.catch((error) => {
+				relayerInitPromises.delete(network);
+				throw error;
+			});
+
+		relayerInitPromises.set(network, initPromise);
+		return initPromise;
 	};
 
 	const getNear = (network: "mainnet" | "testnet") => {
@@ -1127,23 +1145,13 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					use: [sessionMiddleware],
 				},
 				async (ctx) => {
-					const session = ctx.context.session;
-					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
-						model: "nearAccount",
-						where: [
-							{ field: "userId", operator: "eq", value: session.user.id },
-							{ field: "isPrimary", operator: "eq", value: true },
-						],
-					});
-
-					const network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
-					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, runtimeNetwork);
 
 					if (!rState) {
 						return ctx.json({ enabled: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
 					}
 
-					const near = getNear(network);
+					const near = getNear(rState.network);
 					let account;
 					try {
 						account = await near.getAccount(rState.accountId);

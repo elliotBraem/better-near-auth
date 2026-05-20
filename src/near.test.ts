@@ -7,6 +7,8 @@ const MOCK_ACCOUNT_ID = "test.near";
 const MOCK_TESTNET_ACCOUNT_ID = "test.testnet";
 const MOCK_PUBLIC_KEY = "ed25519:abcdefghijklmnopqrstuvwxyz0123456789ABCD";
 const MOCK_RECIPIENT = "example.near";
+const MOCK_GENERATED_PUBLIC_KEY = "ed25519:11111111111111111111111111111111";
+const MOCK_GENERATED_SECRET_KEY = "ed25519:1111111111111111111111111111111111111111111111111111111111111111";
 
 function makeNonceBytes(): Uint8Array {
 	const nonce = new Uint8Array(32);
@@ -72,14 +74,14 @@ vi.mock("near-kit", () => {
 			return nonce;
 		}),
 		generateKey: vi.fn(() => ({
-			publicKey: { data: new Uint8Array(32).fill(1), toString: () => "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" },
-			secretKey: "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			publicKey: { data: new Uint8Array(32).fill(1), toString: () => MOCK_GENERATED_PUBLIC_KEY },
+			secretKey: MOCK_GENERATED_SECRET_KEY,
 			sign: vi.fn(),
 			signNep413Message: vi.fn(),
 		})),
 		parseKey: vi.fn(() => ({
-			publicKey: { data: new Uint8Array(32).fill(1), toString: () => "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" },
-			secretKey: "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+			publicKey: { data: new Uint8Array(32).fill(1), toString: () => MOCK_GENERATED_PUBLIC_KEY },
+			secretKey: MOCK_GENERATED_SECRET_KEY,
 			sign: vi.fn(),
 		})),
 		verifyNep413Signature: vi.fn(() => Promise.resolve(true)),
@@ -522,6 +524,45 @@ describe("siwn plugin", () => {
 			if (error) {
 				expect(error).toBeDefined();
 			}
+		});
+
+		it("should return relayer info for the runtime network", async () => {
+			const { customFetchImpl } = await setup({ relayer: {}, recipient: MOCK_RECIPIENT });
+
+			const nonceBytes = makeUniqueNonce();
+			const nonceHex = hex.encode(nonceBytes);
+			const verifyRes = await customFetchImpl("http://localhost/api/auth/near/verify", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					signedMessage: {
+						accountId: MOCK_TESTNET_ACCOUNT_ID,
+						publicKey: MOCK_PUBLIC_KEY,
+						signature: "mock-signature-base64",
+					},
+					message: `Sign in to ${MOCK_RECIPIENT}`,
+					recipient: MOCK_RECIPIENT,
+					nonce: nonceHex,
+					accountId: MOCK_TESTNET_ACCOUNT_ID,
+				}),
+			});
+			expect(verifyRes.status).toBe(200);
+
+			const cookie = verifyRes.headers.get("set-cookie") || "";
+			expect(cookie).not.toBe("");
+
+			const relayerInfoRes = await customFetchImpl("http://localhost/api/auth/near/relayer-info", {
+				method: "GET",
+				headers: { cookie },
+			});
+			expect(relayerInfoRes.status).toBe(200);
+
+			const relayerInfo = await relayerInfoRes.json();
+			expect(relayerInfo.enabled).toBe(true);
+			expect(relayerInfo.network).toBe("mainnet");
+			expect(relayerInfo.balance).toBe("100");
 		});
 	});
 });
