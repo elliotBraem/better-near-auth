@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
+import type { ListedNearAccount } from "better-near-auth";
 import {
   Check,
   CheckCircle2,
@@ -18,10 +19,12 @@ import {
   Zap,
 } from "lucide-react";
 import { Gas, generateKey } from "near-kit";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   type Organization,
+  type PrivateData,
+  type RelayerData,
   type SessionData,
   sessionQueryOptions,
   useApiClient,
@@ -44,27 +47,19 @@ import RelayFeed from "./relay-feed";
 const GUESTBOOK_CONTRACT = "hello.near-examples.near";
 type SendMode = "relay" | "direct";
 type RelayStatus = "idle" | "pending" | "completed" | "failed";
+type AuthUser = NonNullable<SessionData["user"]> | null;
+type LinkingProvider = "google" | "github" | "near";
+type CreationState =
+  | { phase: "idle" }
+  | { phase: "creating" }
+  | { phase: "created"; accountId: string; network: string };
 
-export interface RelayerData {
-  enabled: boolean;
-  accountId?: string;
-  mode?: "ephemeral" | "explicit";
-  network?: "mainnet" | "testnet";
-  publicKey?: string;
-  balance?: string;
-  available?: string;
-  staked?: string;
-  storageUsage?: string;
-  storageBytes?: number;
-  hasContract?: boolean;
-  hasKey?: boolean;
-  createdAt?: string;
-  lastUsedAt?: string;
-}
-
-export interface NearAccountsData {
-  accounts: any[];
-}
+const NEO_BORDER = "border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]";
+const NEO_BORDER_DASHED =
+  "border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]";
+const NEO_BORDER_DESTRUCTIVE =
+  "border-2 border-dashed border-[rgb(180,50,40)] dark:border-[rgb(200,80,70)]";
+const NEO_BORDER_THIN = "border border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]";
 
 function explorerTxUrl(txHash: string) {
   return `https://near.rocks/tx/${txHash}`;
@@ -99,21 +94,38 @@ function getGuestbookGreetingQueryKey(network: "mainnet" | "testnet") {
   return ["greeting", network] as const;
 }
 
-export function getAccountProviderId(account: any): string {
-  return account?.providerId ?? (account?.accountId ? "siwn" : "unknown");
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+async function unlinkNearAccount(
+  auth: ReturnType<typeof useAuthClient>,
+  account: ListedNearAccount,
+) {
+  const [accountId] = account.accountId.split(":");
+  return auth.near.unlink({
+    accountId,
+    network: account.network,
+  });
+}
+
+export function getActiveNearAccountId(data: { accounts: ListedNearAccount[] }) {
+  return getNearAccountId(data.accounts);
 }
 
 export function useNearAccountsData(enabled = true) {
   const auth = useAuthClient();
 
-  return useQuery<NearAccountsData>({
+  return useQuery({
     queryKey: ["near-accounts"],
     queryFn: async () => {
       const res = await auth.near.listAccounts();
-      const accounts = res?.data?.accounts;
-      return {
-        accounts: Array.isArray(accounts) ? accounts : [],
-      };
+      return res.data ?? { accounts: [], activeAccount: null, availableAccounts: [] };
     },
     enabled,
   });
@@ -135,7 +147,7 @@ export function useOrganizationsData() {
 export function usePrivateData(enabled = true) {
   const apiClient = useApiClient();
 
-  return useQuery({
+  return useQuery<PrivateData>({
     queryKey: ["private-data"],
     queryFn: () => apiClient.privateData(),
     enabled,
@@ -156,7 +168,7 @@ export function useRelayerInfo() {
 
 export function useGuestbookGreeting(enabled = true) {
   const auth = useAuthClient();
-  const network = (auth.near.getState()?.networkId || "mainnet") as "mainnet" | "testnet";
+  const network = auth.useActiveNetwork();
 
   return useQuery({
     queryKey: getGuestbookGreetingQueryKey(network),
@@ -172,14 +184,6 @@ export function useGuestbookGreeting(enabled = true) {
   });
 }
 
-export function getActiveNearAccountId(nearAccountsData: NearAccountsData) {
-  return getNearAccountId(nearAccountsData.accounts);
-}
-
-export function getLinkedNearProviders(accounts: any[]) {
-  return getLinkedProviders(accounts);
-}
-
 export function StatCard({
   label,
   value,
@@ -190,7 +194,7 @@ export function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-4 bg-card">
+    <div className={`${NEO_BORDER} p-4 bg-card`}>
       <div className="flex items-center gap-2 text-muted-foreground mb-2">
         {icon}
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
@@ -206,10 +210,10 @@ export function ProfileCard({
   linkedProviders,
   linkedAccounts,
 }: {
-  user: any;
+  user: AuthUser;
   nearAccountId: string | null;
   linkedProviders: string[];
-  linkedAccounts: any[];
+  linkedAccounts: ListedNearAccount[];
 }) {
   const auth = useAuthClient();
   const queryClient = useQueryClient();
@@ -219,8 +223,7 @@ export function ProfileCard({
   const initial = displayName?.charAt(0).toUpperCase();
   const currentNearAccount = linkedAccounts.find(
     (account) =>
-      getAccountProviderId(account) === "siwn" &&
-      account.accountId?.split(":")[0] === nearAccountId,
+      account.providerId === "siwn" && account.accountId?.split(":")[0] === nearAccountId,
   );
   const canUnlinkNearAccount = Boolean(
     currentNearAccount &&
@@ -295,19 +298,10 @@ export function ProfileCard({
                     : "Active NEAR account can't be unlinked here"
                 }
                 onClick={async () => {
-                  if (!canUnlinkNearAccount) return;
+                  if (!canUnlinkNearAccount || !currentNearAccount) return;
                   setIsUnlinking(true);
                   try {
-                    const [accountId, network] = nearAccountId.includes(":")
-                      ? nearAccountId.split(":")
-                      : [nearAccountId, "mainnet"];
-                    const response = await auth.near.unlink({
-                      accountId,
-                      network:
-                        (currentNearAccount?.network as "mainnet" | "testnet") ||
-                        (network as "mainnet" | "testnet") ||
-                        "mainnet",
-                    });
+                    const response = await unlinkNearAccount(auth, currentNearAccount);
                     if (response.data?.success) {
                       toast.success("NEAR account unlinked");
                       queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
@@ -341,11 +335,16 @@ export function RelayerCard() {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       toast.success("Copied to clipboard");
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy");
     }
   };
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
 
   if (isLoading) {
     return (
@@ -435,7 +434,7 @@ export function RelayerCard() {
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => handleCopy(data.accountId!)}
+              onClick={() => handleCopy(data.accountId)}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             </Button>
@@ -452,18 +451,18 @@ export function RelayerCard() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-3">
+          <div className={`${NEO_BORDER} p-3`}>
             <div className="text-xs text-muted-foreground">Total</div>
             <div className="text-sm font-medium">{formatNear(data.balance ?? "0")} NEAR</div>
           </div>
-          <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] p-3">
+          <div className={`${NEO_BORDER} p-3`}>
             <div className="text-xs text-muted-foreground">Available</div>
             <div className="text-sm font-medium">{formatNear(data.available ?? "0")} NEAR</div>
           </div>
         </div>
 
         {!isFunded && (
-          <div className="border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg p-4 text-center space-y-2">
+          <div className={`${NEO_BORDER_DASHED} rounded-lg p-4 text-center space-y-2`}>
             <p className="text-sm text-muted-foreground">
               Fund this account to enable gasless relay
             </p>
@@ -486,18 +485,28 @@ export function RelayerCard() {
   );
 }
 
-export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: any[]; user: any }) {
+export function AccountLinkingCard({
+  linkedAccounts,
+  user,
+}: {
+  linkedAccounts: ListedNearAccount[];
+  user: AuthUser;
+}) {
   const auth = useAuthClient();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [isLinkingGoogle, setIsLinkingGoogle] = useState(false);
-  const [isLinkingGitHub, setIsLinkingGitHub] = useState(false);
-  const [isProcessingNear, setIsProcessingNear] = useState(false);
+  const [linkingProvider, setLinkingProvider] = useState<LinkingProvider | null>(null);
   const [isUnlinking, setIsUnlinking] = useState<string | null>(null);
   const [recentlyLinked, setRecentlyLinked] = useState<{
     provider: string;
     accountId: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!recentlyLinked) return;
+    const timer = setTimeout(() => setRecentlyLinked(null), 5000);
+    return () => clearTimeout(timer);
+  }, [recentlyLinked]);
 
   const isAnonymous = user?.isAnonymous ?? false;
   const walletAccountId = auth.near.getAccountId();
@@ -510,8 +519,7 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
   };
 
   const handleLinkSocial = async (providerId: "google" | "github") => {
-    if (providerId === "google") setIsLinkingGoogle(true);
-    else setIsLinkingGitHub(true);
+    setLinkingProvider(providerId);
     try {
       await auth.linkSocial({
         provider: providerId,
@@ -520,59 +528,49 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
       toast.success(`${providerId === "google" ? "Google" : "GitHub"} account linked successfully`);
       invalidateAccounts();
       setRecentlyLinked({ provider: providerId, accountId: providerId });
-      setTimeout(() => setRecentlyLinked(null), 5000);
     } catch (error) {
       console.error(`Failed to link ${providerId}:`, error);
       toast.error(`Failed to link ${providerId === "google" ? "Google" : "GitHub"} account`);
     } finally {
-      if (providerId === "google") setIsLinkingGoogle(false);
-      else setIsLinkingGitHub(false);
+      setLinkingProvider(null);
     }
   };
 
   const handleNearAction = async () => {
-    setIsProcessingNear(true);
+    setLinkingProvider("near");
     try {
       await auth.near.link({
-        onSuccess: (ctx?: any) => {
-          const linkedAccountId = ctx?.data?.accountId || walletAccountId || "NEAR account";
+        onSuccess: () => {
+          const linkedAccountId = walletAccountId || "NEAR account";
           toast.success(
             `NEAR account "${linkedAccountId}" linked successfully${isAnonymous ? " — your session is now persistent" : ""}`,
           );
           invalidateAccounts();
-          setIsProcessingNear(false);
+          setLinkingProvider(null);
           setRecentlyLinked({ provider: "siwn", accountId: linkedAccountId });
-          setTimeout(() => setRecentlyLinked(null), 5000);
         },
-        onError: async (error: any) => {
+        onError: async (error) => {
           console.error("NEAR link error:", error);
           const errorMessage =
             error.code === "SIGNER_NOT_AVAILABLE"
               ? "NEAR wallet not available"
               : error.message || "Failed to link NEAR account";
           toast.error(errorMessage);
-          setIsProcessingNear(false);
+          setLinkingProvider(null);
           await auth.near.disconnect();
         },
       });
     } catch (error) {
       console.error("Failed to process NEAR action:", error);
-      setIsProcessingNear(false);
+      setLinkingProvider(null);
       toast.error("Failed to process NEAR action");
     }
   };
 
-  const handleUnlinkNearAccount = async (account: any) => {
+  const handleUnlinkNearAccount = async (account: ListedNearAccount) => {
     setIsUnlinking(account.accountId);
     try {
-      const [accountId, fallbackNetwork] = account.accountId.split(":");
-      const response = await auth.near.unlink({
-        accountId,
-        network:
-          (account.network as "mainnet" | "testnet") ||
-          (fallbackNetwork as "mainnet" | "testnet") ||
-          "mainnet",
-      });
+      const response = await unlinkNearAccount(auth, account);
       if (response.data?.success) {
         toast.success("NEAR account unlinked successfully");
         invalidateAccounts();
@@ -604,14 +602,15 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
   const primaryAccount = accounts.find((acc) => acc.isActive || acc.isPrimary) || accounts[0];
   const secondaryAccounts = accounts.filter((acc) => acc !== primaryAccount);
   const isProviderLinked = (providerId: string) =>
-    accounts.some((a) => getAccountProviderId(a) === providerId);
-  const canUnlinkAccount = (account: any) => account !== primaryAccount && accounts.length > 1;
-  const accountKey = (account: any) =>
-    `${getAccountProviderId(account)}:${account.network ?? ""}:${account.accountId ?? account.id ?? ""}`;
-  const accountActionId = (account: any) =>
-    getAccountProviderId(account) === "siwn"
-      ? account.accountId
-      : account.providerId || getAccountProviderId(account);
+    accounts.some(
+      (a) => a.providerId === providerId || (a.providerId === "siwn" && providerId === "siwn"),
+    );
+  const canUnlinkAccount = (account: ListedNearAccount) =>
+    account !== primaryAccount && accounts.length > 1;
+  const accountKey = (account: ListedNearAccount) =>
+    `${account.providerId}:${account.network}:${account.accountId}`;
+  const accountActionId = (account: ListedNearAccount) =>
+    account.providerId === "siwn" ? account.accountId : account.providerId || "unknown";
 
   return (
     <div className="space-y-6">
@@ -625,14 +624,16 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
         </CardHeader>
         <CardContent className="space-y-4">
           {isAnonymous && (
-            <div className="border-2 border-dashed border-[rgb(180,50,40)] dark:border-[rgb(200,80,70)] bg-destructive/5 p-3 text-sm text-muted-foreground">
+            <div
+              className={`${NEO_BORDER_DESTRUCTIVE} bg-destructive/5 p-3 text-sm text-muted-foreground`}
+            >
               <strong className="text-foreground">Temporary session.</strong> Link an account to
               make your data persistent and recoverable.
             </div>
           )}
 
           {recentlyLinked && (
-            <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-green-50 dark:bg-green-900/20 p-3 text-sm">
+            <div className={`${NEO_BORDER} bg-green-50 dark:bg-green-900/20 p-3 text-sm`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-green-600 dark:text-green-400 font-medium">
                   ✓ Linked successfully:
@@ -653,14 +654,16 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                   Can&apos;t be unlinked
                 </Badge>
               </h4>
-              <div className="flex flex-col gap-3 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                className={`flex flex-col gap-3 p-3 ${NEO_BORDER} bg-muted/30 sm:flex-row sm:items-center sm:justify-between`}
+              >
                 <div className="flex min-w-0 items-start gap-3 sm:items-center">
                   <span className="text-lg">
-                    {getProviderConfig(getAccountProviderId(primaryAccount)).icon}
+                    {getProviderConfig(primaryAccount.providerId).icon}
                   </span>
                   <div className="min-w-0">
                     <span className="font-medium block sm:inline">
-                      {getProviderConfig(getAccountProviderId(primaryAccount)).name}
+                      {getProviderConfig(primaryAccount.providerId).name}
                     </span>
                     <span className="text-sm text-muted-foreground break-all sm:ml-2">
                       {primaryAccount.accountId}
@@ -678,15 +681,13 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
               {secondaryAccounts.map((account) => (
                 <div
                   key={accountKey(account)}
-                  className="flex flex-col gap-3 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] sm:flex-row sm:items-center sm:justify-between"
+                  className={`flex flex-col gap-3 p-3 ${NEO_BORDER} sm:flex-row sm:items-center sm:justify-between`}
                 >
                   <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                    <span className="text-lg">
-                      {getProviderConfig(getAccountProviderId(account)).icon}
-                    </span>
+                    <span className="text-lg">{getProviderConfig(account.providerId).icon}</span>
                     <div className="min-w-0">
                       <span className="font-medium block sm:inline">
-                        {getProviderConfig(getAccountProviderId(account)).name}
+                        {getProviderConfig(account.providerId).name}
                       </span>
                       <span className="text-sm text-muted-foreground break-all sm:ml-2">
                         {account.accountId}
@@ -698,7 +699,7 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        getAccountProviderId(account) === "siwn"
+                        account.providerId === "siwn"
                           ? handleUnlinkNearAccount(account)
                           : handleUnlinkAccount(account.providerId)
                       }
@@ -723,10 +724,10 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                 variant="outline"
                 className="w-full justify-start"
                 onClick={() => handleLinkSocial("google")}
-                disabled={isLinkingGoogle}
+                disabled={linkingProvider === "google"}
               >
                 <span className="mr-2">🔵</span>
-                {isLinkingGoogle ? "Linking Google..." : "Link Google Account"}
+                {linkingProvider === "google" ? "Linking Google..." : "Link Google Account"}
               </Button>
             )}
             {!isProviderLinked("github") && (
@@ -735,10 +736,10 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                 variant="outline"
                 className="w-full justify-start"
                 onClick={() => handleLinkSocial("github")}
-                disabled={isLinkingGitHub}
+                disabled={linkingProvider === "github"}
               >
                 <span className="mr-2">⚫</span>
-                {isLinkingGitHub ? "Linking GitHub..." : "Link GitHub Account"}
+                {linkingProvider === "github" ? "Linking GitHub..." : "Link GitHub Account"}
               </Button>
             )}
             {!isProviderLinked("siwn") && (
@@ -747,10 +748,10 @@ export function AccountLinkingCard({ linkedAccounts, user }: { linkedAccounts: a
                 variant="outline"
                 className="w-full justify-start"
                 onClick={handleNearAction}
-                disabled={isProcessingNear}
+                disabled={linkingProvider === "near"}
               >
                 <span className="mr-2">🔗</span>
-                {isProcessingNear
+                {linkingProvider === "near"
                   ? walletAccountId
                     ? "Linking NEAR..."
                     : "Connecting Wallet..."
@@ -778,7 +779,7 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
   const [relayTxHash, setRelayTxHash] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const network = (auth.near.getState()?.networkId || "mainnet") as "mainnet" | "testnet";
+  const network = auth.useActiveNetwork();
   const queryKey = useMemo(() => getGuestbookGreetingQueryKey(network), [network]);
 
   const { data: greeting } = useQuery({
@@ -794,29 +795,24 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
     initialData: initialGreeting,
   });
 
+  const { data: relayPollStatus } = useQuery({
+    queryKey: ["relay-status", relayTxHash],
+    queryFn: async () => {
+      if (!relayTxHash) return null;
+      const res = await auth.near.getRelayStatus(relayTxHash);
+      return res.data?.status;
+    },
+    enabled: relayStatus === "pending" && !!relayTxHash,
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+  });
+
   useEffect(() => {
-    if (relayStatus !== "pending" || !relayTxHash) return;
-    let failures = 0;
-    const near = auth.near;
-    const interval = setInterval(async () => {
-      try {
-        const res = await near.getRelayStatus(relayTxHash);
-        const status = res.data?.status;
-        if (status === "completed" || status === "failed") {
-          setRelayStatus(status);
-          queryClient.invalidateQueries({ queryKey });
-          clearInterval(interval);
-        }
-      } catch {
-        failures++;
-        if (failures >= 10) {
-          setRelayStatus("failed");
-          clearInterval(interval);
-        }
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [relayStatus, relayTxHash, queryClient, queryKey, auth.near]);
+    if (relayPollStatus === "completed" || relayPollStatus === "failed") {
+      setRelayStatus(relayPollStatus);
+      queryClient.invalidateQueries({ queryKey });
+    }
+  }, [relayPollStatus, queryClient, queryKey]);
 
   const optimisticUpdate = async (text: string) => {
     await queryClient.cancelQueries({ queryKey });
@@ -967,7 +963,7 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
         </form>
 
         {sendMode === "relay" && relayStatus !== "idle" && (
-          <div className="flex items-center gap-2 p-3 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-muted/50">
+          <div className={`flex items-center gap-2 p-3 ${NEO_BORDER} bg-muted/50`}>
             {relayStatus === "pending" && (
               <>
                 <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
@@ -1038,15 +1034,15 @@ export function SessionInfoCard({
   privateData,
 }: {
   session: SessionData | null | undefined;
-  user: any;
+  user: AuthUser;
   nearAccountId: string | null;
-  linkedAccounts: any[];
-  privateData: any;
+  linkedAccounts: ListedNearAccount[];
+  privateData: PrivateData | null | undefined;
 }) {
-  const nearAccountCount = linkedAccounts.filter((a) => getAccountProviderId(a) === "siwn").length;
+  const nearAccountCount = linkedAccounts.filter((a) => a.providerId === "siwn").length;
   const oauthAccountCount = linkedAccounts.filter((a) => {
-    const providerId = getAccountProviderId(a);
-    return providerId !== "siwn" && providerId !== "unknown";
+    const pid = a.providerId;
+    return pid !== "siwn" && pid !== "unknown";
   }).length;
   const providerCount = nearAccountCount + oauthAccountCount;
   const sessionDetails = session?.session as { id?: string; expiresAt?: string | Date } | undefined;
@@ -1237,10 +1233,9 @@ export function useWorkspaceData(session: SessionData | null | undefined) {
   const privateDataQuery = usePrivateData(!!session?.user);
   const greetingQuery = useGuestbookGreeting(!!session?.user);
   const relayerQuery = useRelayerInfo();
-  const nearAccountsData = nearAccountsQuery.data ?? { accounts: [] };
-  const linkedAccounts = nearAccountsData.accounts;
-  const nearAccountId = getActiveNearAccountId(nearAccountsData);
-  const linkedProviders = getLinkedNearProviders(linkedAccounts);
+  const linkedAccounts = nearAccountsQuery.data?.accounts ?? [];
+  const nearAccountId = getNearAccountId(linkedAccounts);
+  const linkedProviders = getLinkedProviders(linkedAccounts);
 
   return {
     linkedAccounts,
@@ -1261,31 +1256,22 @@ export function useSessionData() {
 export function NetworkToggle() {
   const auth = useAuthClient();
   const supportedNetworks = auth.near.getSupportedNetworks();
-  const [currentNetwork, setCurrentNetwork] = useState(() => auth.near.getNetwork());
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const network = auth.near.getNetwork();
-      setCurrentNetwork((prev: "mainnet" | "testnet") => (prev === network ? prev : network));
-    }, 500);
-    return () => clearInterval(interval);
-  }, [auth]);
+  const currentNetwork = auth.useActiveNetwork();
 
   if (supportedNetworks.length <= 1) return null;
 
   return (
-    <div className="flex items-center gap-2 p-1 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg bg-muted/30">
-      {supportedNetworks.map((network: "mainnet" | "testnet") => (
+    <div className={`flex items-center gap-2 p-1 ${NEO_BORDER} rounded-lg bg-muted/30`}>
+      {supportedNetworks.map((network) => (
         <button
           type="button"
           key={network}
           onClick={() => {
             auth.near.setNetwork(network);
-            setCurrentNetwork(network);
           }}
           className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
             currentNetwork === network
-              ? "bg-background text-foreground shadow-sm border border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]"
+              ? `bg-background text-foreground shadow-sm ${NEO_BORDER_THIN}`
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -1302,14 +1288,10 @@ export function NetworkToggle() {
 export function SubAccountCreationCard() {
   const auth = useAuthClient();
   const queryClient = useQueryClient();
-  const [currentNetwork] = useState(() => auth.near.getNetwork());
+  const network = auth.useActiveNetwork();
   const [subAccountName, setSubAccountName] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [createdAccount, setCreatedAccount] = useState<{
-    accountId: string;
-    network: string;
-    privateKey?: string;
-  } | null>(null);
+  const [creationState, setCreationState] = useState<CreationState>({ phase: "idle" });
+  const privateKeyRef = useRef<string | null>(null);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
 
@@ -1317,53 +1299,34 @@ export function SubAccountCreationCard() {
   const hasRelayer = relayerData?.enabled === true;
   const hasParent = !!relayerData?.accountId;
 
-  const network = currentNetwork;
   const recipient = auth.near.getRecipient(network);
   const parentSuffix = recipient ? `.${recipient}` : "";
   const fullAccountId = subAccountName ? `${subAccountName}${parentSuffix}` : "";
 
-  const checkAvailability = useCallback(
-    async (name: string) => {
-      if (!name || name.length < 1) return null;
-      try {
-        const res = await auth.near.checkSubAccountAvailability({
-          subAccountName: name,
-          network,
-        });
-        return res.data;
-      } catch {
-        return null;
-      }
+  const isValidName = /^[a-z0-9]+$/.test(subAccountName) && subAccountName.length >= 1;
+
+  const debouncedSubAccountName = useDebouncedValue(subAccountName, 300);
+
+  const { data: availability, isLoading: availabilityLoading } = useQuery({
+    queryKey: ["sub-account-availability", debouncedSubAccountName, network],
+    queryFn: async () => {
+      if (!debouncedSubAccountName || debouncedSubAccountName.length < 1) return null;
+      const res = await auth.near.checkSubAccountAvailability({
+        subAccountName: debouncedSubAccountName,
+        network,
+      });
+      return res.data;
     },
-    [auth, network],
-  );
+    enabled: isValidName && debouncedSubAccountName.length >= 1,
+    placeholderData: (prev) => prev,
+  });
 
-  const [availability, setAvailability] = useState<{
-    available: boolean;
-    accountId: string;
-  } | null>(null);
-  const [availabilityLoading, setAvailabilityLoading] = useState(false);
-
-  useEffect(() => {
-    if (!subAccountName || subAccountName.length < 1) {
-      setAvailability(null);
-      return;
-    }
-
-    const timeout = setTimeout(async () => {
-      setAvailabilityLoading(true);
-      const result = await checkAvailability(subAccountName);
-      setAvailability(result);
-      setAvailabilityLoading(false);
-    }, 300);
-
-    return () => clearTimeout(timeout);
-  }, [subAccountName, checkAvailability]);
+  const isAvailable = availability?.available === true;
 
   const handleCreate = async () => {
     if (!subAccountName.trim()) return;
 
-    setIsCreating(true);
+    setCreationState({ phase: "creating" });
     try {
       const keyPair = generateKey();
       const publicKey = keyPair.publicKey.toString();
@@ -1379,11 +1342,11 @@ export function SubAccountCreationCard() {
       }
 
       if (result.data?.success) {
-        const privateKey = keyPair.secretKey;
-        setCreatedAccount({
+        privateKeyRef.current = keyPair.secretKey;
+        setCreationState({
+          phase: "created",
           accountId: result.data.accountId,
           network: result.data.network,
-          privateKey,
         });
         toast.success(`Sub-account ${result.data.accountId} created on ${result.data.network}`);
         await queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
@@ -1392,13 +1355,9 @@ export function SubAccountCreationCard() {
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to create sub-account";
       toast.error(msg);
-    } finally {
-      setIsCreating(false);
+      setCreationState({ phase: "idle" });
     }
   };
-
-  const isValidName = /^[a-z0-9]+$/.test(subAccountName) && subAccountName.length >= 1;
-  const isAvailable = availability?.available === true;
 
   if (!hasRelayer) {
     return (
@@ -1444,43 +1403,59 @@ export function SubAccountCreationCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {createdAccount ? (
+        {creationState.phase === "created" ? (
           <div className="space-y-3">
-            <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-green-50 dark:bg-green-900/20 p-3 text-sm space-y-2">
+            <div className={`${NEO_BORDER} bg-green-50 dark:bg-green-900/20 p-3 text-sm space-y-2`}>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                 <span className="font-medium">Sub-account created!</span>
               </div>
               <div className="space-y-1 pl-6">
-                <div className="font-mono text-xs break-all">{createdAccount.accountId}</div>
+                <div className="font-mono text-xs break-all">{creationState.accountId}</div>
                 <div className="text-xs text-muted-foreground">
-                  Network: {createdAccount.network}
+                  Network: {creationState.network}
                 </div>
               </div>
             </div>
 
-            {createdAccount.privateKey && (
+            {privateKeyRef.current && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Private Key
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs"
-                    onClick={() => setShowPrivateKey(!showPrivateKey)}
-                  >
-                    {showPrivateKey ? "Hide" : "Show"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={async () => {
+                        if (privateKeyRef.current) {
+                          await navigator.clipboard.writeText(privateKeyRef.current);
+                          toast.success("Private key copied to clipboard");
+                        }
+                      }}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => setShowPrivateKey(!showPrivateKey)}
+                    >
+                      {showPrivateKey ? "Hide" : "Show"}
+                    </Button>
+                  </div>
                 </div>
                 {showPrivateKey && (
-                  <div className="border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg p-3 space-y-2">
+                  <div className={`${NEO_BORDER_DASHED} rounded-lg p-3 space-y-2`}>
                     <p className="text-xs text-destructive font-medium">
                       Save this key securely. It will not be shown again.
                     </p>
                     <code className="text-xs font-mono break-all block bg-muted p-2 rounded select-all">
-                      {createdAccount.privateKey}
+                      {privateKeyRef.current}
                     </code>
                   </div>
                 )}
@@ -1497,7 +1472,8 @@ export function SubAccountCreationCard() {
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      setCreatedAccount(null);
+                      privateKeyRef.current = null;
+                      setCreationState({ phase: "idle" });
                       setShowPrivateKey(false);
                       setConfirmDismiss(false);
                     }}
@@ -1514,10 +1490,11 @@ export function SubAccountCreationCard() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (createdAccount.privateKey && !showPrivateKey) {
+                  if (privateKeyRef.current && !showPrivateKey) {
                     setConfirmDismiss(true);
                   } else {
-                    setCreatedAccount(null);
+                    privateKeyRef.current = null;
+                    setCreationState({ phase: "idle" });
                     setShowPrivateKey(false);
                   }
                 }}
@@ -1537,15 +1514,20 @@ export function SubAccountCreationCard() {
                     setSubAccountName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))
                   }
                   placeholder="mysubaccount"
-                  disabled={isCreating}
+                  disabled={creationState.phase === "creating"}
                   className="flex-1"
                   maxLength={64}
                 />
                 <Button
                   onClick={handleCreate}
-                  disabled={!isValidName || !isAvailable || isCreating || availabilityLoading}
+                  disabled={
+                    !isValidName ||
+                    !isAvailable ||
+                    creationState.phase === "creating" ||
+                    availabilityLoading
+                  }
                 >
-                  {isCreating ? (
+                  {creationState.phase === "creating" ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin mr-1" />
                       Creating...
@@ -1578,7 +1560,9 @@ export function SubAccountCreationCard() {
                 </p>
               )}
             </div>
-            <div className="border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+            <div
+              className={`${NEO_BORDER_DASHED} rounded-lg p-3 text-xs text-muted-foreground space-y-1`}
+            >
               <p>
                 A new keypair is generated in your browser. The private key will be shown once after
                 creation — save it securely.

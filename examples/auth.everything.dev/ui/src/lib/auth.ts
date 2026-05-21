@@ -10,7 +10,7 @@ import {
   phoneNumberClient,
 } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
-import type { RelayedTransactionT } from "better-near-auth";
+import type { ListedNearAccount, RelayedTransactionT, RelayerInfo } from "better-near-auth";
 import { siwnClient } from "better-near-auth/client";
 import type { ClientRuntimeConfig } from "everything-dev/types";
 import { getRuntimeConfig } from "everything-dev/ui/runtime";
@@ -94,6 +94,17 @@ type PasskeyListResult = Awaited<ReturnType<AuthClient["passkey"]["listUserPassk
 export type SessionData = AuthClient["$Infer"]["Session"];
 export type Organization = NonNullable<OrganizationListResult["data"]>[number];
 export type Passkey = NonNullable<PasskeyListResult["data"]>[number];
+export type PrivateData = {
+  message: string;
+  userId: string;
+  sessionId: string | null;
+  expiresAt: string | null;
+};
+export type RelayerData = RelayerInfo & { enabled: boolean };
+export type { ListedNearAccount };
+
+import type { AuthSessionUser as AuthSessionUserType } from "./auth-types.gen";
+export type AuthSessionUser = AuthSessionUserType;
 
 export function useAuthClient(): AuthClient {
   return useRouter().options.context.authClient;

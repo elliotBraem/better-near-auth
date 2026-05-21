@@ -189,7 +189,7 @@ export default createPlugin({
           testnetAccount:
             config.variables.testnetAccount ||
             config.variables.account?.replace(/\.near$/, ".testnet") ||
-            "dev.everything.testnet",
+            "allthethings.testnet",
           trustedOrigins,
           githubClientId: config.secrets.GITHUB_CLIENT_ID,
           githubClientSecret: config.secrets.GITHUB_CLIENT_SECRET,

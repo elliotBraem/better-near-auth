@@ -77,7 +77,16 @@ import type { AuthClient as AuthClientType } from "./lib/auth";
 
 export type { ApiClient } from "./lib/api";
 export { createApiClient, useApiClient } from "./lib/api";
-export type { AuthClient, Organization, Passkey, SessionData } from "./lib/auth";
+export type {
+  AuthClient,
+  AuthSessionUser,
+  ListedNearAccount,
+  Organization,
+  Passkey,
+  PrivateData,
+  RelayerData,
+  SessionData,
+} from "./lib/auth";
 export { createAuthClient, sessionQueryOptions, useAuthClient, useRelayHistory } from "./lib/auth";
 
 import type {

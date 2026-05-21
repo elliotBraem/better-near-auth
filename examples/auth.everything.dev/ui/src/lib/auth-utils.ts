@@ -1,22 +1,21 @@
-/**
- * Extract NEAR accountId from linked accounts
- */
-function getProviderId(account: any): string | null {
-  if (typeof account?.providerId === "string" && account.providerId.length > 0) {
+import type { ListedNearAccount } from "better-near-auth";
+
+export function getProviderId(account: ListedNearAccount): string {
+  if (typeof account.providerId === "string" && account.providerId.length > 0) {
     return account.providerId;
   }
 
   if (
-    typeof account?.accountId === "string" &&
+    typeof account.accountId === "string" &&
     (account.network === "mainnet" || account.network === "testnet")
   ) {
     return "siwn";
   }
 
-  return null;
+  return "unknown";
 }
 
-export function getNearAccountId(linkedAccounts: any[]): string | null {
+export function getNearAccountId(linkedAccounts: ListedNearAccount[]): string | null {
   if (!Array.isArray(linkedAccounts)) {
     return null;
   }
@@ -24,19 +23,13 @@ export function getNearAccountId(linkedAccounts: any[]): string | null {
   return nearAccount?.accountId?.split(":")[0] || null;
 }
 
-/**
- * Get all linked provider names
- */
-export function getLinkedProviders(linkedAccounts: any[]): string[] {
+export function getLinkedProviders(linkedAccounts: ListedNearAccount[]): string[] {
   if (!Array.isArray(linkedAccounts)) {
     return [];
   }
-  return linkedAccounts.map((account) => getProviderId(account) ?? "unknown");
+  return linkedAccounts.map((account) => getProviderId(account));
 }
 
-/**
- * Get provider display configuration
- */
 export function getProviderConfig(provider: string) {
   switch (provider) {
     case "google":
