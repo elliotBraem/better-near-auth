@@ -213,6 +213,7 @@ const relayerInfoOutputSchema = z.object({
   storageBytes: z.number().optional(),
   hasContract: z.boolean().optional(),
   hasKey: z.boolean().optional(),
+  publicKey: z.string().optional(),
   createdAt: z.string().optional(),
   lastUsedAt: z.string().optional(),
 });
@@ -637,7 +638,12 @@ export const contract = oc.router({
     .errors(Errors),
 
   nearRelayerInfo: oc
-    .route({ method: "GET", path: "/v1/near/relayer-info" })
+    .route({ method: "POST", path: "/v1/near/relayer-info" })
+    .input(
+      z.object({
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
     .output(relayerInfoOutputSchema)
     .errors(Errors),
 
@@ -656,6 +662,40 @@ export const contract = oc.router({
       }),
     )
     .output(z.object({ result: z.unknown() }))
+    .errors(Errors),
+
+  nearCheckSubAccountAvailability: oc
+    .route({ method: "POST", path: "/v1/near/check-sub-account-availability" })
+    .input(
+      z.object({
+        subAccountId: z.string(),
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        available: z.boolean(),
+        accountId: z.string(),
+      }),
+    )
+    .errors(Errors),
+
+  nearCreateSubAccount: oc
+    .route({ method: "POST", path: "/v1/near/create-sub-account" })
+    .input(
+      z.object({
+        subAccountId: z.string(),
+        publicKey: z.string(),
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        success: z.boolean(),
+        accountId: z.string(),
+        txHash: z.string().optional(),
+      }),
+    )
     .errors(Errors),
 });
 

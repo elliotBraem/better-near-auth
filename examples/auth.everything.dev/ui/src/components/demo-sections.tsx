@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   Focus,
+  Globe,
   Key,
   Loader2,
   Search,
@@ -16,8 +17,8 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
-import { Gas } from "near-kit";
-import { useEffect, useMemo, useState } from "react";
+import { Gas, generateKey } from "near-kit";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   type Organization,
@@ -49,6 +50,7 @@ export interface RelayerData {
   accountId?: string;
   mode?: "ephemeral" | "explicit";
   network?: "mainnet" | "testnet";
+  publicKey?: string;
   balance?: string;
   available?: string;
   staked?: string;
@@ -146,7 +148,7 @@ export function useRelayerInfo() {
   return useQuery<RelayerData>({
     queryKey: ["relayer-info"],
     queryFn: async () => {
-      const response = await auth.near.getRelayerInfo();
+      const response = await auth.near.getRelayerInfo({});
       return response.data as RelayerData;
     },
   });
@@ -1254,4 +1256,341 @@ export function useWorkspaceData(session: SessionData | null | undefined) {
 export function useSessionData() {
   const auth = useAuthClient();
   return useQuery<SessionData | null>(sessionQueryOptions(auth));
+}
+
+export function NetworkToggle() {
+  const auth = useAuthClient();
+  const supportedNetworks = auth.near.getSupportedNetworks();
+  const [currentNetwork, setCurrentNetwork] = useState(() => auth.near.getNetwork());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const network = auth.near.getNetwork();
+      setCurrentNetwork((prev: "mainnet" | "testnet") => (prev === network ? prev : network));
+    }, 500);
+    return () => clearInterval(interval);
+  }, [auth]);
+
+  if (supportedNetworks.length <= 1) return null;
+
+  return (
+    <div className="flex items-center gap-2 p-1 border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg bg-muted/30">
+      {supportedNetworks.map((network: "mainnet" | "testnet") => (
+        <button
+          type="button"
+          key={network}
+          onClick={() => {
+            auth.near.setNetwork(network);
+            setCurrentNetwork(network);
+          }}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            currentNetwork === network
+              ? "bg-background text-foreground shadow-sm border border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)]"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <Globe className="h-3 w-3" />
+            {network === "mainnet" ? "Mainnet" : "Testnet"}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function SubAccountCreationCard() {
+  const auth = useAuthClient();
+  const queryClient = useQueryClient();
+  const [currentNetwork] = useState(() => auth.near.getNetwork());
+  const [subAccountName, setSubAccountName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [createdAccount, setCreatedAccount] = useState<{
+    accountId: string;
+    network: string;
+    privateKey?: string;
+  } | null>(null);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
+
+  const { data: relayerData } = useRelayerInfo();
+  const hasRelayer = relayerData?.enabled === true;
+  const hasParent = !!relayerData?.accountId;
+
+  const network = currentNetwork;
+  const recipient = auth.near.getRecipient(network);
+  const parentSuffix = recipient ? `.${recipient}` : "";
+  const fullAccountId = subAccountName ? `${subAccountName}${parentSuffix}` : "";
+
+  const checkAvailability = useCallback(
+    async (name: string) => {
+      if (!name || name.length < 1) return null;
+      try {
+        const res = await auth.near.checkSubAccountAvailability({
+          subAccountName: name,
+          network,
+        });
+        return res.data;
+      } catch {
+        return null;
+      }
+    },
+    [auth, network],
+  );
+
+  const [availability, setAvailability] = useState<{
+    available: boolean;
+    accountId: string;
+  } | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
+  useEffect(() => {
+    if (!subAccountName || subAccountName.length < 1) {
+      setAvailability(null);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      setAvailabilityLoading(true);
+      const result = await checkAvailability(subAccountName);
+      setAvailability(result);
+      setAvailabilityLoading(false);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [subAccountName, checkAvailability]);
+
+  const handleCreate = async () => {
+    if (!subAccountName.trim()) return;
+
+    setIsCreating(true);
+    try {
+      const keyPair = generateKey();
+      const publicKey = keyPair.publicKey.toString();
+
+      const result = await auth.near.createSubAccount({
+        subAccountName: subAccountName.trim().toLowerCase(),
+        network,
+        publicKey,
+      });
+
+      if (result.error) {
+        throw new Error(result.error.message || "Failed to create sub-account");
+      }
+
+      if (result.data?.success) {
+        const privateKey = keyPair.secretKey;
+        setCreatedAccount({
+          accountId: result.data.accountId,
+          network: result.data.network,
+          privateKey,
+        });
+        toast.success(`Sub-account ${result.data.accountId} created on ${result.data.network}`);
+        await queryClient.invalidateQueries({ queryKey: ["near-accounts"] });
+        setSubAccountName("");
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to create sub-account";
+      toast.error(msg);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const isValidName = /^[a-z0-9]+$/.test(subAccountName) && subAccountName.length >= 1;
+  const isAvailable = availability?.available === true;
+
+  if (!hasRelayer) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Create Sub-account
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Sub-account creation requires a funded relayer. Configure the relayer on your server to
+            enable this feature.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Wallet className="h-5 w-5" />
+          Create Sub-account
+        </CardTitle>
+        <CardDescription>
+          Create a new NEAR sub-account
+          {hasParent ? (
+            <>
+              {" "}
+              under{" "}
+              <code className="text-xs font-mono bg-muted px-1 rounded">
+                {relayerData.accountId}
+              </code>
+            </>
+          ) : null}{" "}
+          on{" "}
+          <Badge variant="outline" className="text-xs">
+            {network}
+          </Badge>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {createdAccount ? (
+          <div className="space-y-3">
+            <div className="border-2 border-outset border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] bg-green-50 dark:bg-green-900/20 p-3 text-sm space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <span className="font-medium">Sub-account created!</span>
+              </div>
+              <div className="space-y-1 pl-6">
+                <div className="font-mono text-xs break-all">{createdAccount.accountId}</div>
+                <div className="text-xs text-muted-foreground">
+                  Network: {createdAccount.network}
+                </div>
+              </div>
+            </div>
+
+            {createdAccount.privateKey && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Private Key
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => setShowPrivateKey(!showPrivateKey)}
+                  >
+                    {showPrivateKey ? "Hide" : "Show"}
+                  </Button>
+                </div>
+                {showPrivateKey && (
+                  <div className="border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg p-3 space-y-2">
+                    <p className="text-xs text-destructive font-medium">
+                      Save this key securely. It will not be shown again.
+                    </p>
+                    <code className="text-xs font-mono break-all block bg-muted p-2 rounded select-all">
+                      {createdAccount.privateKey}
+                    </code>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {confirmDismiss ? (
+              <div className="space-y-2">
+                <p className="text-sm text-destructive">
+                  Are you sure? The private key will no longer be accessible.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      setCreatedAccount(null);
+                      setShowPrivateKey(false);
+                      setConfirmDismiss(false);
+                    }}
+                  >
+                    Dismiss
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setConfirmDismiss(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (createdAccount.privateKey && !showPrivateKey) {
+                    setConfirmDismiss(true);
+                  } else {
+                    setCreatedAccount(null);
+                    setShowPrivateKey(false);
+                  }
+                }}
+              >
+                Create Another
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={subAccountName}
+                  onChange={(e) =>
+                    setSubAccountName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))
+                  }
+                  placeholder="mysubaccount"
+                  disabled={isCreating}
+                  className="flex-1"
+                  maxLength={64}
+                />
+                <Button
+                  onClick={handleCreate}
+                  disabled={!isValidName || !isAvailable || isCreating || availabilityLoading}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create"
+                  )}
+                </Button>
+              </div>
+              {fullAccountId && (
+                <div className="text-xs text-muted-foreground font-mono">{fullAccountId}</div>
+              )}
+              {subAccountName && !isValidName && (
+                <p className="text-xs text-destructive">
+                  Only lowercase letters and numbers are allowed
+                </p>
+              )}
+              {availabilityLoading && subAccountName && (
+                <p className="text-xs text-muted-foreground">Checking availability...</p>
+              )}
+              {!availabilityLoading && availability && !availability.available && (
+                <p className="text-xs text-destructive">
+                  Account <code className="font-mono">{availability.accountId}</code> is already
+                  taken
+                </p>
+              )}
+              {!availabilityLoading && availability?.available && subAccountName && (
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  <code className="font-mono">{availability.accountId}</code> is available!
+                </p>
+              )}
+            </div>
+            <div className="border-2 border-dashed border-[rgb(51,51,51)] dark:border-[rgb(100,100,100)] rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+              <p>
+                A new keypair is generated in your browser. The private key will be shown once after
+                creation — save it securely.
+              </p>
+              <p>
+                A minimum deposit of 0.1 NEAR will be transferred from the relayer to fund the new
+                account.
+              </p>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

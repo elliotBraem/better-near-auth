@@ -169,7 +169,59 @@ export interface RelayerInfo extends AccountState {
 	accountId: string;
 	mode: "ephemeral" | "explicit";
 	network: "mainnet" | "testnet";
+	publicKey: string;
 	hasKey: boolean;
 	createdAt?: Date;
 	lastUsedAt?: Date;
 }
+
+export interface DualNetworkConfig<T> {
+	mainnet: T;
+	testnet: T;
+}
+
+export const GetRelayerInfoRequest = z.object({
+	network: z.enum(["mainnet", "testnet"]).optional(),
+});
+export type GetRelayerInfoRequestT = z.infer<typeof GetRelayerInfoRequest>;
+
+export interface SubAccountRelayerFCAKConfig {
+	receiverId: string;
+	methodNames?: string[];
+	allowance?: string;
+}
+
+export interface SubAccountConfig {
+	parentAccount?: string;
+	minDeposit?: string;
+	addRelayerFCAK?: boolean;
+	relayerFCAK?: SubAccountRelayerFCAKConfig;
+}
+
+export const CreateSubAccountRequest = z.object({
+	subAccountName: z.string().regex(/^[a-z0-9]+$/, "Must be lowercase alphanumeric characters only"),
+	network: z.enum(["mainnet", "testnet"]).optional(),
+	publicKey: z.string(),
+});
+export type CreateSubAccountRequestT = z.infer<typeof CreateSubAccountRequest>;
+
+export const CreateSubAccountResponse = z.object({
+	success: z.literal(true),
+	accountId: z.string(),
+	network: z.enum(["mainnet", "testnet"]),
+	publicKey: z.string(),
+	message: z.string(),
+});
+export type CreateSubAccountResponseT = z.infer<typeof CreateSubAccountResponse>;
+
+export const CheckSubAccountAvailabilityRequest = z.object({
+	subAccountName: z.string().regex(/^[a-z0-9]+$/),
+	network: z.enum(["mainnet", "testnet"]).optional(),
+});
+export type CheckSubAccountAvailabilityRequestT = z.infer<typeof CheckSubAccountAvailabilityRequest>;
+
+export const CheckSubAccountAvailabilityResponse = z.object({
+	available: z.boolean(),
+	accountId: z.string(),
+});
+export type CheckSubAccountAvailabilityResponseT = z.infer<typeof CheckSubAccountAvailabilityResponse>;

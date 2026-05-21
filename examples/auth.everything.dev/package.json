@@ -18,7 +18,7 @@
       "better-auth": "1.6.9",
       "@better-auth/api-key": "1.6.9",
       "@better-auth/passkey": "1.6.9",
-      "better-near-auth": "1.4.2",
+      "better-near-auth": "^1.5.0",
       "every-plugin": "^2.5.11",
       "typescript": "^5.9.3",
       "vitest": "^4.0.17",
@@ -115,6 +115,7 @@
     "axios": "1.13.6",
     "effect": "3.21.0",
     "@orpc/contract": "1.13.14",
-    "@orpc/server": "1.13.14"
+    "@orpc/server": "1.13.14",
+    "better-near-auth": "file:./local-deps/better-near-auth-1.5.0.tgz"
   }
 }

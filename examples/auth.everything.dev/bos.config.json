@@ -72,8 +72,8 @@
         "shareScope": "default"
       },
       "better-near-auth": {
-        "version": "1.4.2",
-        "requiredVersion": "^1.4.2",
+        "version": "1.5.0",
+        "requiredVersion": "^1.5.0",
         "singleton": true,
         "strictVersion": false,
         "shareScope": "default"
@@ -88,6 +88,20 @@
       "@better-auth/passkey": {
         "version": "1.6.9",
         "requiredVersion": "^1.6.9",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "near-kit": {
+        "version": "0.14.0",
+        "requiredVersion": "^0.14.0",
+        "singleton": true,
+        "strictVersion": false,
+        "shareScope": "default"
+      },
+      "@scure/base": {
+        "version": "2.2.0",
+        "requiredVersion": "^2.2.0",
         "singleton": true,
         "strictVersion": false,
         "shareScope": "default"

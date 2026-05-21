@@ -127,6 +127,7 @@ export type { AuthServices } from "./auth-export";
 export default createPlugin({
   variables: z.object({
     account: z.string().optional(),
+    testnetAccount: z.string().optional(),
     domain: z.string().optional(),
   }),
 
@@ -185,6 +186,10 @@ export default createPlugin({
           secret: config.secrets.BETTER_AUTH_SECRET,
           baseUrl,
           account: config.variables.account || "dev.everything.near",
+          testnetAccount:
+            config.variables.testnetAccount ||
+            config.variables.account?.replace(/\.near$/, ".testnet") ||
+            "dev.everything.testnet",
           trustedOrigins,
           githubClientId: config.secrets.GITHUB_CLIENT_ID,
           githubClientSecret: config.secrets.GITHUB_CLIENT_SECRET,
@@ -1069,14 +1074,17 @@ export default createPlugin({
           return result;
         }),
 
-      nearRelayerInfo: builder.nearRelayerInfo.use(requireAuth).handler(async ({ context }) => {
-        const result = await safeAuthApi(() =>
-          services.auth.api.getRelayerInfo({
-            headers: createHeaders(context.reqHeaders),
-          }),
-        );
-        return result;
-      }),
+      nearRelayerInfo: builder.nearRelayerInfo
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const result = await safeAuthApi(() =>
+            services.auth.api.getRelayerInfo({
+              headers: createHeaders(context.reqHeaders),
+              body: input ?? {},
+            }),
+          );
+          return result;
+        }),
 
       nearRelayHistory: builder.nearRelayHistory.use(requireAuth).handler(async ({ context }) => {
         const result = await safeAuthApi(() =>
@@ -1096,6 +1104,33 @@ export default createPlugin({
         );
         return result;
       }),
+
+      nearCheckSubAccountAvailability: builder.nearCheckSubAccountAvailability.handler(
+        async ({ input }) => {
+          const result = await safeAuthApi(() =>
+            services.auth.api.checkSubAccountAvailability({
+              body: { subAccountId: input.subAccountId, network: input.network },
+            }),
+          );
+          return result;
+        },
+      ),
+
+      nearCreateSubAccount: builder.nearCreateSubAccount
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
+          const result = await safeAuthApi(() =>
+            services.auth.api.createSubAccount({
+              headers: createHeaders(context.reqHeaders),
+              body: {
+                subAccountId: input.subAccountId,
+                publicKey: input.publicKey,
+                network: input.network,
+              },
+            }),
+          );
+          return result;
+        }),
     };
   },
 });

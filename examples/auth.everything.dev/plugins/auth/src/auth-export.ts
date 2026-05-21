@@ -26,6 +26,7 @@ export interface AuthConfig {
   secret: string;
   baseUrl: string;
   account: string;
+  testnetAccount?: string;
   trustedOrigins?: string[];
   githubClientId?: string;
   githubClientSecret?: string;

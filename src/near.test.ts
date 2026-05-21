@@ -554,8 +554,12 @@ describe("siwn plugin", () => {
 			expect(cookie).not.toBe("");
 
 			const relayerInfoRes = await customFetchImpl("http://localhost/api/auth/near/relayer-info", {
-				method: "GET",
-				headers: { cookie },
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					cookie,
+				},
+				body: JSON.stringify({}),
 			});
 			expect(relayerInfoRes.status).toBe(200);
 

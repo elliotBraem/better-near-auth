@@ -197,7 +197,10 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
     },
     plugins: [
       siwn({
-        recipient: config.account,
+        recipients: {
+          mainnet: config.account,
+          testnet: config.testnetAccount ?? config.account.replace(/\.near$/, ".testnet"),
+        },
         relayer: {},
         apiKey: config.fastnearApiKey,
         rpcUrl: config.nearRpcUrl,

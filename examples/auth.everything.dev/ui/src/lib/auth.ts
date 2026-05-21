@@ -30,6 +30,14 @@ function getAccountId(config?: Partial<ClientRuntimeConfig>) {
   return readRuntimeConfig(config)?.account ?? "every.near";
 }
 
+function getTestnetAccountId(config?: Partial<ClientRuntimeConfig>) {
+  const rc = readRuntimeConfig(config);
+  if (rc?.account) {
+    return rc.account.replace(/\.near$/, ".testnet");
+  }
+  return "every.testnet";
+}
+
 function getNetworkId(config?: Partial<ClientRuntimeConfig>): "mainnet" | "testnet" {
   return (
     readRuntimeConfig(config)?.networkId ??
@@ -55,7 +63,10 @@ function getCspNonce(config?: Partial<ClientRuntimeConfig>) {
 
 export function createAuthClient(config?: Partial<ClientRuntimeConfig>) {
   const nearAuthConfig = {
-    recipient: getAccountId(config),
+    recipients: {
+      mainnet: getAccountId(config),
+      testnet: getTestnetAccountId(config),
+    },
     networkId: getNetworkId(config),
     cspNonce: getCspNonce(config),
   };
