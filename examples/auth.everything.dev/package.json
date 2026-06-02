@@ -18,7 +18,7 @@
       "better-auth": "1.6.9",
       "@better-auth/api-key": "1.6.9",
       "@better-auth/passkey": "1.6.9",
-      "better-near-auth": "file:../..",
+      "better-near-auth": "1.5.0",
       "every-plugin": "^2.5.11",
       "typescript": "^5.9.3",
       "vitest": "^4.0.17",
@@ -32,10 +32,10 @@
       "effect": "3.21.0",
       "zod": "4.3.6",
       "@orpc/contract": "1.13.14",
-      "@orpc/server": "1.13.14",
-      "@orpc/client": "1.13.14",
-      "@orpc/zod": "1.13.14",
-      "@orpc/openapi": "1.13.14",
+      "@orpc/server": "1.14.3",
+      "@orpc/client": "1.14.3",
+      "@orpc/zod": "1.14.3",
+      "@orpc/openapi": "1.14.3",
       "@module-federation/enhanced": "^2.4.0",
       "@module-federation/node": "^2.7.42",
       "@module-federation/rsbuild-plugin": "^2.4.0",
@@ -44,7 +44,7 @@
       "@module-federation/dts-plugin": "^2.4.0",
       "@tanstack/intent": "^0.0.40",
       "@opentelemetry/api": "^1.9.0",
-      "everything-dev": "^1.28.7",
+      "everything-dev": "^1.32.0",
       "@rspack/core": "1.7.11",
       "@rspack/cli": "1.7.11",
       "@rsbuild/core": "1.7.5",
@@ -56,8 +56,10 @@
       "@tanstack/react-form": "^1.29.1",
       "@tanstack/react-table": "^8.21.3",
       "@tanstack/zod-form-adapter": "^0.42.1",
-      "zephyr-rspack-plugin": "^1.1.0",
-      "zephyr-rsbuild-plugin": "^1.0.1"
+      "zephyr-rspack-plugin": "^1.1.1",
+      "zephyr-rsbuild-plugin": "^1.1.1",
+      "@better-auth/core": "1.6.9",
+      "@orpc/tanstack-query": "1.14.3"
     }
   },
   "scripts": {
@@ -82,7 +84,14 @@
     "dev:postgres": "docker compose up -d --wait && bun run dev",
     "dev:postgres:down": "docker compose down",
     "dev:postgres:reset": "docker compose down -v && docker compose up -d --wait",
-    "bos": "node_modules/.bin/bos"
+    "bos": "node_modules/.bin/bos",
+    "db:push": "bun run --cwd api drizzle-kit push",
+    "db:studio": "bun run --cwd api drizzle-kit studio",
+    "db:generate": "bun run --cwd api drizzle-kit generate",
+    "db:migrate": "bun run --cwd api drizzle-kit migrate",
+    "test:api": "cd api && bun run test tests/integration/ tests/unit/",
+    "test:integration": "cd api && bun run test tests/integration/",
+    "test": "bun run test:api"
   },
   "packageManager": "bun@1.2.20",
   "type": "module",
@@ -92,28 +101,24 @@
     "@types/bun": "latest",
     "dotenv": "^17.3.1",
     "vite-tsconfig-paths": "^6.1.1",
-    "vitest": "^4.0.18"
+    "vitest": "catalog:",
+    "tsx": "^4.21.0"
   },
   "dependencies": {
     "@better-auth/api-key": "catalog:",
     "@better-auth/passkey": "catalog:",
-    "@libsql/client": "^0.17.0",
-    "@orpc/contract": "^1.13.14",
-    "@orpc/server": "^1.13.14",
+    "@libsql/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/server": "catalog:",
     "better-auth": "catalog:",
-    "drizzle-orm": "^0.45.1",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "zod": "catalog:",
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
     "better-near-auth": "catalog:",
-    "@electric-sql/pglite": "catalog:"
-  },
-  "overrides": {
-    "axios": "1.13.6",
-    "effect": "3.21.0",
-    "@orpc/contract": "1.13.14",
-    "@orpc/server": "1.13.14"
+    "@electric-sql/pglite": "catalog:",
+    "@better-auth/core": "catalog:"
   }
 }

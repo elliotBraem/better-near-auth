@@ -10,7 +10,7 @@ import {
   phoneNumberClient,
 } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
-import type { ListedNearAccount, RelayedTransactionT, RelayerInfo } from "better-near-auth";
+import type { RelayedTransactionT } from "better-near-auth";
 import { siwnClient } from "better-near-auth/client";
 import type { ClientRuntimeConfig } from "everything-dev/types";
 import { getRuntimeConfig } from "everything-dev/ui/runtime";
@@ -32,10 +32,7 @@ function getAccountId(config?: Partial<ClientRuntimeConfig>) {
 
 function getTestnetAccountId(config?: Partial<ClientRuntimeConfig>) {
   const rc = readRuntimeConfig(config);
-  if (rc?.account) {
-    return rc.account.replace(/\.near$/, ".testnet");
-  }
-  return "every.testnet";
+  return (rc?.auth?.variables as Record<string, string> | undefined)?.testnetAccount;
 }
 
 function getNetworkId(config?: Partial<ClientRuntimeConfig>): "mainnet" | "testnet" {
@@ -52,28 +49,25 @@ function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
   return "";
 }
 
-function getCspNonce(config?: Partial<ClientRuntimeConfig>) {
-  const runtimeConfig = readRuntimeConfig(config);
-  if (runtimeConfig?.cspNonce) return runtimeConfig.cspNonce;
-  if (typeof document !== "undefined") {
-    return document.querySelector("script[nonce]")?.getAttribute("nonce") ?? undefined;
-  }
-  return undefined;
-}
-
-export function createAuthClient(config?: Partial<ClientRuntimeConfig>) {
-  const nearAuthConfig = {
-    recipients: {
-      mainnet: getAccountId(config),
-      testnet: getTestnetAccountId(config),
-    },
-    networkId: getNetworkId(config),
-    cspNonce: getCspNonce(config),
-  };
+export function createAuthClient(config?: Partial<ClientRuntimeConfig>, headers?: HeadersInit) {
+  const accountId = getAccountId(config);
+  const testnetAccountId = getTestnetAccountId(config);
+  const nearAuthConfig = testnetAccountId
+    ? {
+        recipients: { mainnet: accountId, testnet: testnetAccountId },
+        networkId: getNetworkId(config),
+      }
+    : {
+        recipient: accountId,
+        networkId: getNetworkId(config),
+      };
 
   return createBetterAuthClient({
     baseURL: getHostUrl(config),
-    fetchOptions: { credentials: "include" },
+    fetchOptions: {
+      credentials: "include",
+      ...(headers ? { headers } : {}),
+    },
     plugins: [
       inferAdditionalFields<Auth>(),
       siwnClient(nearAuthConfig),
@@ -94,17 +88,6 @@ type PasskeyListResult = Awaited<ReturnType<AuthClient["passkey"]["listUserPassk
 export type SessionData = AuthClient["$Infer"]["Session"];
 export type Organization = NonNullable<OrganizationListResult["data"]>[number];
 export type Passkey = NonNullable<PasskeyListResult["data"]>[number];
-export type PrivateData = {
-  message: string;
-  userId: string | null;
-  organizationId: string | null;
-  apiKeyId: string | null;
-};
-export type RelayerData = RelayerInfo & { enabled: boolean };
-export type { ListedNearAccount };
-
-import type { AuthSessionUser as AuthSessionUserType } from "./auth-types.gen";
-export type AuthSessionUser = AuthSessionUserType;
 
 export function useAuthClient(): AuthClient {
   return useRouter().options.context.authClient;

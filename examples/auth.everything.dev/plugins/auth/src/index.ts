@@ -192,10 +192,7 @@ export default createPlugin({
           secret: config.secrets.BETTER_AUTH_SECRET,
           baseUrl,
           account: config.variables.account || "dev.everything.near",
-          testnetAccount:
-            config.variables.testnetAccount ||
-            config.variables.account?.replace(/\.near$/, ".testnet") ||
-            "allthethings.testnet",
+          testnetAccount: config.variables.testnetAccount,
           trustedOrigins,
           githubClientId: config.secrets.GITHUB_CLIENT_ID,
           githubClientSecret: config.secrets.GITHUB_CLIENT_SECRET,

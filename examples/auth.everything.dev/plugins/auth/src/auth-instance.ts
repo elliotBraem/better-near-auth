@@ -197,26 +197,37 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
     },
     plugins: [
       siwn({
-        recipients: {
-          mainnet: config.account,
-          testnet: config.testnetAccount ?? config.account.replace(/\.near$/, ".testnet"),
-        },
+        ...(config.testnetAccount
+          ? {
+              recipients: {
+                mainnet: config.account,
+                testnet: config.testnetAccount,
+              },
+            }
+          : { recipient: config.account }),
         relayer: config.relayerAccountId
           ? {
               accountId: config.relayerAccountId,
               privateKey: config.relayerPrivateKey,
             }
           : {},
-        subAccount: {
-          mainnet: {
-            parentAccount: config.subAccountParentMainnet || config.account,
-            ...(config.subAccountParentKeyMainnet ? { parentKey: config.subAccountParentKeyMainnet } : {}),
-          },
-          testnet: {
-            parentAccount: config.subAccountParentTestnet || (config.testnetAccount ?? config.account.replace(/\.near$/, ".testnet")),
-            ...(config.subAccountParentKeyTestnet ? { parentKey: config.subAccountParentKeyTestnet } : {}),
-          },
-        },
+        subAccount: config.testnetAccount
+          ? {
+              mainnet: {
+                parentAccount: config.subAccountParentMainnet || config.account,
+                ...(config.subAccountParentKeyMainnet ? { parentKey: config.subAccountParentKeyMainnet } : {}),
+              },
+              testnet: {
+                parentAccount: config.subAccountParentTestnet || config.testnetAccount,
+                ...(config.subAccountParentKeyTestnet ? { parentKey: config.subAccountParentKeyTestnet } : {}),
+              },
+            }
+          : {
+              mainnet: {
+                parentAccount: config.subAccountParentMainnet || config.account,
+                ...(config.subAccountParentKeyMainnet ? { parentKey: config.subAccountParentKeyMainnet } : {}),
+              },
+            },
         apiKey: config.fastnearApiKey,
         rpcUrl: config.nearRpcUrl,
       }),

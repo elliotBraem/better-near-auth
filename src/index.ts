@@ -1329,7 +1329,15 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 
 					const network = (nearAccount?.network || primaryNetwork) as "mainnet" | "testnet";
 					const near = getNear(network);
-					const result = await near.view(contractId, methodName, args ?? {});
+					let result: unknown;
+					try {
+						result = await near.view(contractId, methodName, args ?? {});
+					} catch (error: unknown) {
+						if (error instanceof APIError) throw error;
+						throw new APIError("BAD_REQUEST", {
+							message: error instanceof Error ? error.message : "Unknown error",
+						});
+					}
 					return ctx.json(ViewContractResponse.parse({ result }));
 				},
 			),

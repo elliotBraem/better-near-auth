@@ -31,7 +31,7 @@ skills:
     use: "everything-dev#extends-config"
   - when: "Scaffold a new project, extend an existing project from a parent runtime, sync upstream files, upgrade framework packages, or choose local override sections for ui/api/host/plugins."
     use: "everything-dev#init-upgrade"
-  - when: "Build a super app with a shared host and shared API, set up fixed-core tenant mode, configure tenant UI overrides, or create custom tenant apps that extend a base runtime."
+  - when: "Build a super app with a shared host and shared API, set up fixed-core tenant mode, reason about extends-based runtime lineage, configure tenant UI overrides, or create custom tenant apps that extend a base runtime."
     use: "everything-dev#super-app"
   - when: "Publish bos.config.json to the FastKV registry, sync from upstream, and upgrade workspace packages. Use when deploying, syncing, or managing runtime configuration across projects."
     use: "everything-dev#publish-sync"
@@ -104,11 +104,18 @@ Important: fixed-core tenant runtime composition now lives primarily in:
 - `host/src/program.ts`
 - `host/src/services/federation.server.ts`
 
-Tenant rules:
-- subdomain convention maps `alice.<domain>` to `alice.near` or `alice.testnet` based on `NETWORK_ID`
-- tenant config must extend the base BOS runtime
-- supported tenant overrides are `ui`, existing `plugins.<id>.ui`, and existing `plugins.<id>.sidebar`
+Tenant model:
+- `extends` is the lineage edge between runtimes
+- `account` is the tenant namespace root for the active runtime
+- `domain` is the public ingress for that runtime
+- a runtime can extend another runtime and still become a new tenant root on its own domain
+
+Current fixed-core host rules:
+- the shared host still boots once from one base runtime snapshot
+- child runtime config must extend the active BOS runtime
+- supported request-scoped overrides are `ui`, existing `plugins.<id>.ui`, and existing `plugins.<id>.sidebar`
 - tenant SSR is gated by `TENANT_WHITELIST` and `ALLOW_UNTRUSTED_SSR`
+- nested label routing and account-relative tenant derivation are the intended architecture direction, but not the complete resolver behavior today
 
 For full per-request host/plugin/auth/api swapping, start from `plans/runtime-config-hot-swap.md`.
 

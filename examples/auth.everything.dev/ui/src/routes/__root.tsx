@@ -130,11 +130,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootComponent() {
+  const { cspNonce } = Route.useRouteContext();
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <HeadContent />
-        <style dangerouslySetInnerHTML={{ __html: getBaseStyles() }} />
+        <style nonce={cspNonce} dangerouslySetInnerHTML={{ __html: getBaseStyles() }} />
       </head>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

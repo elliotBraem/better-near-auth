@@ -189,6 +189,7 @@ export function useGuestbookGreeting(enabled = true) {
         contractId: GUESTBOOK_CONTRACT,
         methodName: "get_greeting",
       });
+      if (res.error) return undefined;
       const result = res?.data?.result;
       return typeof result === "string" ? result : undefined;
     },
@@ -817,6 +818,7 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
         contractId: GUESTBOOK_CONTRACT,
         methodName: "get_greeting",
       });
+      if (res.error) return "";
       const result = res?.data?.result;
       return typeof result === "string" ? result : "";
     },

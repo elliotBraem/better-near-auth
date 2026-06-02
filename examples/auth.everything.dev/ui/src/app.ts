@@ -76,17 +76,8 @@ import type { ApiClient } from "./lib/api";
 import type { AuthClient as AuthClientType } from "./lib/auth";
 
 export type { ApiClient } from "./lib/api";
-export { createApiClient, useApiClient } from "./lib/api";
-export type {
-  AuthClient,
-  AuthSessionUser,
-  ListedNearAccount,
-  Organization,
-  Passkey,
-  PrivateData,
-  RelayerData,
-  SessionData,
-} from "./lib/auth";
+export { createApiClient, useApiClient, useOrpc } from "./lib/api";
+export type { AuthClient, Organization, Passkey, SessionData } from "./lib/auth";
 export { createAuthClient, sessionQueryOptions, useAuthClient, useRelayHistory } from "./lib/auth";
 
 import type {
@@ -123,4 +114,5 @@ export interface RenderOptions extends Omit<BaseRenderOptions<SessionData>, "run
   runtimeConfig: BaseRenderOptions<SessionData>["runtimeConfig"];
   apiClient: ApiClient;
   authClient?: AuthClientType;
+  cspNonce?: string;
 }

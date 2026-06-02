@@ -1,6 +1,7 @@
 import { createORPCClient, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
+import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { useRouter } from "@tanstack/react-router";
 import type { ApiContract } from "./api-types.gen";
 
@@ -71,4 +72,9 @@ export function createApiClient(runtimeConfig: { hostUrl: string; rpcBase: strin
 
 export function useApiClient(): ApiClient {
   return useRouter().options.context.apiClient;
+}
+
+export function useOrpc() {
+  const client = useApiClient();
+  return createTanstackQueryUtils(client);
 }

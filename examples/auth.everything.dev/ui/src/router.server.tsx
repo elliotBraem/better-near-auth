@@ -57,6 +57,7 @@ const createRouter = (opts: CreateRouterOptions) => {
 
   const history = opts.history ?? createMemoryHistory();
 
+  const cspNonce = opts.context.cspNonce;
   const router = createTanStackRouter({
     routeTree,
     history,
@@ -68,7 +69,9 @@ const createRouter = (opts: CreateRouterOptions) => {
       apiClient: opts.context.apiClient,
       authClient: opts.context.authClient ?? createAuthClient(opts.context.runtimeConfig),
       session: opts.context.session,
+      cspNonce,
     },
+    ...(cspNonce ? { ssr: { nonce: cspNonce } } : {}),
     defaultPreload: "intent",
     scrollRestoration: true,
     defaultStructuralSharing: true,
@@ -148,8 +151,9 @@ const renderToStream = async (request: Request, renderOptions: RenderOptions) =>
           assetsUrl: renderOptions.assetsUrl,
           runtimeConfig: renderOptions.runtimeConfig,
           apiClient: renderOptions.apiClient,
-          authClient: renderOptions.authClient ?? createAuthClient(renderOptions.runtimeConfig),
+          authClient: createAuthClient(renderOptions.runtimeConfig, request.headers),
           session: renderOptions.session,
+          cspNonce: renderOptions.cspNonce,
         },
       });
       queryClientRef = localQueryClient;
