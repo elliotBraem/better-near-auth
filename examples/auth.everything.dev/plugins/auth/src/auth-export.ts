@@ -39,6 +39,12 @@ export interface AuthConfig {
   twilioAccountSid?: string;
   twilioAuthToken?: string;
   twilioPhoneNumber?: string;
+  relayerAccountId?: string;
+  relayerPrivateKey?: string;
+  subAccountParentMainnet?: string;
+  subAccountParentTestnet?: string;
+  subAccountParentKeyMainnet?: string;
+  subAccountParentKeyTestnet?: string;
 }
 
 export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;

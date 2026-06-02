@@ -13,6 +13,7 @@ import {
 import { getAppName, sessionQueryOptions } from "@/app";
 import builtOn from "@/assets/built_on.png";
 import builtOnRev from "@/assets/built_on_rev.png";
+import { NetworkToggle } from "@/components/demo-sections";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useClientValue } from "@/hooks/use-client";
 import { ThemeToggle } from "../components/theme-toggle";
@@ -147,6 +148,7 @@ function Layout() {
               )}
 
               <div className="flex items-center gap-2">
+                <NetworkToggle />
                 <UserNav />
               </div>
             </div>

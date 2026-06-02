@@ -26,9 +26,9 @@ export const contract = oc.router({
     .output(
       z.object({
         message: z.string(),
-        userId: z.string(),
-        sessionId: z.string().nullable(),
-        expiresAt: z.string().nullable(),
+        userId: z.string().nullable(),
+        organizationId: z.string().nullable(),
+        apiKeyId: z.string().nullable(),
       }),
     )
     .errors({ UNAUTHORIZED }),

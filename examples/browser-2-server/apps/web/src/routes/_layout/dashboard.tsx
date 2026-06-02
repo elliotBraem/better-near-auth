@@ -40,11 +40,30 @@ interface RelayerData {
   lastUsedAt?: string;
 }
 
-function formatNear(yoctoNear: string): string {
-  const near = Number(yoctoNear) / 1e24;
+function formatNearDisplay(balance: string): string {
+  if (!balance?.trim()) return "0";
+  const trimmed = balance.trim();
+  const near = /^\d+$/.test(trimmed)
+    ? Number(trimmed) / 1e24
+    : Number.parseFloat(trimmed);
+  if (!Number.isFinite(near)) return trimmed;
   if (near >= 1) return near.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  if (near > 0) return near.toExponential(2);
+  if (near > 0) return near.toLocaleString(undefined, { maximumFractionDigits: 6 });
   return "0";
+}
+
+function hasPositiveNearBalance(balance?: string): boolean {
+  if (!balance?.trim()) return false;
+  const trimmed = balance.trim();
+  try {
+    if (/^\d+$/.test(trimmed)) {
+      return BigInt(trimmed) > 0n;
+    }
+    const near = Number.parseFloat(trimmed);
+    return Number.isFinite(near) && near > 0;
+  } catch {
+    return false;
+  }
 }
 
 function truncateAccountId(accountId: string): string {
@@ -336,7 +355,7 @@ function RelayerCard() {
     );
   }
 
-  const isFunded = data.balance !== "0" && data.balance !== undefined;
+  const isFunded = hasPositiveNearBalance(data.balance) || hasPositiveNearBalance(data.available);
   const statusLabel = isFunded ? "Active" : "Unfunded";
   const statusColor = isFunded ? "bg-emerald-500" : "bg-amber-500";
 
@@ -393,11 +412,11 @@ function RelayerCard() {
         <div className="grid grid-cols-2 gap-2">
           <div className="border rounded-md p-3">
             <div className="text-xs text-muted-foreground">Total</div>
-            <div className="text-sm font-medium">{formatNear(data.balance ?? "0")} NEAR</div>
+            <div className="text-sm font-medium">{formatNearDisplay(data.balance ?? "0")} NEAR</div>
           </div>
           <div className="border rounded-md p-3">
             <div className="text-xs text-muted-foreground">Available</div>
-            <div className="text-sm font-medium">{formatNear(data.available ?? "0")} NEAR</div>
+            <div className="text-sm font-medium">{formatNearDisplay(data.available ?? "0")} NEAR</div>
           </div>
         </div>
 

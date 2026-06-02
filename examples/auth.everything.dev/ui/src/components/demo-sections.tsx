@@ -11,6 +11,7 @@ import {
   Globe,
   Key,
   Loader2,
+  RefreshCw,
   Search,
   ShieldCheck,
   Unlink,
@@ -34,6 +35,7 @@ import {
   Badge,
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -65,17 +67,27 @@ function explorerTxUrl(txHash: string) {
   return `https://near.rocks/tx/${txHash}`;
 }
 
-function formatNear(yoctoNear: string): string {
-  const near = Number(yoctoNear) / 1e24;
+function formatNearDisplay(balance: string): string {
+  if (!balance?.trim()) return "0";
+  const trimmed = balance.trim();
+  const near = /^\d+$/.test(trimmed)
+    ? Number(trimmed) / 1e24
+    : Number.parseFloat(trimmed);
+  if (!Number.isFinite(near)) return trimmed;
   if (near >= 1) return near.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  if (near > 0) return near.toExponential(2);
+  if (near > 0) return near.toLocaleString(undefined, { maximumFractionDigits: 6 });
   return "0";
 }
 
-function hasPositiveYoctoBalance(balance?: string): boolean {
+function hasPositiveNearBalance(balance?: string): boolean {
   if (!balance?.trim()) return false;
+  const trimmed = balance.trim();
   try {
-    return BigInt(balance) > 0n;
+    if (/^\d+$/.test(trimmed)) {
+      return BigInt(trimmed) > 0n;
+    }
+    const near = Number.parseFloat(trimmed);
+    return Number.isFinite(near) && near > 0;
   } catch {
     return false;
   }
@@ -328,7 +340,7 @@ export function ProfileCard({
 
 export function RelayerCard() {
   const [copied, setCopied] = useState(false);
-  const { data, isLoading } = useRelayerInfo();
+  const { data, isLoading, isFetching, refetch } = useRelayerInfo();
 
   const handleCopy = async (text: string) => {
     try {
@@ -387,17 +399,29 @@ export function RelayerCard() {
     );
   }
 
-  const isFunded = hasPositiveYoctoBalance(data.balance);
+  const isFunded = hasPositiveNearBalance(data.balance) || hasPositiveNearBalance(data.available);
   const statusLabel = isFunded ? "Active" : "Unfunded";
   const statusColor = isFunded ? "bg-green-500" : "bg-amber-500";
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="grid grid-cols-[1fr_auto] items-center gap-2">
         <CardTitle className="flex items-center gap-2">
           <Wallet className="h-5 w-5" />
           Relayer
         </CardTitle>
+        <CardAction>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            title="Refresh balance"
+            aria-label="Refresh relayer balance"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
@@ -453,11 +477,11 @@ export function RelayerCard() {
         <div className="grid grid-cols-2 gap-2">
           <div className={`${NEO_BORDER} p-3`}>
             <div className="text-xs text-muted-foreground">Total</div>
-            <div className="text-sm font-medium">{formatNear(data.balance ?? "0")} NEAR</div>
+            <div className="text-sm font-medium">{formatNearDisplay(data.balance ?? "0")} NEAR</div>
           </div>
           <div className={`${NEO_BORDER} p-3`}>
             <div className="text-xs text-muted-foreground">Available</div>
-            <div className="text-sm font-medium">{formatNear(data.available ?? "0")} NEAR</div>
+            <div className="text-sm font-medium">{formatNearDisplay(data.available ?? "0")} NEAR</div>
           </div>
         </div>
 
@@ -773,11 +797,15 @@ export function AccountLinkingCard({
 
 export function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   const auth = useAuthClient();
+  const { data: nearAccountsData } = useNearAccountsData(!!auth.near.getAccountId());
   const [newGreeting, setNewGreeting] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>("relay");
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [relayTxHash, setRelayTxHash] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  const hasLinkedNear = Boolean(getActiveNearAccountId(nearAccountsData ?? { accounts: [] }));
+  const canSignGuestbook = hasLinkedNear;
 
   const network = auth.useActiveNetwork();
   const queryKey = useMemo(() => getGuestbookGreetingQueryKey(network), [network]);
@@ -907,6 +935,10 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
   const isPending = isRelaying || isDirecting;
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSignGuestbook || !auth.near.getAccountId()) {
+      toast.error("Please connect a NEAR account");
+      return;
+    }
     if (!newGreeting.trim()) return;
     sendMode === "relay" ? addMessageRelay(newGreeting) : addMessageDirect(newGreeting);
   };
@@ -944,13 +976,13 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
       <CardContent className="space-y-4">
         <form onSubmit={onSubmit} className="flex gap-2">
           <Input
-            placeholder="Leave a message..."
+            placeholder={canSignGuestbook ? "Leave a message..." : "Connect a NEAR account to sign..."}
             value={newGreeting}
             onChange={(e) => setNewGreeting(e.target.value)}
-            disabled={isPending}
+            disabled={isPending || !canSignGuestbook}
             className="flex-1"
           />
-          <Button type="submit" disabled={isPending || !newGreeting.trim()}>
+          <Button type="submit" disabled={isPending || !newGreeting.trim() || !canSignGuestbook}>
             {isPending ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -961,6 +993,16 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
             )}
           </Button>
         </form>
+
+        {!canSignGuestbook && (
+          <p className="text-sm text-muted-foreground">
+            Please{" "}
+            <Link to="/accounts" className="text-foreground underline underline-offset-4">
+              connect a NEAR account
+            </Link>{" "}
+            to sign the guestbook.
+          </p>
+        )}
 
         {sendMode === "relay" && relayStatus !== "idle" && (
           <div className={`flex items-center gap-2 p-3 ${NEO_BORDER} bg-muted/50`}>
@@ -1027,7 +1069,7 @@ export function RelayFeedCard() {
 }
 
 export function SessionInfoCard({
-  session,
+  session: _session,
   user,
   nearAccountId,
   linkedAccounts,
@@ -1045,12 +1087,7 @@ export function SessionInfoCard({
     return pid !== "siwn" && pid !== "unknown";
   }).length;
   const providerCount = nearAccountCount + oauthAccountCount;
-  const sessionDetails = session?.session as { id?: string; expiresAt?: string | Date } | undefined;
-  const sessionId = privateData?.sessionId ?? sessionDetails?.id ?? null;
-  const expiresAt = privateData?.expiresAt ?? sessionDetails?.expiresAt ?? null;
-  const sessionIdLabel =
-    typeof sessionId === "string" && sessionId.length > 0 ? `${sessionId.slice(0, 12)}...` : "N/A";
-  const expiresLabel = expiresAt ? new Date(expiresAt).toLocaleString() : "N/A";
+  
 
   return (
     <Card>
@@ -1099,17 +1136,23 @@ export function SessionInfoCard({
           <div className="border-t border-border pt-3 space-y-2 text-sm">
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground flex items-center gap-1.5">
-                <Key className="h-3.5 w-3.5" /> Session ID
+                <Key className="h-3.5 w-3.5" /> User ID
               </span>
               <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                {sessionIdLabel}
+                {privateData.userId ?? "N/A"}
               </code>
             </div>
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" /> Expires
+                <Clock className="h-3.5 w-3.5" /> Organization
               </span>
-              <span className="text-xs text-right">{expiresLabel}</span>
+              <span className="text-xs text-right">{privateData.organizationId ?? "N/A"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Key className="h-3.5 w-3.5" /> API Key
+              </span>
+              <span className="text-xs text-right">{privateData.apiKeyId ?? "N/A"}</span>
             </div>
           </div>
         )}
@@ -1297,10 +1340,10 @@ export function SubAccountCreationCard() {
 
   const { data: relayerData } = useRelayerInfo();
   const hasRelayer = relayerData?.enabled === true;
-  const hasParent = !!relayerData?.accountId;
+  const canCreateSubAccount = relayerData?.subAccountAvailable === true;
 
-  const recipient = auth.near.getRecipient(network);
-  const parentSuffix = recipient ? `.${recipient}` : "";
+  const parentAccount = relayerData?.parentAccount;
+  const parentSuffix = parentAccount ? `.${parentAccount}` : "";
   const fullAccountId = subAccountName ? `${subAccountName}${parentSuffix}` : "";
 
   const isValidName = /^[a-z0-9]+$/.test(subAccountName) && subAccountName.length >= 1;
@@ -1378,6 +1421,27 @@ export function SubAccountCreationCard() {
     );
   }
 
+  if (!canCreateSubAccount) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Create Sub-account
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Sub-account creation requires a named parent account. Configure{" "}
+            <code className="text-xs font-mono bg-muted px-1 rounded">subAccount.parentAccount</code>{" "}
+            in your SIWN plugin options, or use an explicit relayer with a named account instead of an
+            ephemeral one.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -1386,16 +1450,10 @@ export function SubAccountCreationCard() {
           Create Sub-account
         </CardTitle>
         <CardDescription>
-          Create a new NEAR sub-account
-          {hasParent ? (
-            <>
-              {" "}
-              under{" "}
-              <code className="text-xs font-mono bg-muted px-1 rounded">
-                {relayerData.accountId}
-              </code>
-            </>
-          ) : null}{" "}
+          Create a new NEAR sub-account under{" "}
+          <code className="text-xs font-mono bg-muted px-1 rounded">
+            {parentAccount}
+          </code>{" "}
           on{" "}
           <Badge variant="outline" className="text-xs">
             {network}

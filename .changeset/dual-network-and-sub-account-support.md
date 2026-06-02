@@ -20,6 +20,18 @@
 - New `SubAccountConfig` type per-network
 - New client actions: `near.createSubAccount()`, `near.checkSubAccountAvailability()`
 
+## Sub-account parent account separation
+
+- **`parentAccount` on `RelayerInfo`**: Server reports which named account owns sub-accounts, so the client can display it without guessing
+- **`subAccountAvailable` on `RelayerInfo`**: Boolean flag — `false` when the parent would be an implicit (hex) account or when no relayer is configured. UI can show a clear "not configured" state instead of a broken form
+- **`parentKey` on `SubAccountConfig`**: Allows the parent account and relayer to differ. Uses near-kit's `.signWith(parentKey)` so the transaction is signed by the parent while the relayer submits it
+- **Implicit account rejection**: `isImplicitAccount()` and `resolveParentAccount()` prevent `testing.89d3b16ea6d0...` garbage sub-account names by rejecting hex-only parent account IDs at both `createSubAccount` and `checkSubAccountAvailability` endpoints
+
+## Network toggle wallet bug fix
+
+- **Disconnect on switch**: `setNetwork()` now disconnects the previous network's wallet connector and clears `walletConnected`/`nearState` when switching between mainnet and testnet. Previously, the shared `"selected-wallet"` localStorage key caused `getConnectedWallet()` to return stale mainnet data after toggling to testnet, silently signing on the wrong network
+- **Account/network validation**: `signWithWallet()` now checks that a connected wallet's account domain matches the active network (`*.testnet` for testnet, anything else for mainnet) and treats mismatches as disconnected, forcing a fresh wallet popup
+
 ## Breaking changes
 
 - **`getRelayerInfo` → POST**: Changed from GET to POST with optional `{ network }` body. Update any direct API calls.
@@ -27,5 +39,5 @@
 ## Other changes
 
 - `RelayerState` now includes `publicKey`
-- `RelayerInfo` response includes `publicKey` field
+- `RelayerInfo` response includes `publicKey`, `parentAccount`, and `subAccountAvailable` fields
 - Server validates sub-account names: `^[a-z0-9]+$`

@@ -78,11 +78,42 @@ const sessionDataSchema = z.object({
   user: sessionUserSchema.nullable(),
 });
 
+const userPrincipalSchema = z.object({
+  type: z.literal("user"),
+  userId: z.string(),
+  user: sessionUserSchema,
+});
+
+const organizationPrincipalSchema = z.object({
+  type: z.literal("organization"),
+  organizationId: z.string(),
+});
+
+const anonymousPrincipalSchema = z.object({
+  type: z.literal("anonymous"),
+  userId: z.string(),
+  user: sessionUserSchema.nullable(),
+});
+
+const principalSchema = z.union([
+  userPrincipalSchema,
+  organizationPrincipalSchema,
+  anonymousPrincipalSchema,
+]);
+
+const apiKeyContextSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  permissions: z.record(z.string(), z.array(z.string())).nullable(),
+});
+
 const requestContextSchema = z.object({
   user: sessionUserSchema.nullable(),
   userId: z.string().nullable(),
   isAuthenticated: z.boolean(),
   authMethod: z.enum(["session", "apiKey", "anonymous", "none"]),
+  principal: principalSchema.nullable(),
+  apiKey: apiKeyContextSchema.nullable(),
   near: nearCapabilitiesSchema,
   organization: organizationContextSchema,
   organizations: z
@@ -99,6 +130,8 @@ const requestContextSchema = z.object({
 
 export const apiKeySchema = z.object({
   id: z.string(),
+  configId: z.string(),
+  referenceId: z.string(),
   name: z.string().nullable(),
   prefix: z.string().nullable(),
   start: z.string().nullable(),

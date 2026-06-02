@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { sessionQueryOptions } from "@/app";
 import {
   AccountLinkingCard,
-  NetworkToggle,
   SubAccountCreationCard,
   useNearAccountsData,
   useSessionData,
@@ -40,14 +39,11 @@ function AccountsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-          <p className="text-sm text-muted-foreground">
-            Link providers and switch your active NEAR account.
-          </p>
-        </div>
-        <NetworkToggle />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
+        <p className="text-sm text-muted-foreground">
+          Link providers and switch your active NEAR account.
+        </p>
       </div>
 
       <AccountLinkingCard linkedAccounts={linkedAccounts} user={user} />

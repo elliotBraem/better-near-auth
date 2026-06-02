@@ -96,9 +96,9 @@ export type Organization = NonNullable<OrganizationListResult["data"]>[number];
 export type Passkey = NonNullable<PasskeyListResult["data"]>[number];
 export type PrivateData = {
   message: string;
-  userId: string;
-  sessionId: string | null;
-  expiresAt: string | null;
+  userId: string | null;
+  organizationId: string | null;
+  apiKeyId: string | null;
 };
 export type RelayerData = RelayerInfo & { enabled: boolean };
 export type { ListedNearAccount };

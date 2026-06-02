@@ -2,7 +2,7 @@ import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware }
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User, DBAdapter } from "better-auth/types";
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
-import type { SignedMessage, SignMessageParams, SignedDelegateAction } from "near-kit";
+import type { SignedMessage, SignMessageParams, SignedDelegateAction, PrivateKey } from "near-kit";
 import { hex, base58 } from "@scure/base";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
@@ -275,6 +275,22 @@ async function defaultValidateLimitedAccessKey(
 		return key.permission.FunctionCall.receiver_id === recipient;
 	}
 	return false;
+}
+
+function isImplicitAccount(accountId: string): boolean {
+	return /^[0-9a-f]{64}$/.test(accountId);
+}
+
+function resolveParentAccount(
+	subAccountCfg: SubAccountConfig | undefined,
+	rState: RelayerState | null,
+): { parentAccount: string | null; subAccountAvailable: boolean } {
+	if (!rState) return { parentAccount: null, subAccountAvailable: false };
+	const parent = subAccountCfg?.parentAccount ?? rState.accountId;
+	if (!parent || isImplicitAccount(parent)) {
+		return { parentAccount: null, subAccountAvailable: false };
+	}
+	return { parentAccount: parent, subAccountAvailable: true };
 }
 
 export interface SIWNPluginOptions {
@@ -1207,8 +1223,11 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, targetNetwork);
 
 					if (!rState) {
-						return ctx.json({ enabled: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
+						return ctx.json({ enabled: false, subAccountAvailable: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
 					}
+
+					const subAccountCfg = getSubAccountConfig(targetNetwork);
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
 
 					const near = getNear(rState.network);
 					let account;
@@ -1241,6 +1260,8 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						hasKey: true,
 						createdAt: rState.createdAt,
 						lastUsedAt: rState.lastUsedAt,
+						parentAccount: parentAccount ?? undefined,
+						subAccountAvailable,
 					} as RelayerInfo & { enabled: boolean });
 				},
 			),
@@ -1349,16 +1370,24 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						});
 					}
 
-					if (!subAccountCfg) {
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+
+					if (!subAccountAvailable || !parentAccount) {
 						throw new APIError("SERVICE_UNAVAILABLE", {
-							message: "Sub-account creation not configured",
+							message: "Sub-account creation requires a named parent account. Configure subAccount.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.",
 							status: 503,
 						});
 					}
 
-					const parentAccount = subAccountCfg.parentAccount || rState.accountId;
+					if (parentAccount !== rState.accountId && !subAccountCfg?.parentKey) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Sub-account parent differs from relayer account. Configure subAccount.parentKey to enable signing as the parent account.",
+							status: 503,
+						});
+					}
+
 					const newAccountId = `${subAccountName}.${parentAccount}`;
-					const minDeposit = subAccountCfg.minDeposit || "0.1 NEAR";
+					const minDeposit = subAccountCfg?.minDeposit || "0.1 NEAR";
 
 					const near = getNear(network);
 					const exists = await near.accountExists(newAccountId);
@@ -1369,12 +1398,16 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						});
 					}
 
-					const txBuilder = rState.near
+					let txBuilder = rState.near
 						.transaction(parentAccount)
 						.createAccount(newAccountId)
 						.addKey(publicKey, { type: "fullAccess" });
 
-					if (subAccountCfg.addRelayerFCAK !== false && subAccountCfg.relayerFCAK) {
+					if (subAccountCfg?.parentKey) {
+						txBuilder = txBuilder.signWith(subAccountCfg.parentKey as PrivateKey);
+					}
+
+					if (subAccountCfg?.addRelayerFCAK !== false && subAccountCfg?.relayerFCAK) {
 						const fcakPermission: { type: "functionCall"; receiverId: string; methodNames?: string[]; allowance?: string } = {
 							type: "functionCall",
 							receiverId: subAccountCfg.relayerFCAK.receiverId,
@@ -1442,7 +1475,15 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 					const subAccountCfg = getSubAccountConfig(network);
 					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
 
-					const parentAccount = subAccountCfg?.parentAccount || rState?.accountId || getRecipient(network);
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+
+					if (!subAccountAvailable || !parentAccount) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Sub-account creation requires a named parent account. Configure subAccount.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.",
+							status: 503,
+						});
+					}
+
 					const accountId = `${subAccountName}.${parentAccount}`;
 
 					const near = getNear(network);

@@ -18,6 +18,7 @@ type PluginAuthServices = {
   db: AuthDatabase;
   driver: DatabaseDriver;
   handler: (req: Request) => Promise<Response>;
+  apiKeyHeaders: string[];
 };
 
 function tryJsonParse<T>(value: string | null | undefined): T | undefined {
@@ -129,6 +130,7 @@ export default createPlugin({
     account: z.string().optional(),
     testnetAccount: z.string().optional(),
     domain: z.string().optional(),
+    apiKeyHeaders: z.array(z.string()).default(["x-api-key"]),
   }),
 
   secrets: z.object({
@@ -143,6 +145,10 @@ export default createPlugin({
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_PHONE_NUMBER: z.string().optional(),
+    NEAR_RELAYER_ACCOUNT_ID: z.string().optional(),
+    NEAR_RELAYER_PRIVATE_KEY: z.string().optional(),
+    NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: z.string().optional(),
+    NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: z.string().optional(),
   }),
 
   context: z.object({
@@ -199,6 +205,10 @@ export default createPlugin({
           twilioAccountSid: config.secrets.TWILIO_ACCOUNT_SID,
           twilioAuthToken: config.secrets.TWILIO_AUTH_TOKEN,
           twilioPhoneNumber: config.secrets.TWILIO_PHONE_NUMBER,
+          relayerAccountId: config.secrets.NEAR_RELAYER_ACCOUNT_ID,
+          relayerPrivateKey: config.secrets.NEAR_RELAYER_PRIVATE_KEY,
+          subAccountParentKeyMainnet: config.secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+          subAccountParentKeyTestnet: config.secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
         },
         driver.db,
       );
@@ -210,6 +220,7 @@ export default createPlugin({
         db: driver.db,
         driver,
         handler: (req: Request) => auth.handler(req),
+        apiKeyHeaders: config.variables.apiKeyHeaders ?? ["x-api-key"],
       } satisfies PluginAuthServices;
     }),
 
@@ -275,11 +286,119 @@ export default createPlugin({
 
       getContext: builder.getContext.handler(async ({ context }) => {
         const headers = createHeaders(context.reqHeaders);
-        const session = await services.auth.api.getSession({ headers });
-        const user = session?.user ?? null;
+        const apiKeyHeaderNames = services.apiKeyHeaders;
 
-        const isAuthenticated = !!user;
-        const authMethod = isAuthenticated ? ("session" as const) : ("none" as const);
+        let apiKeyValue: string | null = null;
+        for (const headerName of apiKeyHeaderNames) {
+          const value = headers.get(headerName.toLowerCase())?.trim();
+          if (value) {
+            apiKeyValue = value;
+            break;
+          }
+        }
+
+        if (!apiKeyValue) {
+          const authHeader = headers.get("authorization");
+          const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+          if (bearerToken && (bearerToken.startsWith("api_") || bearerToken.startsWith("org_"))) {
+            apiKeyValue = bearerToken;
+          }
+        }
+
+        let user: typeof schema.user.$inferSelect | null = null;
+        let authMethod: "session" | "apiKey" | "anonymous" | "none" = "none";
+        let principal: | { type: "user"; userId: string; user: NonNullable<typeof schema.user.$inferSelect> } | { type: "organization"; organizationId: string } | null = null;
+        let apiKeyInfo: { id: string; name: string | null; permissions: Record<string, string[]> | null } | null = null;
+        let resolvedOrganizationId: string | null = null;
+        let session: { session: { id: string; token: string; userId: string; expiresAt: Date; activeOrganizationId: string | null } | null; user: (typeof schema.user.$inferSelect) & { isAnonymous?: boolean | null } | null } | null = null;
+
+        if (apiKeyValue) {
+          let apiKeyResolved = false;
+          try {
+            const keyResult = await safeAuthApi(() =>
+              services.auth.api.verifyApiKey({
+                headers,
+                body: { key: apiKeyValue },
+              }),
+            );
+            const r = keyResult as {
+              valid: boolean;
+              error?: { code?: string; message?: string } | null;
+              key?: { id: string; configId: string; referenceId: string; name: string | null; prefix: string | null; start: string | null; enabled: boolean; permissions: Record<string, string[]> | string | null; metadata: unknown } | null;
+            };
+
+            if (r.valid && r.key) {
+              const key = r.key;
+              const parsedPermissions =
+                typeof key.permissions === "string"
+                  ? (tryJsonParse<Record<string, string[]>>(key.permissions as string) ?? null)
+                  : (key.permissions as Record<string, string[]> | null);
+
+              apiKeyInfo = {
+                id: key.id,
+                name: key.name ?? null,
+                permissions: parsedPermissions,
+              };
+
+              if (key.configId === "user-keys") {
+                const dbUser = await services.db.query.user.findFirst({
+                  where: eq(schema.user.id, key.referenceId),
+                });
+
+                if (dbUser) {
+                  user = dbUser;
+                  authMethod = "apiKey";
+                  principal = {
+                    type: "user",
+                    userId: dbUser.id,
+                    user: dbUser as NonNullable<typeof schema.user.$inferSelect>,
+                  };
+                  apiKeyResolved = true;
+                }
+              } else if (key.configId === "org-keys") {
+                authMethod = "apiKey";
+                principal = { type: "organization", organizationId: key.referenceId };
+                resolvedOrganizationId = key.referenceId;
+                apiKeyResolved = true;
+              }
+            }
+          } catch {
+            // Verification error — an explicit API key was provided but failed.
+            // Do NOT fall through to session auth. Leave principal as null.
+          }
+
+          if (!apiKeyResolved && apiKeyValue) {
+            // Key was provided but invalid or verification failed.
+            // Return authMethod "none" — caller cannot downgrade to session.
+            authMethod = "none";
+          }
+        }
+
+        // Only fall back to session auth if no API key was attempted
+        if (!apiKeyValue && !principal) {
+          const rawSession = await services.auth.api.getSession({ headers });
+          const rawUser = rawSession?.user ?? null;
+          session = rawSession as typeof session;
+
+          if (rawUser) {
+            const dbUser = await services.db.query.user.findFirst({
+              where: eq(schema.user.id, rawUser.id),
+            });
+
+            user = dbUser ?? null;
+            authMethod = "session";
+
+            if (user) {
+              principal = {
+                type: "user",
+                userId: user.id,
+                user: user as NonNullable<typeof schema.user.$inferSelect>,
+              };
+            }
+          }
+        }
+
+        const isAuthenticated = !!principal;
 
         let nearCapabilities = {
           primaryAccountId: null as string | null,
@@ -331,7 +450,27 @@ export default createPlugin({
 
         const organizations: Array<{ id: string; role: string; name?: string; slug?: string }> = [];
 
-        if (user?.id) {
+        if (principal?.type === "organization" && resolvedOrganizationId) {
+          const org = await services.db.query.organization.findFirst({
+            where: eq(schema.organization.id, resolvedOrganizationId),
+          });
+
+          if (org) {
+            organizationContext = {
+              activeOrganizationId: resolvedOrganizationId,
+              organization: {
+                id: org.id,
+                name: org.name,
+                slug: org.slug,
+                logo: org.logo,
+                metadata: tryJsonParse<Record<string, unknown>>(org.metadata),
+              },
+              member: null,
+              isPersonal: false,
+              hasOrganization: true,
+            };
+          }
+        } else if (user?.id) {
           const memberships = await services.db.query.member.findMany({
             where: eq(schema.member.userId, user.id),
             with: { organization: true },
@@ -375,6 +514,29 @@ export default createPlugin({
           }
         }
 
+        const serializedPrincipal = principal
+          ? principal.type === "user"
+            ? {
+                type: "user" as const,
+                userId: principal.userId,
+                user: {
+                  id: principal.user.id,
+                  name: principal.user.name,
+                  email: principal.user.email,
+                  emailVerified: principal.user.emailVerified ?? false,
+                  image: principal.user.image ?? null,
+                  role: principal.user.role ?? null,
+                  isAnonymous: (principal.user as UserWithAnonymous).isAnonymous ?? null,
+                },
+              }
+            : principal.type === "organization"
+              ? {
+                  type: "organization" as const,
+                  organizationId: principal.organizationId,
+                }
+              : null
+          : null;
+
         return {
           user: user
             ? {
@@ -390,6 +552,8 @@ export default createPlugin({
           userId: user?.id ?? null,
           isAuthenticated,
           authMethod,
+          principal: serializedPrincipal,
+          apiKey: apiKeyInfo,
           near: nearCapabilities,
           organization: organizationContext,
           organizations: organizations.length > 0 ? organizations : undefined,

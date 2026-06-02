@@ -270,6 +270,15 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		} catch {}
 
 		if (connectedWallet?.accounts?.length) {
+			const accountId: string = connectedWallet.accounts[0]!.accountId;
+			const isTestnetAccount = accountId.endsWith(".testnet");
+			const isExpectedNetwork = (net === "testnet") === isTestnetAccount;
+			if (!isExpectedNetwork) {
+				connectedWallet = null;
+			}
+		}
+
+		if (connectedWallet?.accounts?.length) {
 			const signedMessage = await nearClient.signMessage({
 				message,
 				recipient,
@@ -536,11 +545,16 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 						});
 					},
 					setNetwork: (network: "mainnet" | "testnet") => {
-						activeNetwork.set(network);
-						const state = nearState.get();
-						if (state) {
-							nearState.set({ ...state, networkId: network });
+						const prev = activeNetwork.get();
+						if (prev !== network) {
+							const oldConn = connectors.get(prev);
+							if (oldConn) {
+								void oldConn.disconnect().catch(() => {});
+							}
+							walletConnected.set(false);
+							nearState.set(null);
 						}
+						activeNetwork.set(network);
 						void initClientForNetwork(network);
 					},
 					getNetwork: () => activeNetwork.get(),

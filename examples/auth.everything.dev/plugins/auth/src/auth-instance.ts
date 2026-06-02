@@ -201,7 +201,22 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
           mainnet: config.account,
           testnet: config.testnetAccount ?? config.account.replace(/\.near$/, ".testnet"),
         },
-        relayer: {},
+        relayer: config.relayerAccountId
+          ? {
+              accountId: config.relayerAccountId,
+              privateKey: config.relayerPrivateKey,
+            }
+          : {},
+        subAccount: {
+          mainnet: {
+            parentAccount: config.subAccountParentMainnet || config.account,
+            ...(config.subAccountParentKeyMainnet ? { parentKey: config.subAccountParentKeyMainnet } : {}),
+          },
+          testnet: {
+            parentAccount: config.subAccountParentTestnet || (config.testnetAccount ?? config.account.replace(/\.near$/, ".testnet")),
+            ...(config.subAccountParentKeyTestnet ? { parentKey: config.subAccountParentKeyTestnet } : {}),
+          },
+        },
         apiKey: config.fastnearApiKey,
         rpcUrl: config.nearRpcUrl,
       }),

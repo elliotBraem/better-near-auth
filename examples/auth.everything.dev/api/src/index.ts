@@ -1,31 +1,14 @@
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
-import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import { contract } from "./contract";
 import { createDatabase } from "./db";
 import { migrate } from "./db/migrator";
 import type { PluginsClient } from "./lib/plugins-types.gen";
+import type { ApiKeyContext, RequestAuthUser } from "./lib/auth";
+import { createAuthMiddleware } from "./lib/auth";
 
-type ApiPluginsClient = PluginsClient;
-
-export interface AuthContext {
-  userId: string;
-  user: {
-    id: string;
-    role?: string;
-    email?: string;
-    name?: string;
-  };
-  organizationId?: string;
-  reqHeaders?: Record<string, string>;
-}
-
-function _createHeaders(reqHeaders?: Record<string, string>): Headers {
-  return new Headers(Object.entries(reqHeaders ?? {}) as [string, string][]);
-}
-
-export default createPlugin.withPlugins<ApiPluginsClient>()({
+export default createPlugin.withPlugins<PluginsClient>()({
   variables: z.object({}),
 
   secrets: z.object({
@@ -34,15 +17,9 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
 
   context: z.object({
     userId: z.string().optional(),
-    user: z
-      .object({
-        id: z.string(),
-        role: z.string().optional(),
-        email: z.string().optional(),
-        name: z.string().optional(),
-      })
-      .optional(),
+    user: z.custom<RequestAuthUser>().optional(),
     organizationId: z.string().optional(),
+    apiKey: z.custom<ApiKeyContext>().nullable().optional(),
     reqHeaders: z.custom<Record<string, string>>().optional(),
   }),
 
@@ -69,25 +46,7 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
   shutdown: () => Effect.log("[API] Shutdown"),
 
   createRouter: (_services, builder) => {
-    const requireAuth = builder.middleware(async ({ context, next }) => {
-      if (!context.user || !context.userId) {
-        throw new ORPCError("UNAUTHORIZED", {
-          message: "Authentication required",
-          data: {
-            authType: "session",
-            hint: "Sign in with NEAR, passkey, email, phone, or anonymous",
-          },
-        });
-      }
-      return next({
-        context: {
-          userId: context.userId,
-          user: context.user,
-          organizationId: context.organizationId,
-          reqHeaders: context.reqHeaders,
-        } as AuthContext,
-      });
-    });
+    const { requireAuth } = createAuthMiddleware(builder);
 
     return {
       ping: builder.ping.handler(async () => ({
@@ -103,12 +62,12 @@ export default createPlugin.withPlugins<ApiPluginsClient>()({
 
       privateData: builder.privateData.use(requireAuth).handler(async ({ context }) => {
         return {
-          message: "This data is only accessible to authenticated users via your server session",
-          userId: context.userId,
-          sessionId: null,
-          expiresAt: null,
+          message: "Authenticated request context resolved",
+          userId: context.userId ?? null,
+          organizationId: context.organizationId ?? null,
+          apiKeyId: context.apiKey?.id ?? null,
         };
       }),
     };
   },
-});
+})

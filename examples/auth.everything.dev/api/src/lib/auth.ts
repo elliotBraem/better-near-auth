@@ -8,28 +8,25 @@ export interface RequestAuthUser {
   name?: string;
 }
 
+export interface ApiKeyContext {
+  id: string;
+  name: string | null;
+  permissions: Record<string, string[]> | null;
+}
+
 export interface RequestAuthContext {
   userId?: string;
   user?: RequestAuthUser;
   organizationId?: string;
+  apiKey?: ApiKeyContext | null;
   reqHeaders?: Headers;
   getRawBody?: () => Promise<string>;
 }
 
-export interface AuthContext extends RequestAuthContext {
-  userId: RequestAuthUser["id"];
+export interface UserAuthContext extends RequestAuthContext {
+  userId: string;
   user: RequestAuthUser;
 }
-
-export interface RoleAuthContext<TRole extends string = string> extends AuthContext {
-  user: RequestAuthUser & { role: TRole };
-}
-
-export interface OrganizationContext extends AuthContext {
-  organizationId: string;
-}
-
-type MiddlewareNext<TContext extends RequestAuthContext> = (args: { context: TContext }) => unknown;
 
 export type AuthPluginClientFactory = PluginsClient["auth"];
 export type AuthPluginClient = ReturnType<AuthPluginClientFactory>;
@@ -45,112 +42,100 @@ export function getAuthClient(
   if (!services.auth) {
     throw new Error("Auth plugin client unavailable");
   }
-
   return services.auth(context);
 }
 
-function toAuthContext(context: RequestAuthContext): AuthContext {
+function toRequestAuthContext(context: RequestAuthContext): RequestAuthContext {
   return {
-    userId: context.userId!,
-    user: context.user!,
+    userId: context.userId,
+    user: context.user,
     organizationId: context.organizationId,
+    apiKey: context.apiKey,
     reqHeaders: context.reqHeaders,
     getRawBody: context.getRawBody,
   };
 }
 
-export function createAuthGuards(builder: any) {
-  const requireAuthHandler = async ({
-    context,
-    next,
-  }: {
-    context: RequestAuthContext;
-    next: MiddlewareNext<AuthContext>;
-  }) => {
-    if (!context.user || !context.userId) {
+export function createAuthMiddleware(builder: any) {
+  const requireAuth = builder.middleware(async ({ context, next }: { context: RequestAuthContext; next: any }) => {
+    if ((!context.user || !context.userId) && !(context.apiKey && context.organizationId)) {
       throw new ORPCError("UNAUTHORIZED", {
         message: "Authentication required",
-        data: {
-          authType: "session",
-          hint: "Sign in with NEAR, passkey, email, phone, or anonymous",
-        },
+        data: { hint: "Sign in or provide an API key" },
       });
     }
+    return next({ context: toRequestAuthContext(context) });
+  });
 
-    return next({ context: toAuthContext(context) });
-  };
+  const requireUser = builder.middleware(async ({ context, next }: { context: RequestAuthContext; next: any }) => {
+    if (!context.user || !context.userId) {
+      throw new ORPCError("UNAUTHORIZED", {
+        message: "User authentication required",
+        data: { hint: "Sign in or provide a user-scoped API key" },
+      });
+    }
+    return next({ context: toRequestAuthContext(context) as UserAuthContext });
+  });
 
-  const requireRoleHandler =
-    <TRoles extends readonly string[]>(...roles: TRoles) =>
-    async ({
-      context,
-      next,
-    }: {
-      context: RequestAuthContext;
-      next: MiddlewareNext<RoleAuthContext<TRoles[number]>>;
-    }) => {
+  const requireRole = <TRoles extends readonly string[]>(...roles: TRoles) =>
+    builder.middleware(async ({ context, next }: { context: RequestAuthContext; next: any }) => {
       if (!context.user || !context.userId) {
         throw new ORPCError("UNAUTHORIZED", {
           message: "Authentication required",
           data: { authType: "session", hint: "Sign in to continue" },
         });
       }
-
-      const currentRole = context.user.role ?? undefined;
+      const currentRole = context.user.role;
       if (!currentRole || !roles.includes(currentRole)) {
         throw new ORPCError("FORBIDDEN", {
           message: `Requires role: ${roles.join(" or ")}`,
           data: { requiredRoles: roles, currentRole },
         });
       }
+      return next({ context: toRequestAuthContext(context) as UserAuthContext });
+    });
 
-      const authContext = toAuthContext(context);
-      const roleContext: RoleAuthContext<TRoles[number]> = {
-        ...authContext,
-        user: { ...authContext.user, role: currentRole as TRoles[number] },
-      };
+  const requireAdmin = requireRole("admin");
 
-      return next({ context: roleContext });
-    };
-
-  const requireOrganizationHandler = async ({
-    context,
-    next,
-  }: {
-    context: RequestAuthContext;
-    next: MiddlewareNext<OrganizationContext>;
-  }) => {
-    if (!context.user || !context.userId) {
+  const requireOrganization = builder.middleware(async ({ context, next }: { context: RequestAuthContext; next: any }) => {
+    if ((!context.user || !context.userId) && !context.apiKey) {
       throw new ORPCError("UNAUTHORIZED", {
         message: "Authentication required",
         data: { authType: "session", hint: "Sign in to continue" },
       });
     }
-
     if (!context.organizationId) {
       throw new ORPCError("FORBIDDEN", {
         message: "Active organization required",
         data: { hint: "Select or create an organization" },
       });
     }
+    return next({ context: toRequestAuthContext(context) });
+  });
 
-    const authContext = toAuthContext(context);
-    const organizationContext: OrganizationContext = {
-      ...authContext,
-      organizationId: context.organizationId,
-    };
+  const requireApiKey = (requiredPermissions?: Record<string, string[]>) =>
+    builder.middleware(async ({ context, next }: { context: RequestAuthContext; next: any }) => {
+      if (!context.apiKey) {
+        throw new ORPCError("UNAUTHORIZED", {
+          message: "API key required",
+          data: { authType: "apiKey", hint: "Provide a valid API key via x-api-key header" },
+        });
+      }
+      if (requiredPermissions) {
+        const keyPerms = context.apiKey.permissions ?? {};
+        for (const [resource, actions] of Object.entries(requiredPermissions)) {
+          const allowed = keyPerms[resource] ?? [];
+          const missing = actions.filter((a: string) => !allowed.includes(a));
+          if (missing.length > 0) {
+            throw new ORPCError("FORBIDDEN", {
+              message: `API key lacks permission: ${resource}:${missing.join(",")}`,
+              data: { requiredPermissions, keyPermissions: keyPerms },
+            });
+          }
+        }
+      }
+      return next({ context: toRequestAuthContext(context) });
+    });
 
-    return next({ context: organizationContext });
-  };
-
-  const requireAuth = builder.middleware(requireAuthHandler);
-
-  const requireRole = <TRoles extends readonly string[]>(...roles: TRoles) =>
-    builder.middleware(requireRoleHandler(...roles));
-
-  const requireAdmin = requireRole("admin");
-
-  const requireOrganization = builder.middleware(requireOrganizationHandler);
-
-  return { requireAuth, requireRole, requireAdmin, requireOrganization };
+  return { requireAuth, requireUser, requireRole, requireAdmin, requireOrganization, requireApiKey };
 }

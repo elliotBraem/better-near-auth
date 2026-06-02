@@ -173,6 +173,8 @@ export interface RelayerInfo extends AccountState {
 	hasKey: boolean;
 	createdAt?: Date;
 	lastUsedAt?: Date;
+	parentAccount?: string;
+	subAccountAvailable?: boolean;
 }
 
 export interface DualNetworkConfig<T> {
@@ -193,6 +195,7 @@ export interface SubAccountRelayerFCAKConfig {
 
 export interface SubAccountConfig {
 	parentAccount?: string;
+	parentKey?: string;
 	minDeposit?: string;
 	addRelayerFCAK?: boolean;
 	relayerFCAK?: SubAccountRelayerFCAKConfig;
