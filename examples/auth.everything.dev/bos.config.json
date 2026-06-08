@@ -10,22 +10,28 @@
   },
   "repository": "https://github.com/nearbuilders/everything-dev",
   "app": {
+    "host": {
+      "development": "local:host",
+      "production": "https://elliot-braem-4578-host-everything-dev-nearbuilder-195763a9c-ze.zephyrcloud.app",
+      "secrets": [
+        "CORS_ORIGIN",
+        "TENANT_WHITELIST",
+        "ALLOW_OVERRIDE",
+        "ALLOW_UNTRUSTED_SSR",
+        "CSP_STRICT"
+      ],
+      "integrity": "sha384-tEguGZihnWOCjrRHrtjycqEQEkNATlaT1FA9yy0NA9IThWMn52dtBZFKppKss5sP"
+    },
     "ui": {
       "name": "ui",
-      "development": "local:ui",
-      "production": "https://elliot-braem-4152-ui-better-near-auth-elliotbraem-4d90f8d9d-ze.zephyrcloud.app",
-      "integrity": "sha384-WmPtKDYm+R90QhkRwM73sVHzBFk5lW7ujA2brGxw1w5RU+utZfVjkUQi8o9j4GdN",
-      "ssr": "https://elliot-braem-4153-ui-better-near-auth-elliotbraem-b4ec6f003-ze.zephyrcloud.app",
-      "ssrIntegrity": "sha384-oU8dd0/rUfC9Qj5L4BW90xJJ0PT8yHlGww1JZ/lr51xReUToWOT3wLPtKUfz/98y"
+      "development": "local:ui"
     },
     "api": {
       "name": "api",
       "development": "local:api",
       "secrets": [
         "API_DATABASE_URL"
-      ],
-      "production": "https://elliot-braem-4154-api-better-near-auth-elliotbrae-ead252ca6-ze.zephyrcloud.app",
-      "integrity": "sha384-yas/9KAK59dy/AlQdX6EMixqvf/8vYFy73sGaZwSxbnHNMNAVCuSrEBlk3Jcwepe"
+      ]
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
@@ -34,7 +40,10 @@
       "integrity": "sha384-HGCj8X8OaADQo1cBP6gyaTEdaGpEqO7EWWlpdp/3Xx4LyM/uVHmLfXTTgdl3NZ9S",
       "variables": {
         "baseUrl": "https://auth.everything.near",
-        "trustedOrigins": ["https://everything.dev", "https://*.everything.dev"],
+        "trustedOrigins": [
+          "https://everything.dev",
+          "https://*.everything.dev"
+        ],
         "socialProviders": {
           "github": {
             "clientId": ""
@@ -68,72 +77,5 @@
       ]
     }
   },
-  "shared": {
-    "ui": {
-      "effect": {
-        "version": "3.21.0",
-        "requiredVersion": "^3.21.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "zod": {
-        "version": "4.3.6",
-        "requiredVersion": "^4.3.6",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@orpc/contract": {
-        "version": "1.13.14",
-        "requiredVersion": "^1.13.14",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-auth": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-near-auth": {
-        "version": "1.5.0",
-        "requiredVersion": "^1.5.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@better-auth/api-key": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@better-auth/passkey": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "near-kit": {
-        "version": "0.14.0",
-        "requiredVersion": "^0.14.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@scure/base": {
-        "version": "2.2.0",
-        "requiredVersion": "^2.2.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      }
-    },
-    "plugins": {}
-  }
+  "plugins": {}
 }

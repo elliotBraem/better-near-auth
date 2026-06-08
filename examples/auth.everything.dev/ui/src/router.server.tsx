@@ -64,10 +64,11 @@ const createRouter = (opts: CreateRouterOptions) => {
     basepath: opts.basepath,
     context: {
       queryClient,
-      assetsUrl: opts.context.assetsUrl,
       runtimeConfig: opts.context.runtimeConfig,
       apiClient: opts.context.apiClient,
-      authClient: opts.context.authClient ?? createAuthClient(opts.context.runtimeConfig),
+      authClient:
+        opts.context.authClient ??
+        createAuthClient(opts.context.runtimeConfig, undefined, opts.context.cspNonce),
       session: opts.context.session,
       cspNonce,
     },
@@ -110,12 +111,12 @@ const getRouteHead = async (pathname: string, context?: Partial<RouterContext>) 
     history,
     context: {
       queryClient,
-      assetsUrl: context?.assetsUrl ?? "",
       runtimeConfig,
       apiClient:
         context?.apiClient ??
         createApiClient({ hostUrl: runtimeConfig.hostUrl, rpcBase: runtimeConfig.rpcBase }),
-      authClient: context?.authClient ?? createAuthClient(runtimeConfig),
+      authClient:
+        context?.authClient ?? createAuthClient(runtimeConfig, undefined, context?.cspNonce),
       session: context?.session,
     },
   });
@@ -148,10 +149,13 @@ const renderToStream = async (request: Request, renderOptions: RenderOptions) =>
         basepath: renderOptions.basepath,
         context: {
           queryClient: localQueryClient,
-          assetsUrl: renderOptions.assetsUrl,
           runtimeConfig: renderOptions.runtimeConfig,
           apiClient: renderOptions.apiClient,
-          authClient: createAuthClient(renderOptions.runtimeConfig, request.headers),
+          authClient: createAuthClient(
+            renderOptions.runtimeConfig,
+            request.headers,
+            renderOptions.cspNonce,
+          ),
           session: renderOptions.session,
           cspNonce: renderOptions.cspNonce,
         },

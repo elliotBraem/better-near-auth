@@ -223,7 +223,7 @@ bun run changeset
 
 **Before committing:**
 ```bash
-bun test        # Run all tests
+bun run test    # Run all tests
 bun typecheck   # Type check all packages
 bun lint        # Run linting
 ```

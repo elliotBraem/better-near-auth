@@ -16,7 +16,47 @@ import type { ClientRuntimeConfig } from "everything-dev/types";
 import { getRuntimeConfig } from "everything-dev/ui/runtime";
 import type { Auth } from "./auth-types.gen";
 
-type AuthVariables = NonNullable<NonNullable<ClientRuntimeConfig["auth"]>["variables"]>;
+type AuthVariables = {
+  baseUrl?: string;
+  trustedOrigins?: string[];
+  apiKeyHeaders?: string[];
+  socialProviders?: {
+    github?: {
+      clientId?: string;
+    };
+  };
+  passkey?: {
+    rpID?: string;
+    rpName?: string;
+    origin?: string;
+  };
+  siwn: {
+    recipient?: string;
+    recipients?: {
+      mainnet?: string;
+      testnet?: string;
+    };
+    rpcUrl?: string;
+    relayer?: {
+      accountId?: string;
+    };
+    subAccount?: {
+      mainnet?: {
+        parentAccount?: string;
+      };
+      testnet?: {
+        parentAccount?: string;
+      };
+    };
+  };
+};
+type RuntimeAuthConfig = NonNullable<ClientRuntimeConfig["auth"]> & {
+  variables: AuthVariables;
+};
+
+function hasAuthVariables(auth: ClientRuntimeConfig["auth"] | undefined): auth is RuntimeAuthConfig {
+  return !!auth && typeof auth === "object" && "variables" in auth;
+}
 
 function readRuntimeConfig(config?: Partial<ClientRuntimeConfig>) {
   if (config) return config;
@@ -30,34 +70,33 @@ function readRuntimeConfig(config?: Partial<ClientRuntimeConfig>) {
 
 function getAuthVariables(config?: Partial<ClientRuntimeConfig>): AuthVariables {
   const runtimeConfig = readRuntimeConfig(config);
-  const variables = runtimeConfig?.auth?.variables;
-  if (!variables) {
+  if (!runtimeConfig || !hasAuthVariables(runtimeConfig.auth)) {
     throw new Error("Missing auth runtime configuration");
   }
-  return variables;
+  return runtimeConfig.auth.variables;
 }
 
-function getTestnetRecipient(config?: Partial<ClientRuntimeConfig>) {
-  return getAuthVariables(config).siwn.recipients?.testnet;
-}
-
-function getNetworkId(config?: Partial<ClientRuntimeConfig>): "mainnet" | "testnet" {
+function getSiwnClientConfig(config?: Partial<ClientRuntimeConfig>) {
   const runtimeConfig = readRuntimeConfig(config);
-  const variables = runtimeConfig?.auth?.variables;
-  if (!variables) {
-    throw new Error("Missing auth runtime configuration");
+  const variables = getAuthVariables(config);
+
+  const mainnetRecipient = variables.siwn.recipients?.mainnet ?? variables.siwn.recipient;
+  if (!mainnetRecipient) {
+    throw new Error("Missing auth SIWN recipient");
   }
 
-  const recipient = variables.siwn.recipients?.mainnet ?? variables.siwn.recipient;
-  if (runtimeConfig?.networkId) {
-    return runtimeConfig.networkId;
-  }
+  const networkId = runtimeConfig?.networkId ?? (mainnetRecipient.endsWith(".testnet") ? "testnet" : "mainnet");
+  const testnetRecipient = variables.siwn.recipients?.testnet;
 
-  return (
-    recipient && recipient.endsWith(".testnet")
-      ? "testnet"
-      : "mainnet"
-  );
+  return testnetRecipient
+    ? {
+        recipients: { mainnet: mainnetRecipient, testnet: testnetRecipient },
+        networkId,
+      }
+    : {
+        recipient: mainnetRecipient,
+        networkId,
+      };
 }
 
 function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
@@ -68,21 +107,7 @@ function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
 }
 
 export function createAuthClient(config?: Partial<ClientRuntimeConfig>, headers?: HeadersInit) {
-  const variables = getAuthVariables(config);
-  const mainnetRecipient = variables.siwn.recipients?.mainnet ?? variables.siwn.recipient;
-  const testnetRecipient = getTestnetRecipient(config);
-  if (!mainnetRecipient) {
-    throw new Error("Missing auth SIWN recipient");
-  }
-  const nearAuthConfig = testnetRecipient
-    ? {
-        recipients: { mainnet: mainnetRecipient, testnet: testnetRecipient },
-        networkId: getNetworkId(config),
-      }
-    : {
-        recipient: mainnetRecipient,
-        networkId: getNetworkId(config),
-      };
+  const nearAuthConfig = getSiwnClientConfig(config);
 
   return createBetterAuthClient({
     baseURL: getHostUrl(config),
@@ -136,9 +161,9 @@ export function sessionQueryOptions(authClient: AuthClient, initialSession?: Ses
 export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
   return useQuery({
     queryKey: ["relay-history"],
-    queryFn: async () => {
+    queryFn: async (): Promise<RelayedTransactionT[]> => {
       const res = await authClient.near.relayHistory();
-      return (res?.data?.transactions ?? []) as RelayedTransactionT[];
+      return res?.data?.transactions ?? [];
     },
     enabled: !!session,
     refetchInterval: 2000,

@@ -39,10 +39,17 @@ import {
   buildPublishedAccountHref,
   buildPublishedGatewayHref,
   buildRuntimeHref,
+  getCspNonce,
   getRuntimeConfig,
 } from "everything-dev/ui/runtime";
 
-export { buildPublishedAccountHref, buildPublishedGatewayHref, buildRuntimeHref, getRuntimeConfig };
+export {
+  buildPublishedAccountHref,
+  buildPublishedGatewayHref,
+  buildRuntimeHref,
+  getCspNonce,
+  getRuntimeConfig,
+};
 
 type RuntimeConfigInput = Partial<import("everything-dev/types").ClientRuntimeConfig> | undefined;
 
@@ -114,5 +121,4 @@ export interface RenderOptions extends Omit<BaseRenderOptions<SessionData>, "run
   runtimeConfig: BaseRenderOptions<SessionData>["runtimeConfig"];
   apiClient: ApiClient;
   authClient?: AuthClientType;
-  cspNonce?: string;
 }

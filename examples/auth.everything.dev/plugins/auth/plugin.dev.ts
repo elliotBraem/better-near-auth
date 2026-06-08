@@ -1,5 +1,6 @@
 import "dotenv/config";
 import type { PluginConfigInput } from "every-plugin";
+import bosConfig from "../../bos.config.json" with { type: "json" };
 import packageJson from "./package.json" with { type: "json" };
 import type Plugin from "./src/index";
 
@@ -9,6 +10,10 @@ function splitList(value?: string) {
     .map((entry) => entry.trim())
     .filter(Boolean);
 }
+
+const configuredSiwn = bosConfig.app?.auth?.variables?.siwn;
+const mainnetRecipient = process.env.ACCOUNT || configuredSiwn?.recipients?.mainnet || bosConfig.account;
+const testnetRecipient = process.env.TESTNET_ACCOUNT || configuredSiwn?.recipients?.testnet || bosConfig.testnet;
 
 export default {
   pluginId: packageJson.name,
@@ -28,15 +33,15 @@ export default {
         origin: process.env.PASSKEY_ORIGIN,
       },
       siwn: {
-        ...(process.env.TESTNET_ACCOUNT
+        ...(testnetRecipient
           ? {
               recipients: {
-                mainnet: process.env.ACCOUNT,
-                testnet: process.env.TESTNET_ACCOUNT,
+                mainnet: mainnetRecipient,
+                testnet: testnetRecipient,
               },
             }
           : {
-              recipient: process.env.ACCOUNT,
+              recipient: mainnetRecipient,
             }),
         rpcUrl: process.env.NEAR_RPC_URL,
         relayer: {

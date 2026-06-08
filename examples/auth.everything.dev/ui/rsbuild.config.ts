@@ -102,6 +102,7 @@ function createClientConfig() {
     resolve: {
       alias: {
         "@": "./src",
+        "better-near-auth": path.resolve(__dirname, "../../../src"), // KEEP THIS
       },
     },
     dev: {
@@ -144,6 +145,7 @@ function createClientConfig() {
       distPath: { root: "dist", css: "static/css", js: "static/js" },
       assetPrefix: "auto",
       filename: { js: "[name].js", css: "style.css" },
+      chunkFilename: "static/js/async/[name].[contenthash].js",
       copy: [{ from: path.resolve(__dirname, "public"), to: "./" }],
     },
   });
@@ -192,6 +194,7 @@ function createServerConfig() {
     resolve: {
       alias: {
         "@": "./src",
+        "better-near-auth": path.resolve(__dirname, "../../../src"),
         "@tanstack/react-devtools": false,
         "@tanstack/react-router-devtools": false,
       },

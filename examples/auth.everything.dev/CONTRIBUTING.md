@@ -139,7 +139,7 @@ Added new endpoint for user profiles
 
 1. **Before creating PR:**
    ```bash
-   bun test        # Run all tests
+   bun run test    # Run all tests
    bun typecheck   # Type check all packages
    bun lint        # Run linting
    ```
@@ -166,7 +166,7 @@ Added new endpoint for user profiles
 2. **Clone** your fork locally
 3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
 4. **Make** your changes
-5. **Test** thoroughly: `bun test` and `bun typecheck`
+5. **Test** thoroughly: `bun run test` and `bun typecheck`
 6. **Add changeset** if needed: `bun run changeset`
 7. **Commit** using [Semantic Commits](https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716)
 8. **Push** to your fork: `git push origin feature/amazing-feature`
