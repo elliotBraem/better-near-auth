@@ -12,10 +12,10 @@ requires:
   - client
   - siwn
 library: better-near-auth
-library_version: "1.4.1"
+library_version: "1.5.0"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
-  - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/auth.ts"
+  - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/lib/auth.ts"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/app.ts"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/hydrate.tsx"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/router.tsx"

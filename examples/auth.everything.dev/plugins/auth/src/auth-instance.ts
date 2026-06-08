@@ -72,15 +72,69 @@ function normalizeRpId(value: string): string {
 }
 
 export function resolvePasskeyRelyingPartyOptions(
-  config: Pick<AuthConfig, "baseUrl" | "passkeyOrigin" | "passkeyRpId" | "passkeyRpName">,
+  config: Pick<AuthConfig, "baseUrl" | "passkey">,
 ): PasskeyRelyingPartyOptions {
-  const origin = normalizeOrigin(config.passkeyOrigin?.trim() || config.baseUrl);
-  const rpID = config.passkeyRpId?.trim()
-    ? normalizeRpId(config.passkeyRpId.trim())
+  const passkey = config.passkey;
+  const origin = normalizeOrigin(passkey?.origin?.trim() || config.baseUrl);
+  const rpID = passkey?.rpID?.trim()
+    ? normalizeRpId(passkey.rpID.trim())
     : new URL(origin).hostname;
-  const rpName = config.passkeyRpName?.trim() || "Everything Dev";
+  const rpName = passkey?.rpName?.trim() || "Everything Dev";
 
   return { rpID, rpName, origin };
+}
+
+function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
+  if ("recipients" in config.siwn) {
+    return {
+      recipients: {
+        mainnet: config.siwn.recipients.mainnet,
+        testnet: config.siwn.recipients.testnet,
+      },
+      apiKey: config.siwn.apiKey,
+      rpcUrl: config.siwn.rpcUrl,
+      relayer: config.siwn.relayer?.accountId
+        ? {
+            accountId: config.siwn.relayer.accountId,
+            privateKey: config.siwn.relayer.privateKey,
+          }
+        : undefined,
+      subAccount: {
+        mainnet: {
+          parentAccount: config.siwn.subAccount?.mainnet?.parentAccount,
+          ...(config.siwn.subAccount?.mainnet?.parentKey
+            ? { parentKey: config.siwn.subAccount.mainnet.parentKey }
+            : {}),
+        },
+        testnet: {
+          parentAccount: config.siwn.subAccount?.testnet?.parentAccount,
+          ...(config.siwn.subAccount?.testnet?.parentKey
+            ? { parentKey: config.siwn.subAccount.testnet.parentKey }
+            : {}),
+        },
+      },
+    };
+  }
+
+  return {
+    recipient: config.siwn.recipient,
+    apiKey: config.siwn.apiKey,
+    rpcUrl: config.siwn.rpcUrl,
+    relayer: config.siwn.relayer?.accountId
+      ? {
+          accountId: config.siwn.relayer.accountId,
+          privateKey: config.siwn.relayer.privateKey,
+        }
+      : undefined,
+    subAccount: {
+      mainnet: {
+        parentAccount: config.siwn.subAccount?.mainnet?.parentAccount,
+        ...(config.siwn.subAccount?.mainnet?.parentKey
+          ? { parentKey: config.siwn.subAccount.mainnet.parentKey }
+          : {}),
+      },
+    },
+  };
 }
 
 async function sendEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
@@ -172,14 +226,10 @@ async function createPersonalOrganization(
 
 export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
   const passkeyOptions = resolvePasskeyRelyingPartyOptions(config);
-  const twilioConfig =
-    config.twilioAccountSid && config.twilioAuthToken && config.twilioPhoneNumber
-      ? {
-          accountSid: config.twilioAccountSid,
-          authToken: config.twilioAuthToken,
-          phoneNumber: config.twilioPhoneNumber,
-        }
-      : undefined;
+  const twilioConfig = config.phoneNumber?.twilio;
+  const githubConfig = config.socialProviders?.github;
+  const siwnOptions = buildSiwnOptions(config);
+  const mainnetRecipient = "recipients" in siwnOptions ? siwnOptions.recipients.mainnet : siwnOptions.recipient;
 
   return betterAuth({
     database: drizzleAdapter(db, {
@@ -191,48 +241,14 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
     baseURL: config.baseUrl,
     socialProviders: {
       github: {
-        clientId: config.githubClientId ?? "",
-        clientSecret: config.githubClientSecret ?? "",
+        clientId: githubConfig?.clientId ?? "",
+        clientSecret: githubConfig?.clientSecret ?? "",
       },
     },
     plugins: [
-      siwn({
-        ...(config.testnetAccount
-          ? {
-              recipients: {
-                mainnet: config.account,
-                testnet: config.testnetAccount,
-              },
-            }
-          : { recipient: config.account }),
-        relayer: config.relayerAccountId
-          ? {
-              accountId: config.relayerAccountId,
-              privateKey: config.relayerPrivateKey,
-            }
-          : {},
-        subAccount: config.testnetAccount
-          ? {
-              mainnet: {
-                parentAccount: config.subAccountParentMainnet || config.account,
-                ...(config.subAccountParentKeyMainnet ? { parentKey: config.subAccountParentKeyMainnet } : {}),
-              },
-              testnet: {
-                parentAccount: config.subAccountParentTestnet || config.testnetAccount,
-                ...(config.subAccountParentKeyTestnet ? { parentKey: config.subAccountParentKeyTestnet } : {}),
-              },
-            }
-          : {
-              mainnet: {
-                parentAccount: config.subAccountParentMainnet || config.account,
-                ...(config.subAccountParentKeyMainnet ? { parentKey: config.subAccountParentKeyMainnet } : {}),
-              },
-            },
-        apiKey: config.fastnearApiKey,
-        rpcUrl: config.nearRpcUrl,
-      }),
+      siwn(siwnOptions),
       admin({ defaultRole: "user", adminRoles: ["admin"] }),
-      anonymous({ emailDomainName: config.account }),
+      anonymous({ emailDomainName: mainnetRecipient }),
       ...(twilioConfig
         ? [
             phoneNumber({
@@ -240,7 +256,7 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
                 await sendSMS({ phoneNumber, code }, twilioConfig);
               },
               signUpOnVerification: {
-                getTempEmail: (phoneNumber) => `${phoneNumber}@${config.account}`,
+                getTempEmail: (phoneNumber) => `${phoneNumber}@${mainnetRecipient}`,
                 getTempName: (phoneNumber) => phoneNumber,
               },
             }),
@@ -260,8 +276,29 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
         },
       }),
       apiKey([
-        { configId: "user-keys", defaultPrefix: "api_", references: "user" },
-        { configId: "org-keys", defaultPrefix: "org_", references: "organization" },
+        {
+          configId: "user-keys",
+          defaultPrefix: "api_",
+          references: "user",
+          enableSessionForAPIKeys: true,
+          enableMetadata: true,
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60 * 1000,
+            maxRequests: 1000,
+          },
+        },
+        {
+          configId: "org-keys",
+          defaultPrefix: "org_",
+          references: "organization",
+          enableMetadata: true,
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60 * 1000,
+            maxRequests: 1000,
+          },
+        },
       ]),
     ],
     emailAndPassword: {

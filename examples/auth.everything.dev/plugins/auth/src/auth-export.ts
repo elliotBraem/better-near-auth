@@ -22,29 +22,66 @@ export type ListMembersInput = InferInput<"listMembers">;
 export type ListInvitationsInput = InferInput<"listInvitations">;
 export type ListApiKeysInput = InferInput<"listApiKeys">;
 
+export interface AuthPasskeyConfig {
+  rpID?: string;
+  rpName?: string;
+  origin?: string;
+}
+
+export interface AuthSiwnBaseConfig {
+  apiKey?: string;
+  rpcUrl?: string;
+  relayer?: {
+    accountId?: string;
+    privateKey?: string;
+  };
+  subAccount?: {
+    mainnet?: {
+      parentAccount?: string;
+      parentKey?: string;
+    };
+    testnet?: {
+      parentAccount?: string;
+      parentKey?: string;
+    };
+  };
+}
+
+export interface AuthSiwnRecipientConfig extends AuthSiwnBaseConfig {
+  recipient: string;
+  recipients?: never;
+}
+
+export interface AuthSiwnRecipientsConfig extends AuthSiwnBaseConfig {
+  recipient?: never;
+  recipients: {
+    mainnet: string;
+    testnet: string;
+  };
+}
+
+export type AuthSiwnConfig = AuthSiwnRecipientConfig | AuthSiwnRecipientsConfig;
+
 export interface AuthConfig {
   secret: string;
   baseUrl: string;
-  account: string;
-  testnetAccount?: string;
   trustedOrigins?: string[];
-  githubClientId?: string;
-  githubClientSecret?: string;
-  passkeyRpId?: string;
-  passkeyRpName?: string;
-  passkeyOrigin?: string;
-  fastnearApiKey?: string;
-  nearRpcUrl?: string;
   isProduction?: boolean;
-  twilioAccountSid?: string;
-  twilioAuthToken?: string;
-  twilioPhoneNumber?: string;
-  relayerAccountId?: string;
-  relayerPrivateKey?: string;
-  subAccountParentMainnet?: string;
-  subAccountParentTestnet?: string;
-  subAccountParentKeyMainnet?: string;
-  subAccountParentKeyTestnet?: string;
+  socialProviders?: {
+    github?: {
+      clientId?: string;
+      clientSecret?: string;
+    };
+  };
+  passkey?: AuthPasskeyConfig;
+  phoneNumber?: {
+    twilio?: {
+      accountSid: string;
+      authToken: string;
+      phoneNumber: string;
+    };
+  };
+  siwn: AuthSiwnConfig;
 }
 
 export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;

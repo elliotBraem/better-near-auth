@@ -132,7 +132,9 @@ describe("NEAR SIWN Sandbox Integration", () => {
           {
             secret: process.env.BETTER_AUTH_SECRET!,
             baseUrl: "http://localhost:3000",
-            account: "test.near",
+            siwn: {
+              recipient: "test.near",
+            },
           },
           driver.db,
         );
@@ -199,9 +201,6 @@ describe("NEAR SIWN Sandbox Integration", () => {
           return;
         }
 
-        // Set NEAR_RPC_URL so SIWN plugin uses sandbox
-        process.env.NEAR_RPC_URL = sandbox.rpcUrl;
-
         // Create auth instance
         const driver = await pluginModules.createDatabaseDriver(TEST_DB_URL);
 
@@ -214,7 +213,10 @@ describe("NEAR SIWN Sandbox Integration", () => {
           {
             secret: process.env.BETTER_AUTH_SECRET!,
             baseUrl: "http://localhost:3000",
-            account: TEST_RECIPIENT,
+            siwn: {
+              recipient: TEST_RECIPIENT,
+              rpcUrl: sandbox.rpcUrl,
+            },
           },
           driver.db,
         );

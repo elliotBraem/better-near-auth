@@ -20,7 +20,6 @@ export interface RequestAuthContext {
   organizationId?: string;
   apiKey?: ApiKeyContext | null;
   reqHeaders?: Headers;
-  getRawBody?: () => Promise<string>;
 }
 
 export interface UserAuthContext extends RequestAuthContext {
@@ -52,7 +51,6 @@ function toRequestAuthContext(context: RequestAuthContext): RequestAuthContext {
     organizationId: context.organizationId,
     apiKey: context.apiKey,
     reqHeaders: context.reqHeaders,
-    getRawBody: context.getRawBody,
   };
 }
 

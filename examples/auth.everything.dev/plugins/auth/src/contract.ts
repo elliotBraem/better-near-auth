@@ -489,6 +489,7 @@ export const contract = oc.router({
         metadata: z.unknown().optional(),
         rateLimit: apiKeyRateLimitSchema.optional(),
         organizationId: z.string().optional(),
+        configId: z.string().optional(),
       }),
     )
     .output(apiKeySchema.extend({ key: z.string() }))
@@ -525,6 +526,7 @@ export const contract = oc.router({
     .input(
       z.object({
         key: z.string(),
+        configId: z.string().optional(),
         permissions: z.record(z.string(), z.array(z.string())).optional(),
       }),
     )

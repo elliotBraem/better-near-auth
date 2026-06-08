@@ -6,9 +6,7 @@ on:
       - main
     paths:
       - 'examples/auth.everything.dev/**'
-      - '!examples/auth.everything.dev/package.json'
       - '!examples/auth.everything.dev/bun.lock'
-      - '!examples/auth.everything.dev/plugins/auth/package.json'
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -66,6 +64,11 @@ jobs:
         run: |
           bun lint
           bun typecheck
+
+      - name: Test
+        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
+        working-directory: examples/auth.everything.dev
+        run: bun test
 
       - name: Build and deploy
         if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''

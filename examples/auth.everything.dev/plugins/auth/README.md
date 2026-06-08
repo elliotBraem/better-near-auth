@@ -33,15 +33,25 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 
 ### Plugin Variables
 
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `account` | `string` | — | Optional. Your app account identifier (used for NEAR SIWN recipient) |
-| `domain` | `string` | — | Optional. Base URL of the auth server |
-| `githubClientId` | `string` | — | Optional. GitHub OAuth client ID |
-| `githubClientSecret` | `string` | — | Optional. GitHub OAuth client secret |
-| `passkeyRpId` | `string` | Derived from `domain` | Optional. WebAuthn relying party ID, usually the registrable domain such as `everything.dev` or `localhost` |
-| `passkeyRpName` | `string` | `Everything Dev` | Optional. Human-readable passkey relying party name shown by authenticators |
-| `passkeyOrigin` | `string` | Derived from `domain` | Optional. Browser origin where passkeys are created and used, without a trailing path |
+| Field | Type | Default | Description |
+|------|------|---------|-------------|
+| `baseUrl` | `string` | — | Base URL of the auth server |
+| `trustedOrigins` | `string[]` | — | Optional browser origins trusted by Better Auth |
+| `apiKeyHeaders` | `string[]` | `['x-api-key']` | Request headers checked for API key auth |
+
+| Nested field | Type | Default | Description |
+|-------------|------|---------|-------------|
+| `socialProviders.github.clientId` | `string` | — | GitHub OAuth client ID |
+| `passkey.rpID` | `string` | Derived from `baseUrl` | WebAuthn relying party ID |
+| `passkey.rpName` | `string` | `Everything Dev` | Human-readable relying party name |
+| `passkey.origin` | `string` | Derived from `baseUrl` | Browser origin for passkeys |
+| `siwn.recipient` | `string` | — | Single-network SIWN recipient |
+| `siwn.recipients.mainnet` | `string` | — | Mainnet SIWN recipient |
+| `siwn.recipients.testnet` | `string` | — | Testnet SIWN recipient |
+| `siwn.rpcUrl` | `string` | — | Optional NEAR RPC endpoint |
+| `siwn.relayer.accountId` | `string` | — | Optional relayer account ID |
+| `siwn.subAccount.mainnet.parentAccount` | `string` | — | Optional mainnet sub-account parent |
+| `siwn.subAccount.testnet.parentAccount` | `string` | — | Optional testnet sub-account parent |
 
 ### Plugin Secrets
 
@@ -49,7 +59,14 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 |--------|------|---------|-------------|
 | `AUTH_DATABASE_URL` | `string` | — | PostgreSQL connection string or pglite path |
 | `BETTER_AUTH_SECRET` | `string` | — | Secret key for Better Auth session signing |
-| `CORS_ORIGIN` | `string` | — | Optional comma-separated browser origins trusted by Better Auth |
+| `GITHUB_CLIENT_SECRET` | `string` | — | GitHub OAuth client secret |
+| `FASTNEAR_API_KEY` | `string` | — | FASTNEAR API key for SIWN profile lookup |
+| `TWILIO_ACCOUNT_SID` | `string` | — | Twilio account SID |
+| `TWILIO_AUTH_TOKEN` | `string` | — | Twilio auth token |
+| `TWILIO_PHONE_NUMBER` | `string` | — | Twilio sender phone number |
+| `NEAR_RELAYER_PRIVATE_KEY` | `string` | — | Optional relayer private key |
+| `NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET` | `string` | — | Optional mainnet sub-account parent key |
+| `NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET` | `string` | — | Optional testnet sub-account parent key |
 
 ### Plugin Context
 
@@ -59,20 +76,32 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 
 ### Environment Variables
 
-The plugin itself does **not** read `process.env`. The host passes all configuration via `variables` and `secrets`. In development, `plugin.dev.ts` can supply defaults from environment variables:
+The plugin itself does **not** read `process.env`. The host passes all configuration via `variables` and `secrets`. In development, `plugin.dev.ts` can map environment variables into the same nested shape:
 
 | Variable | Description |
 |----------|-------------|
-| `ACCOUNT` | App account identifier (dev fallback) |
-| `DOMAIN` | Base URL of the auth server (dev fallback) |
-| `GITHUB_CLIENT_ID` | GitHub OAuth client ID (dev fallback) |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret (dev fallback) |
-| `PASSKEY_RP_ID` | WebAuthn relying party ID override (dev fallback) |
-| `PASSKEY_RP_NAME` | WebAuthn relying party display name override (dev fallback) |
-| `PASSKEY_ORIGIN` | WebAuthn origin override (dev fallback) |
-| `AUTH_DATABASE_URL` | Database URL (dev fallback) |
-| `BETTER_AUTH_SECRET` | Session signing secret (dev fallback) |
-| `CORS_ORIGIN` | Additional comma-separated trusted origins |
+| `BASE_URL` | Auth server base URL |
+| `DOMAIN` | Fallback base URL for local dev only |
+| `TRUSTED_ORIGINS` | Additional comma-separated trusted origins |
+| `CORS_ORIGIN` | Alias for `TRUSTED_ORIGINS` |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID |
+| `PASSKEY_RP_ID` | WebAuthn relying party ID override |
+| `PASSKEY_RP_NAME` | WebAuthn relying party display name override |
+| `PASSKEY_ORIGIN` | WebAuthn origin override |
+| `ACCOUNT` | Single-network SIWN recipient or mainnet recipient |
+| `TESTNET_ACCOUNT` | Testnet SIWN recipient |
+| `NEAR_RPC_URL` | Custom NEAR RPC endpoint |
+| `NEAR_RELAYER_ACCOUNT_ID` | Optional relayer account ID |
+| `AUTH_DATABASE_URL` | Database URL |
+| `BETTER_AUTH_SECRET` | Session signing secret |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
+| `FASTNEAR_API_KEY` | FASTNEAR API key |
+| `TWILIO_ACCOUNT_SID` | Twilio account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio auth token |
+| `TWILIO_PHONE_NUMBER` | Twilio sender phone number |
+| `NEAR_RELAYER_PRIVATE_KEY` | Optional relayer private key |
+| `NEAR_SUB_ACCOUNT_PARENT_MAINNET` | Optional mainnet sub-account parent account |
+| `NEAR_SUB_ACCOUNT_PARENT_TESTNET` | Optional testnet sub-account parent account |
 
 ## Database
 
@@ -161,15 +190,22 @@ import Plugin from "@everything-dev/auth-plugin";
 export default {
   pluginId: "@everything-dev/auth-plugin",
   port: 3021,
-  config: {
-    variables: {
-      account: "myapp.near",
-      domain: "http://localhost:3000",
-    },
-    secrets: {
-      AUTH_DATABASE_URL: "pglite:./.local/auth.db",
-      BETTER_AUTH_SECRET: "dev-only-secret",
-    },
+    config: {
+      variables: {
+        baseUrl: "http://localhost:3000",
+        socialProviders: {
+          github: {
+            clientId: "",
+          },
+        },
+        siwn: {
+          recipient: "myapp.near",
+        },
+      },
+      secrets: {
+        AUTH_DATABASE_URL: "pglite:./.local/auth.db",
+        BETTER_AUTH_SECRET: "dev-only-secret",
+      },
   } satisfies PluginConfigInput<typeof Plugin>,
 };
 ```

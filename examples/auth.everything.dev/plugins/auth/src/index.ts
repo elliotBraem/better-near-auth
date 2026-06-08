@@ -6,12 +6,91 @@ import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { Auth } from "./auth-instance";
 import { createAuthInstance } from "./auth-instance";
+import type { AuthConfig } from "./auth-export";
 import type { InferOutput } from "./contract";
 import { type apiKeySchema, contract } from "./contract";
 import type { AuthDatabase, DatabaseDriver } from "./db/driver";
 import { createDatabaseDriver } from "./db/driver";
 import { migrate } from "./db/migrator";
 import * as schema from "./db/schema";
+
+const API_KEY_CONFIG_IDS = ["user-keys", "org-keys"] as const;
+
+const authSiwnBaseSchema = z.object({
+  apiKey: z.string().optional(),
+  rpcUrl: z.string().optional(),
+  relayer: z
+    .object({
+      accountId: z.string().optional(),
+    })
+    .optional(),
+  subAccount: z
+    .object({
+      mainnet: z
+        .object({
+          parentAccount: z.string().optional(),
+        })
+        .optional(),
+      testnet: z
+        .object({
+          parentAccount: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+const authSiwnRecipientSchema = authSiwnBaseSchema.extend({
+  recipient: z.string(),
+  recipients: z.never().optional(),
+});
+
+const authSiwnRecipientsSchema = authSiwnBaseSchema.extend({
+  recipient: z.never().optional(),
+  recipients: z.object({
+    mainnet: z.string(),
+    testnet: z.string(),
+  }),
+});
+
+const authVariablesSchema = z.object({
+  baseUrl: z.string().optional(),
+  trustedOrigins: z.array(z.string()).optional(),
+  apiKeyHeaders: z.array(z.string()).default(["x-api-key"]),
+  socialProviders: z
+    .object({
+      github: z
+        .object({
+          clientId: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  passkey: z
+    .object({
+      rpID: z.string().optional(),
+      rpName: z.string().optional(),
+      origin: z.string().optional(),
+    })
+    .optional(),
+  siwn: z.union([authSiwnRecipientSchema, authSiwnRecipientsSchema]),
+});
+
+const authSecretsSchema = z.object({
+  AUTH_DATABASE_URL: z.string(),
+  BETTER_AUTH_SECRET: z.string(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  FASTNEAR_API_KEY: z.string().optional(),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_PHONE_NUMBER: z.string().optional(),
+  NEAR_RELAYER_PRIVATE_KEY: z.string().optional(),
+  NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: z.string().optional(),
+  NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: z.string().optional(),
+});
+
+type AuthPluginVariables = z.infer<typeof authVariablesSchema>;
+type AuthPluginSecrets = z.infer<typeof authSecretsSchema>;
 
 type PluginAuthServices = {
   auth: Auth;
@@ -100,56 +179,113 @@ function ensureOrigin(value: string): string | null {
 }
 
 function parseTrustedOrigins(
-  domain?: string,
-  corsOrigin?: string,
+  baseUrlInput?: string,
+  trustedOriginsInput?: string[],
 ): { baseUrl: string; trustedOrigins: string[] } {
-  const baseUrl = domain ? ensureOrigin(domain) : "http://localhost:3000";
+  const baseUrl = baseUrlInput ? ensureOrigin(baseUrlInput) : "http://localhost:3000";
   const origins: string[] = [];
   if (baseUrl) origins.push(baseUrl);
   if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
     origins.push(...localDevTrustedOrigins);
   }
 
-  if (corsOrigin) {
-    for (const entry of corsOrigin.split(",")) {
-      const trimmed = entry.trim();
-      if (trimmed) {
-        const origin = ensureOrigin(trimmed);
-        if (origin) origins.push(origin);
-      }
+  for (const entry of trustedOriginsInput ?? []) {
+    const trimmed = entry.trim();
+    if (trimmed) {
+      const origin = ensureOrigin(trimmed);
+      if (origin) origins.push(origin);
     }
   }
 
   return { baseUrl: baseUrl ?? "http://localhost:3000", trustedOrigins: [...new Set(origins)] };
 }
 
+function normalizeAuthConfig(
+  variables: AuthPluginVariables,
+  secrets: AuthPluginSecrets,
+): { authConfig: AuthConfig; apiKeyHeaders: string[] } {
+  const { baseUrl, trustedOrigins } = parseTrustedOrigins(variables.baseUrl, variables.trustedOrigins);
+
+  const siwn = "recipients" in variables.siwn
+    ? {
+        recipients: {
+          mainnet: variables.siwn.recipients.mainnet,
+          testnet: variables.siwn.recipients.testnet,
+        },
+        apiKey: variables.siwn.apiKey,
+        rpcUrl: variables.siwn.rpcUrl,
+        relayer: variables.siwn.relayer?.accountId
+          ? {
+              accountId: variables.siwn.relayer.accountId,
+              privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
+            }
+          : undefined,
+        subAccount: {
+          mainnet: {
+            parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
+            parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+          },
+          testnet: {
+            parentAccount: variables.siwn.subAccount?.testnet?.parentAccount,
+            parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
+          },
+        },
+      }
+    : {
+        recipient: variables.siwn.recipient,
+        apiKey: variables.siwn.apiKey,
+        rpcUrl: variables.siwn.rpcUrl,
+        relayer: variables.siwn.relayer?.accountId
+          ? {
+              accountId: variables.siwn.relayer.accountId,
+              privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
+            }
+          : undefined,
+        subAccount: {
+          mainnet: {
+            parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
+            parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+          },
+        },
+      };
+
+  const authConfig: AuthConfig = {
+    secret: secrets.BETTER_AUTH_SECRET,
+    baseUrl,
+    trustedOrigins,
+    isProduction: process.env.NODE_ENV === "production",
+    socialProviders: {
+      github: {
+        clientId: variables.socialProviders?.github?.clientId,
+        clientSecret: secrets.GITHUB_CLIENT_SECRET,
+      },
+    },
+    passkey: variables.passkey,
+    phoneNumber:
+      secrets.TWILIO_ACCOUNT_SID && secrets.TWILIO_AUTH_TOKEN && secrets.TWILIO_PHONE_NUMBER
+        ? {
+            twilio: {
+              accountSid: secrets.TWILIO_ACCOUNT_SID,
+              authToken: secrets.TWILIO_AUTH_TOKEN,
+              phoneNumber: secrets.TWILIO_PHONE_NUMBER,
+            },
+          }
+        : undefined,
+    siwn: {
+      ...siwn,
+      apiKey: secrets.FASTNEAR_API_KEY,
+    },
+  };
+
+  return { authConfig, apiKeyHeaders: variables.apiKeyHeaders ?? ["x-api-key"] };
+}
+
 export type { AuthServices } from "./auth-export";
 
 export default createPlugin({
-  variables: z.object({
-    account: z.string().optional(),
-    testnetAccount: z.string().optional(),
-    domain: z.string().optional(),
-    apiKeyHeaders: z.array(z.string()).default(["x-api-key"]),
-  }),
+  variables: authVariablesSchema,
 
-  secrets: z.object({
-    AUTH_DATABASE_URL: z.string(),
-    BETTER_AUTH_SECRET: z.string(),
-    CORS_ORIGIN: z.string().optional(),
-    GITHUB_CLIENT_ID: z.string().optional(),
-    GITHUB_CLIENT_SECRET: z.string().optional(),
-    PASSKEY_RP_ID: z.string().optional(),
-    PASSKEY_RP_NAME: z.string().optional(),
-    PASSKEY_ORIGIN: z.string().optional(),
-    TWILIO_ACCOUNT_SID: z.string().optional(),
-    TWILIO_AUTH_TOKEN: z.string().optional(),
-    TWILIO_PHONE_NUMBER: z.string().optional(),
-    NEAR_RELAYER_ACCOUNT_ID: z.string().optional(),
-    NEAR_RELAYER_PRIVATE_KEY: z.string().optional(),
-    NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: z.string().optional(),
-    NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: z.string().optional(),
-  }),
+  secrets: authSecretsSchema,
 
   context: z.object({
     reqHeaders: z.record(z.string(), z.string()).optional(),
@@ -168,58 +304,23 @@ export default createPlugin({
       yield* Effect.promise(() => migrate(driver.db, migrations.default));
       console.log("[Auth] Migrations applied");
 
-      const { baseUrl, trustedOrigins } = parseTrustedOrigins(
-        config.variables.domain,
-        config.secrets.CORS_ORIGIN,
-      );
-      // When CORS_ORIGIN is a localhost URL the server is running in local dev.
-      // The production passkey secrets (rpId / origin) won't match localhost
-      // and the browser will reject the WebAuthn ceremony.  Derive both values
-      // from the first CORS_ORIGIN entry instead so no extra config is needed.
-      const firstCorsOrigin = config.secrets.CORS_ORIGIN?.split(",")[0]?.trim();
-      const isLocalCorsOrigin =
-        !!firstCorsOrigin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(firstCorsOrigin);
-
-      const passkeyOrigin = isLocalCorsOrigin
-        ? firstCorsOrigin
-        : config.secrets.PASSKEY_ORIGIN
-          ? ensureOrigin(config.secrets.PASSKEY_ORIGIN)
-          : undefined;
-      const passkeyRpId = isLocalCorsOrigin ? undefined : config.secrets.PASSKEY_RP_ID;
+      const { authConfig, apiKeyHeaders } = normalizeAuthConfig(config.variables, config.secrets);
 
       const auth = createAuthInstance(
-        {
-          secret: config.secrets.BETTER_AUTH_SECRET,
-          baseUrl,
-          account: config.variables.account || "dev.everything.near",
-          testnetAccount: config.variables.testnetAccount,
-          trustedOrigins,
-          githubClientId: config.secrets.GITHUB_CLIENT_ID,
-          githubClientSecret: config.secrets.GITHUB_CLIENT_SECRET,
-          passkeyRpId,
-          passkeyRpName: config.secrets.PASSKEY_RP_NAME,
-          passkeyOrigin: passkeyOrigin ?? undefined,
-          twilioAccountSid: config.secrets.TWILIO_ACCOUNT_SID,
-          twilioAuthToken: config.secrets.TWILIO_AUTH_TOKEN,
-          twilioPhoneNumber: config.secrets.TWILIO_PHONE_NUMBER,
-          relayerAccountId: config.secrets.NEAR_RELAYER_ACCOUNT_ID,
-          relayerPrivateKey: config.secrets.NEAR_RELAYER_PRIVATE_KEY,
-          subAccountParentKeyMainnet: config.secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
-          subAccountParentKeyTestnet: config.secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
-        },
+        authConfig,
         driver.db,
       );
 
       console.log("[Auth] Better Auth instance created");
 
-      return {
-        auth,
-        db: driver.db,
-        driver,
-        handler: (req: Request) => auth.handler(req),
-        apiKeyHeaders: config.variables.apiKeyHeaders ?? ["x-api-key"],
-      } satisfies PluginAuthServices;
-    }),
+        return {
+          auth,
+          db: driver.db,
+          driver,
+          handler: (req: Request) => auth.handler(req),
+          apiKeyHeaders,
+        } satisfies PluginAuthServices;
+      }),
 
   shutdown: () =>
     Effect.sync(() => {
@@ -311,11 +412,14 @@ export default createPlugin({
 
         if (apiKeyValue) {
           let apiKeyResolved = false;
-          try {
+
+          for (const configId of API_KEY_CONFIG_IDS) {
+            if (apiKeyResolved) break;
+
             const keyResult = await safeAuthApi(() =>
               services.auth.api.verifyApiKey({
                 headers,
-                body: { key: apiKeyValue },
+                body: { key: apiKeyValue, configId },
               }),
             );
             const r = keyResult as {
@@ -324,49 +428,45 @@ export default createPlugin({
               key?: { id: string; configId: string; referenceId: string; name: string | null; prefix: string | null; start: string | null; enabled: boolean; permissions: Record<string, string[]> | string | null; metadata: unknown } | null;
             };
 
-            if (r.valid && r.key) {
-              const key = r.key;
-              const parsedPermissions =
-                typeof key.permissions === "string"
-                  ? (tryJsonParse<Record<string, string[]>>(key.permissions as string) ?? null)
-                  : (key.permissions as Record<string, string[]> | null);
+            if (!r.valid || !r.key) continue;
 
-              apiKeyInfo = {
-                id: key.id,
-                name: key.name ?? null,
-                permissions: parsedPermissions,
-              };
+            apiKeyResolved = true;
+            authMethod = "apiKey";
 
-              if (key.configId === "user-keys") {
-                const dbUser = await services.db.query.user.findFirst({
-                  where: eq(schema.user.id, key.referenceId),
-                });
+            const key = r.key;
+            const parsedPermissions =
+              typeof key.permissions === "string"
+                ? (tryJsonParse<Record<string, string[]>>(key.permissions as string) ?? null)
+                : (key.permissions as Record<string, string[]> | null);
 
-                if (dbUser) {
-                  user = dbUser;
-                  authMethod = "apiKey";
-                  principal = {
-                    type: "user",
-                    userId: dbUser.id,
-                    user: dbUser as NonNullable<typeof schema.user.$inferSelect>,
-                  };
-                  apiKeyResolved = true;
-                }
-              } else if (key.configId === "org-keys") {
-                authMethod = "apiKey";
-                principal = { type: "organization", organizationId: key.referenceId };
-                resolvedOrganizationId = key.referenceId;
-                apiKeyResolved = true;
+            apiKeyInfo = {
+              id: key.id,
+              name: key.name ?? null,
+              permissions: parsedPermissions,
+            };
+
+            if (key.configId === "user-keys") {
+              const dbUser = await services.db.query.user.findFirst({
+                where: eq(schema.user.id, key.referenceId),
+              });
+
+              if (dbUser) {
+                user = dbUser;
+                principal = {
+                  type: "user",
+                  userId: dbUser.id,
+                  user: dbUser as NonNullable<typeof schema.user.$inferSelect>,
+                };
               }
+            } else if (key.configId === "org-keys") {
+              principal = { type: "organization", organizationId: key.referenceId };
+              resolvedOrganizationId = key.referenceId;
             }
-          } catch {
-            // Verification error — an explicit API key was provided but failed.
-            // Do NOT fall through to session auth. Leave principal as null.
+
+            break;
           }
 
-          if (!apiKeyResolved && apiKeyValue) {
-            // Key was provided but invalid or verification failed.
-            // Return authMethod "none" — caller cannot downgrade to session.
+          if (!apiKeyResolved) {
             authMethod = "none";
           }
         }
@@ -853,10 +953,12 @@ export default createPlugin({
       }),
 
       createApiKey: builder.createApiKey.use(requireAuth).handler(async ({ input, context }) => {
+        const configId = input.configId ?? (input.organizationId ? "org-keys" : "user-keys");
         const result = await safeAuthApi(() =>
           services.auth.api.createApiKey({
             body: {
               userId: context.userId,
+              configId,
               name: input.name,
               prefix: input.prefix,
               expiresIn: input.expiresIn,
@@ -907,27 +1009,52 @@ export default createPlugin({
       }),
 
       verifyApiKey: builder.verifyApiKey.handler(async ({ input, context }) => {
-        const result = await safeAuthApi(() =>
-          services.auth.api.verifyApiKey({
-            headers: createHeaders(context.reqHeaders),
-            body: {
-              key: input.key,
-              permissions: input.permissions,
-            },
-          }),
-        );
-        const r = result as {
-          valid: boolean;
-          error?: { code?: string; message?: string } | null;
-          key?: z.infer<typeof apiKeySchema> | null;
-        };
-        return {
-          valid: r.valid,
-          error: r.error
-            ? { code: r.error.code ?? "UNKNOWN", message: r.error.message ?? undefined }
-            : null,
-          key: r.key ?? null,
-        };
+        if (input.configId) {
+          const result = await safeAuthApi(() =>
+            services.auth.api.verifyApiKey({
+              headers: createHeaders(context.reqHeaders),
+              body: {
+                key: input.key,
+                configId: input.configId,
+                permissions: input.permissions,
+              },
+            }),
+          );
+          const r = result as {
+            valid: boolean;
+            error?: { code?: string; message?: string } | null;
+            key?: z.infer<typeof apiKeySchema> | null;
+          };
+          return {
+            valid: r.valid,
+            error: r.error
+              ? { code: r.error.code ?? "UNKNOWN", message: r.error.message ?? undefined }
+              : null,
+            key: r.key ?? null,
+          };
+        }
+
+        for (const configId of API_KEY_CONFIG_IDS) {
+          const result = await safeAuthApi(() =>
+            services.auth.api.verifyApiKey({
+              headers: createHeaders(context.reqHeaders),
+              body: { key: input.key, configId, permissions: input.permissions },
+            }),
+          );
+          const r = result as {
+            valid: boolean;
+            error?: { code?: string; message?: string } | null;
+            key?: z.infer<typeof apiKeySchema> | null;
+          };
+          if (r.valid) {
+            return {
+              valid: true,
+              error: null,
+              key: r.key ?? null,
+            };
+          }
+        }
+        return { valid: false, error: { code: "KEY_NOT_FOUND", message: "Invalid API key" }, key: null };
       }),
 
       listMembers: builder.listMembers.use(requireAuth).handler(async ({ input }) => {

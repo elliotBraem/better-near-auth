@@ -3,24 +3,67 @@ import type { PluginConfigInput } from "every-plugin";
 import packageJson from "./package.json" with { type: "json" };
 import type Plugin from "./src/index";
 
+function splitList(value?: string) {
+  return value
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 export default {
   pluginId: packageJson.name,
   port: Number(process.env.PORT) || 3002,
   config: {
     variables: {
-      account: process.env.ACCOUNT || "dev.everything.near",
-      domain: process.env.DOMAIN || "http://localhost:3000",
-      githubClientId: process.env.GITHUB_CLIENT_ID,
-      githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
-      passkeyRpId: process.env.PASSKEY_RP_ID,
-      passkeyRpName: process.env.PASSKEY_RP_NAME,
-      passkeyOrigin: process.env.PASSKEY_ORIGIN,
+      baseUrl: process.env.BASE_URL || process.env.DOMAIN || "http://localhost:3000",
+      trustedOrigins: splitList(process.env.TRUSTED_ORIGINS || process.env.CORS_ORIGIN),
+      socialProviders: {
+        github: {
+          clientId: process.env.GITHUB_CLIENT_ID,
+        },
+      },
+      passkey: {
+        rpID: process.env.PASSKEY_RP_ID,
+        rpName: process.env.PASSKEY_RP_NAME,
+        origin: process.env.PASSKEY_ORIGIN,
+      },
+      siwn: {
+        ...(process.env.TESTNET_ACCOUNT
+          ? {
+              recipients: {
+                mainnet: process.env.ACCOUNT,
+                testnet: process.env.TESTNET_ACCOUNT,
+              },
+            }
+          : {
+              recipient: process.env.ACCOUNT,
+            }),
+        rpcUrl: process.env.NEAR_RPC_URL,
+        relayer: {
+          accountId: process.env.NEAR_RELAYER_ACCOUNT_ID,
+        },
+        subAccount: {
+          mainnet: {
+            parentAccount: process.env.NEAR_SUB_ACCOUNT_PARENT_MAINNET,
+          },
+          testnet: {
+            parentAccount: process.env.NEAR_SUB_ACCOUNT_PARENT_TESTNET,
+          },
+        },
+      },
     },
     secrets: {
       AUTH_DATABASE_URL: process.env.AUTH_DATABASE_URL || "pglite:.bos/auth/:memory:",
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET || "dev-only-secret-do-not-use-in-production",
-      CORS_ORIGIN: process.env.CORS_ORIGIN,
+      GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+      FASTNEAR_API_KEY: process.env.FASTNEAR_API_KEY,
+      TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+      TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+      TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
+      NEAR_RELAYER_PRIVATE_KEY: process.env.NEAR_RELAYER_PRIVATE_KEY,
+      NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: process.env.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+      NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: process.env.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
     },
   } satisfies PluginConfigInput<typeof Plugin>,
 };
