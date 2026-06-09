@@ -4,10 +4,8 @@ import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { AuthConfig } from "./auth-export";
-import type { Auth } from "./auth-instance";
 import { createAuthInstance } from "./auth-instance";
-import { contract } from "./contract";
-import type { AuthDatabase, DatabaseDriver } from "./db/driver";
+import { contract, type InferOutput } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
 import { migrate } from "./db/migrator";
 import * as schema from "./db/schema";
@@ -90,13 +88,12 @@ const authSecretsSchema = z.object({
 type AuthPluginVariables = z.infer<typeof authVariablesSchema>;
 type AuthPluginSecrets = z.infer<typeof authSecretsSchema>;
 
-type PluginAuthServices = {
-  auth: Auth;
-  db: AuthDatabase;
-  driver: DatabaseDriver;
-  handler: (req: Request) => Promise<Response>;
-  apiKeyHeaders: string[];
-};
+function toError(e: unknown): Error {
+  if (typeof e === "object" && e !== null && "message" in e) {
+    return new Error(String(e.message));
+  }
+  return new Error(String(e));
+}
 
 function tryJsonParse<T>(value: string | null | undefined): T | undefined {
   if (!value) return undefined;
@@ -116,6 +113,13 @@ const localDevTrustedOrigins = [
   "http://127.0.0.1:3000",
   "http://[::1]:3000",
 ];
+
+function getActiveOrganizationId(session: unknown): string | null {
+  if (session && typeof session === "object" && "activeOrganizationId" in session) {
+    return (session as { activeOrganizationId: string | null }).activeOrganizationId;
+  }
+  return null;
+}
 
 function toORPCError(error: unknown) {
   if (error && typeof error === "object" && "status" in error) {
@@ -139,6 +143,14 @@ function toORPCError(error: unknown) {
 }
 
 async function safeAuthApi<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    throw toORPCError(error);
+  }
+}
+
+async function safeCall<T>(fn: () => Promise<any>): Promise<T> {
   try {
     return await fn();
   } catch (error) {
@@ -321,8 +333,8 @@ export default createPlugin({
         driver,
         handler: (req: Request) => auth.handler(req),
         apiKeyHeaders,
-      } satisfies PluginAuthServices;
-    }),
+      };
+    }).pipe(Effect.mapError((e) => toError(e))),
 
   shutdown: () =>
     Effect.sync(() => {
@@ -367,7 +379,7 @@ export default createPlugin({
                 token: s.token,
                 userId: s.userId,
                 expiresAt: s.expiresAt,
-                activeOrganizationId: s.activeOrganizationId ?? null,
+                activeOrganizationId: getActiveOrganizationId(s),
               }
             : null,
           user: u
@@ -425,7 +437,7 @@ export default createPlugin({
             expiresAt: Date;
             activeOrganizationId: string | null;
           } | null;
-          user: (typeof schema.user.$inferSelect & { isAnonymous?: boolean | null }) | null;
+          user: unknown;
         } | null = null;
 
         if (apiKeyValue) {
@@ -450,7 +462,7 @@ export default createPlugin({
             const parsedPermissions =
               typeof key.permissions === "string"
                 ? (tryJsonParse<Record<string, string[]>>(key.permissions) ?? null)
-                : key.permissions;
+                : (key.permissions ?? null);
 
             apiKeyInfo = {
               id: key.id,
@@ -488,7 +500,17 @@ export default createPlugin({
         if (!apiKeyValue && !principal) {
           const rawSession = await services.auth.api.getSession({ headers });
           const rawUser = rawSession?.user ?? null;
-          session = rawSession;
+          session = rawSession
+            ? {
+                session: rawSession.session
+                  ? {
+                      ...rawSession.session,
+                      activeOrganizationId: getActiveOrganizationId(rawSession.session),
+                    }
+                  : null,
+                user: rawSession.user,
+              }
+            : null;
 
           if (rawUser) {
             const dbUser = await services.db.query.user.findFirst({
@@ -1026,9 +1048,13 @@ export default createPlugin({
           return {
             valid: result.valid,
             error: result.error
-              ? { code: result.error.code ?? "UNKNOWN", message: result.error.message ?? undefined }
+              ? {
+                  code: result.error.code ?? "UNKNOWN",
+                  message:
+                    typeof result.error.message === "string" ? result.error.message : undefined,
+                }
               : null,
-            key: result.key ?? null,
+            key: result.key ? { ...result.key, permissions: result.key.permissions ?? null } : null,
           };
         }
 
@@ -1043,7 +1069,9 @@ export default createPlugin({
             return {
               valid: true,
               error: null,
-              key: result.key ?? null,
+              key: result.key
+                ? { ...result.key, permissions: result.key.permissions ?? null }
+                : null,
             };
           }
         }
@@ -1265,7 +1293,7 @@ export default createPlugin({
       // ── NEAR SIWN Endpoints ─────────────────────────────────────────────
 
       nearNonce: builder.nearNonce.handler(async ({ input }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearNonce">>(() =>
           services.auth.api.getSiwnNonce({
             body: { accountId: input.accountId, networkId: input.networkId },
           }),
@@ -1274,7 +1302,7 @@ export default createPlugin({
       }),
 
       nearVerify: builder.nearVerify.handler(async ({ input }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearVerify">>(() =>
           services.auth.api.verifySiwnMessage({
             body: {
               signedMessage: input.signedMessage,
@@ -1289,7 +1317,7 @@ export default createPlugin({
       }),
 
       nearProfile: builder.nearProfile.use(requireAuth).handler(async ({ input, context }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearProfile">>(() =>
           services.auth.api.getSiwnProfile({
             headers: createHeaders(context.reqHeaders),
             body: { accountId: input.accountId },
@@ -1301,7 +1329,7 @@ export default createPlugin({
       nearLinkAccount: builder.nearLinkAccount
         .use(requireAuth)
         .handler(async ({ input, context }) => {
-          const result = await safeAuthApi(() =>
+          const result = await safeCall<InferOutput<"nearLinkAccount">>(() =>
             services.auth.api.linkNearAccount({
               headers: createHeaders(context.reqHeaders),
               body: {
@@ -1319,7 +1347,7 @@ export default createPlugin({
       nearUnlinkAccount: builder.nearUnlinkAccount
         .use(requireAuth)
         .handler(async ({ input, context }) => {
-          const result = await safeAuthApi(() =>
+          const result = await safeCall<InferOutput<"nearUnlinkAccount">>(() =>
             services.auth.api.unlinkNearAccount({
               headers: createHeaders(context.reqHeaders),
               body: { accountId: input.accountId, network: input.network },
@@ -1329,7 +1357,7 @@ export default createPlugin({
         }),
 
       nearListAccounts: builder.nearListAccounts.use(requireAuth).handler(async ({ context }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearListAccounts">>(() =>
           services.auth.api.listNearAccounts({
             headers: createHeaders(context.reqHeaders),
           }),
@@ -1338,7 +1366,7 @@ export default createPlugin({
       }),
 
       nearRelay: builder.nearRelay.use(requireAuth).handler(async ({ input, context }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearRelay">>(() =>
           services.auth.api.relayNearTransaction({
             headers: createHeaders(context.reqHeaders),
             body: { payload: input.payload },
@@ -1350,7 +1378,7 @@ export default createPlugin({
       nearRelayStatus: builder.nearRelayStatus
         .use(requireAuth)
         .handler(async ({ input, context }) => {
-          const result = await safeAuthApi(() =>
+          const result = await safeCall<InferOutput<"nearRelayStatus">>(() =>
             services.auth.api.getRelayStatus({
               headers: createHeaders(context.reqHeaders),
               params: { txHash: input.txHash },
@@ -1362,7 +1390,7 @@ export default createPlugin({
       nearRelayerInfo: builder.nearRelayerInfo
         .use(requireAuth)
         .handler(async ({ input, context }) => {
-          const result = await safeAuthApi(() =>
+          const result = await safeCall<InferOutput<"nearRelayerInfo">>(() =>
             services.auth.api.getRelayerInfo({
               headers: createHeaders(context.reqHeaders),
               body: input ?? {},
@@ -1372,7 +1400,7 @@ export default createPlugin({
         }),
 
       nearRelayHistory: builder.nearRelayHistory.use(requireAuth).handler(async ({ context }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearRelayHistory">>(() =>
           services.auth.api.getRelayHistory({
             headers: createHeaders(context.reqHeaders),
           }),
@@ -1381,7 +1409,7 @@ export default createPlugin({
       }),
 
       nearView: builder.nearView.use(requireAuth).handler(async ({ input, context }) => {
-        const result = await safeAuthApi(() =>
+        const result = await safeCall<InferOutput<"nearView">>(() =>
           services.auth.api.viewContract({
             headers: createHeaders(context.reqHeaders),
             body: { contractId: input.contractId, methodName: input.methodName, args: input.args },
@@ -1392,7 +1420,7 @@ export default createPlugin({
 
       nearCheckSubAccountAvailability: builder.nearCheckSubAccountAvailability.handler(
         async ({ input }) => {
-          const result = await safeAuthApi(() =>
+          const result = await safeCall<InferOutput<"nearCheckSubAccountAvailability">>(() =>
             services.auth.api.checkSubAccountAvailability({
               body: { subAccountId: input.subAccountId, network: input.network },
             }),
@@ -1404,7 +1432,7 @@ export default createPlugin({
       nearCreateSubAccount: builder.nearCreateSubAccount
         .use(requireAuth)
         .handler(async ({ input, context }) => {
-          const result = await safeAuthApi(() =>
+          const result = await safeCall<InferOutput<"nearCreateSubAccount">>(() =>
             services.auth.api.createSubAccount({
               headers: createHeaders(context.reqHeaders),
               body: {

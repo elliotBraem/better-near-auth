@@ -222,13 +222,16 @@ describe("NEAR SIWN Sandbox Integration", () => {
         );
 
         // Get nonce
-        const nonceRes = await auth.api.getSiwnNonce({
+        const nonceRes: object = await auth.api.getSiwnNonce({
           body: { accountId: TEST_ACCOUNT, networkId: "testnet" },
         });
-        expect(nonceRes.nonce).toBeDefined();
+
+        const nonce =
+          "nonce" in nonceRes && typeof nonceRes.nonce === "string" ? nonceRes.nonce : undefined;
+        expect(nonce).toBeDefined();
 
         // Sign
-        const nonceBytes = nearKitModules.hex.decode(nonceRes.nonce);
+        const nonceBytes = nonce ? nearKitModules.hex.decode(nonce) : new Uint8Array();
         const message = `Sign in to ${TEST_RECIPIENT}`;
 
         if (!keyPair.signNep413Message) {
@@ -242,27 +245,47 @@ describe("NEAR SIWN Sandbox Integration", () => {
         });
 
         // Verify
-        const verifyRes = await auth.api.verifySiwnMessage({
+        const verifyRes: object = await auth.api.verifySiwnMessage({
           body: {
             signedMessage,
             message,
             recipient: TEST_RECIPIENT,
-            nonce: nonceRes.nonce,
+            nonce: nonce ?? "",
             accountId: TEST_ACCOUNT,
           },
         });
 
-        expect(verifyRes.success).toBe(true);
-        expect(verifyRes.token).toBeDefined();
-        expect(verifyRes.user.accountId).toBe(TEST_ACCOUNT);
+        expect("success" in verifyRes ? verifyRes.success : undefined).toBe(true);
+
+        const token =
+          "token" in verifyRes && typeof verifyRes.token === "string" ? verifyRes.token : undefined;
+        expect(token).toBeDefined();
+
+        const userObject =
+          "user" in verifyRes && verifyRes.user && typeof verifyRes.user === "object"
+            ? verifyRes.user
+            : null;
+        const userAccountId =
+          userObject && "accountId" in userObject && typeof userObject.accountId === "string"
+            ? userObject.accountId
+            : undefined;
+        expect(userAccountId).toBe(TEST_ACCOUNT);
 
         // List accounts
         const headers = new Headers();
-        headers.set("Authorization", `Bearer ${verifyRes.token}`);
+        headers.set("Authorization", `Bearer ${token ?? ""}`);
 
-        const accountsRes = await auth.api.listNearAccounts({ headers });
-        expect(accountsRes.accounts.length).toBe(1);
-        expect(accountsRes.accounts[0].accountId).toBe(TEST_ACCOUNT);
+        const accountsRes: object = await auth.api.listNearAccounts({ headers });
+        const rawAccounts = "accounts" in accountsRes ? accountsRes.accounts : undefined;
+        const accounts = Array.isArray(rawAccounts) ? rawAccounts : [];
+
+        expect(accounts.length).toBe(1);
+        const firstAccount: object | undefined = accounts[0];
+        const firstAccountId =
+          firstAccount && "accountId" in firstAccount && typeof firstAccount.accountId === "string"
+            ? firstAccount.accountId
+            : undefined;
+        expect(firstAccountId).toBe(TEST_ACCOUNT);
 
         // Cleanup
         await driver.close();
