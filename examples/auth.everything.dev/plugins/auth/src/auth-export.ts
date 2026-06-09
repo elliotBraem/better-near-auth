@@ -1,4 +1,5 @@
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
 import type { Auth as AuthInstance } from "./auth-instance";
 import type { InferInput, InferOutput } from "./contract";
 
@@ -36,16 +37,7 @@ export interface AuthSiwnBaseConfig {
     accountId?: string;
     privateKey?: string;
   };
-  subAccount?: {
-    mainnet?: {
-      parentAccount?: string;
-      parentKey?: string;
-    };
-    testnet?: {
-      parentAccount?: string;
-      parentKey?: string;
-    };
-  };
+  subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
 }
 
 export interface AuthSiwnRecipientConfig extends AuthSiwnBaseConfig {

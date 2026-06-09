@@ -10,7 +10,7 @@ import {
   memberAc,
   ownerAc,
 } from "better-auth/plugins/organization/access";
-import { siwn } from "better-near-auth";
+import { siwn, type SIWNPluginOptions } from "better-near-auth";
 
 const orgStatements = {
   ...defaultStatements,
@@ -34,11 +34,15 @@ const orgRoles = {
   }),
 };
 
-import type { AuthConfig, AuthSiwnConfig, AuthSiwnRecipientsConfig } from "./auth-export";
+import type { AuthConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
-function isRecipientsConfig(config: AuthSiwnConfig): config is AuthSiwnRecipientsConfig {
+function isRecipientsConfig(
+  config: SIWNPluginOptions,
+): config is SIWNPluginOptions & {
+  recipients: { mainnet: string; testnet: string };
+} {
   return "recipients" in config && config.recipients !== undefined;
 }
 
@@ -103,20 +107,7 @@ function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
             privateKey: config.siwn.relayer.privateKey,
           }
         : undefined,
-      subAccount: {
-        mainnet: {
-          parentAccount: config.siwn.subAccount?.mainnet?.parentAccount,
-          ...(config.siwn.subAccount?.mainnet?.parentKey
-            ? { parentKey: config.siwn.subAccount.mainnet.parentKey }
-            : {}),
-        },
-        testnet: {
-          parentAccount: config.siwn.subAccount?.testnet?.parentAccount,
-          ...(config.siwn.subAccount?.testnet?.parentKey
-            ? { parentKey: config.siwn.subAccount.testnet.parentKey }
-            : {}),
-        },
-      },
+      subAccount: config.siwn.subAccount,
     };
   }
 
@@ -130,20 +121,7 @@ function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
           privateKey: config.siwn.relayer.privateKey,
         }
       : undefined,
-    subAccount: {
-      mainnet: {
-        parentAccount: config.siwn.subAccount?.mainnet?.parentAccount,
-        ...(config.siwn.subAccount?.mainnet?.parentKey
-          ? { parentKey: config.siwn.subAccount.mainnet.parentKey }
-          : {}),
-      },
-      testnet: {
-        parentAccount: config.siwn.subAccount?.testnet?.parentAccount,
-        ...(config.siwn.subAccount?.testnet?.parentKey
-          ? { parentKey: config.siwn.subAccount.testnet.parentKey }
-          : {}),
-      },
-    },
+    subAccount: config.siwn.subAccount,
   };
 }
 

@@ -40,7 +40,7 @@ import {
   CardTitle,
 } from "@/components";
 import { Input } from "@/components/ui/input";
-import { getLinkedProviders, getNearAccountId, getProviderConfig } from "@/lib/auth";
+import { getLinkedProviders, getNearAccountId } from "@/lib/auth";
 import { NearProfile } from "./near-profile";
 import RelayFeed from "./relay-feed";
 
@@ -99,6 +99,21 @@ function hasPositiveNearBalance(balance?: string): boolean {
 function truncateAccountId(accountId: string): string {
   if (accountId.length <= 20) return accountId;
   return `${accountId.slice(0, 10)}...${accountId.slice(-6)}`;
+}
+
+function getProviderName(providerId: string): string {
+  switch (providerId) {
+    case "siwn":
+      return "NEAR";
+    case "google":
+      return "Google";
+    case "github":
+      return "GitHub";
+    case "email-password":
+      return "Email";
+    default:
+      return providerId;
+  }
 }
 
 function relayerExplorerUrl(accountId: string): string {
@@ -275,15 +290,11 @@ export function ProfileCard({
             {displayEmail && <p className="text-sm text-muted-foreground">{displayEmail}</p>}
             {linkedProviders.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {linkedProviders.map((provider) => {
-                  const config = getProviderConfig(provider);
-                  return (
-                    <Badge key={provider} variant="secondary" className="text-xs">
-                      <span className="mr-1">{config.icon}</span>
-                      {config.name}
-                    </Badge>
-                  );
-                })}
+                {linkedProviders.map((provider) => (
+                  <Badge key={provider} variant="secondary" className="text-xs">
+                    {getProviderName(provider)}
+                  </Badge>
+                ))}
               </div>
             )}
           </div>
@@ -670,7 +681,7 @@ export function AccountLinkingCard({
                 </span>
                 <span className="font-mono break-all">{recentlyLinked.accountId}</span>
                 <span className="text-muted-foreground">
-                  ({getProviderConfig(recentlyLinked.provider).name})
+                  ({getProviderName(recentlyLinked.provider)})
                 </span>
               </div>
             </div>
@@ -688,12 +699,9 @@ export function AccountLinkingCard({
                 className={`flex flex-col gap-3 p-3 ${NEO_BORDER} bg-muted/30 sm:flex-row sm:items-center sm:justify-between`}
               >
                 <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                  <span className="text-lg">
-                    {getProviderConfig(primaryAccount.providerId).icon}
-                  </span>
                   <div className="min-w-0">
                     <span className="font-medium block sm:inline">
-                      {getProviderConfig(primaryAccount.providerId).name}
+                      {getProviderName(primaryAccount.providerId)}
                     </span>
                     <span className="text-sm text-muted-foreground break-all sm:ml-2">
                       {primaryAccount.accountId}
@@ -714,10 +722,9 @@ export function AccountLinkingCard({
                   className={`flex flex-col gap-3 p-3 ${NEO_BORDER} sm:flex-row sm:items-center sm:justify-between`}
                 >
                   <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                    <span className="text-lg">{getProviderConfig(account.providerId).icon}</span>
                     <div className="min-w-0">
                       <span className="font-medium block sm:inline">
-                        {getProviderConfig(account.providerId).name}
+                        {getProviderName(account.providerId)}
                       </span>
                       <span className="text-sm text-muted-foreground break-all sm:ml-2">
                         {account.accountId}
