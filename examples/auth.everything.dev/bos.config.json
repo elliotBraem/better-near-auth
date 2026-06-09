@@ -24,20 +24,26 @@
     },
     "ui": {
       "name": "ui",
-      "development": "local:ui"
+      "development": "local:ui",
+      "production": "https://elliot-braem-4583-ui-better-near-auth-elliotbraem-3bab0466f-ze.zephyrcloud.app",
+      "integrity": "sha384-kePUviqd4S1hNlwqFc60XVuLe5yEmgPQekTQddIm0SmbflTr+ifM1Z3vAeCqJmIA",
+      "ssr": "https://elliot-braem-4584-ui-better-near-auth-elliotbraem-c8c29429c-ze.zephyrcloud.app",
+      "ssrIntegrity": "sha384-Z+dlyvsy1UVhDdmtsp5L1if67U2CwylnZA5MylJ47mY3TLMO/AvnBz740EBcBE75"
     },
     "api": {
       "name": "api",
       "development": "local:api",
       "secrets": [
         "API_DATABASE_URL"
-      ]
+      ],
+      "production": "https://elliot-braem-4585-api-better-near-auth-elliotbrae-1d7f47f3c-ze.zephyrcloud.app",
+      "integrity": "sha384-vN6UQJIS/R7AIlarjaANrN8mZLeiD4q/A7dTcQJcgS1rgWLfh0Z+//fhuC4YdmMk"
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-4250-everything-dev-auth-plugin-bett-01cc31550-ze.zephyrcloud.app",
-      "integrity": "sha384-HGCj8X8OaADQo1cBP6gyaTEdaGpEqO7EWWlpdp/3Xx4LyM/uVHmLfXTTgdl3NZ9S",
+      "production": "https://elliot-braem-4596-everything-dev-auth-plugin-bett-5c7464d90-ze.zephyrcloud.app",
+      "integrity": "sha384-hdiTtgW15RyAVkpNdgNxQxKP3xOkMs2jJ27O53l1zEi++nghcPFn8QZQb9avuLMe",
       "variables": {
         "baseUrl": "https://auth.everything.near",
         "trustedOrigins": [
@@ -74,7 +80,37 @@
         "NEAR_RELAYER_PRIVATE_KEY",
         "NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET",
         "NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET"
-      ]
+      ],
+      "shared": {
+        "better-auth": {
+          "version": "1.6.9",
+          "requiredVersion": "^1.6.9",
+          "singleton": true,
+          "strictVersion": false,
+          "shareScope": "default"
+        },
+        "better-near-auth": {
+          "version": "1.5.0",
+          "requiredVersion": "^1.5.0",
+          "singleton": true,
+          "strictVersion": false,
+          "shareScope": "default"
+        },
+        "@better-auth/api-key": {
+          "version": "1.6.9",
+          "requiredVersion": "^1.6.9",
+          "singleton": true,
+          "strictVersion": false,
+          "shareScope": "default"
+        },
+        "@better-auth/passkey": {
+          "version": "1.6.9",
+          "requiredVersion": "^1.6.9",
+          "singleton": true,
+          "strictVersion": false,
+          "shareScope": "default"
+        }
+      }
     }
   },
   "plugins": {}
