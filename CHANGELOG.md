@@ -1,5 +1,25 @@
 # better-near-auth
 
+## 1.6.3
+
+### Patch Changes
+
+- [`3742dea`](https://github.com/elliotBraem/better-near-auth/commit/3742deabae536d5df7db7eb9de7d968166cadb52) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Clean up redundant type assertions and schema handling
+
+  - Remove all `as` casts on `safeAuthApi` results where the generic already infers the type
+  - Replace manual hex encoding in `hashNonce` with `hex.encode`
+  - Merge duplicate `./types.js` imports
+  - Remove redundant return type annotations on `client.ts` action functions
+  - Remove unused `UserWithAnonymous`, `User`, `InferOutput`, `apiKeySchema` imports
+  - Fix `getSiwnNonce` handler indentation
+  - Add `NearState` type alias to deduplicate state shape
+
+- [`e7eee83`](https://github.com/elliotBraem/better-near-auth/commit/e7eee838016502b6e7bf0a574d537cfd13985278) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Fix type inference for NEAR SIWN endpoints
+
+  - Added explicit type imports for `@better-auth/core/env`, `@better-auth/core/oauth2`, and `better-call` to resolve TS2742 declaration emit errors
+  - Removed `as const` from the `siwn` plugin return object to prevent readonly/mutable type mismatch in `BetterAuthClientPlugin` inference
+  - This enables `Auth["api"]` to properly infer all 14 NEAR endpoint types (getSiwnNonce, verifySiwnMessage, getSiwnProfile, linkNearAccount, etc.) instead of collapsing to `BetterAuthPlugin`
+
 ## 1.6.2
 
 ### Patch Changes
