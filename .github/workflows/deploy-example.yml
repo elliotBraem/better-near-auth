@@ -7,9 +7,6 @@ on:
     paths:
       - 'examples/auth.everything.dev/**'
       - '!examples/auth.everything.dev/bun.lock'
-  workflow_run:
-    workflows: [Release]
-    types: [completed]
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +18,6 @@ jobs:
   deploy:
     name: Deploy auth.everything.dev
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     env:
       ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
       ZE_SERVER_TOKEN: ${{ secrets.ZEPHYR_SERVER_AUTH_TOKEN }}
@@ -34,54 +30,38 @@ jobs:
         with:
           ref: main
 
-      - name: Detect release tag
-        id: release_tag
-        if: github.event_name == 'workflow_run'
-        run: |
-          git fetch --force --tags
-          tag="$(git tag --points-at "${{ github.event.workflow_run.head_sha }}" | awk '/^v[0-9]|@[0-9]+\.[0-9]+\.[0-9]+/{ print }' | sort -V | tail -n 1)"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-
       - name: Setup Bun
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.20"
 
       - name: Install dependencies
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev
         run: bun install
 
       - name: Generate route tree
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev/ui
         run: bun run generate-routes
 
       - name: Lint and typecheck
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev
         run: |
           bun lint
           bun typecheck
 
       - name: Test
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev
         run: bun test
 
       - name: Build and deploy
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev
         run: bun run deploy
 
       - name: Publish config to FastKV
-        if: github.event_name != 'workflow_run' || steps.release_tag.outputs.tag != ''
         working-directory: examples/auth.everything.dev
         run: bun run publish
 
       - name: Commit updated lockfile
-        if: github.event_name == 'workflow_run' && steps.release_tag.outputs.tag != ''
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore(deploy-example): update lockfile after release deploy"
