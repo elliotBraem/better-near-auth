@@ -102,6 +102,7 @@ function createClientConfig() {
     resolve: {
       alias: {
         "@": "./src",
+        "better-near-auth": path.resolve(__dirname, "../../../src"), // KEEP THIS
       },
     },
     dev: {
@@ -144,6 +145,7 @@ function createClientConfig() {
       distPath: { root: "dist", css: "static/css", js: "static/js" },
       assetPrefix: "auto",
       filename: { js: "[name].js", css: "style.css" },
+      chunkFilename: "static/js/async/[name].[contenthash].js",
       copy: [{ from: path.resolve(__dirname, "public"), to: "./" }],
     },
   });
@@ -152,13 +154,29 @@ function createClientConfig() {
 function createServerConfig() {
   const plugins = [pluginReact()];
 
+  plugins.push({
+    name: "restore-manifest-public-path",
+    setup(api) {
+      api.onAfterBuild(() => {
+        const manifestPath = path.resolve(__dirname, "dist/mf-manifest.json");
+        if (!fs.existsSync(manifestPath)) return;
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        if (manifest.metaData?.publicPath && manifest.metaData.publicPath !== "auto") {
+          manifest.metaData.publicPath = "auto";
+          fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+        }
+      });
+    },
+  });
+
   if (shouldDeploy) {
     plugins.push(
       withZephyr({
         hooks: {
           onDeployComplete: async (info) => {
             console.log("🚀 UI SSR Deployed:", info.url);
-            const integrity = await computeSriHashForUrl(info.url);
+            const ssrEntryUrl = `${info.url.replace(/\/$/, "")}/remoteEntry.server.js`;
+            const integrity = await computeSriHashForUrl(ssrEntryUrl, { resolveEntryUrl: false });
             updateBosConfig("ssr", info.url, integrity ?? undefined);
           },
         },
@@ -176,6 +194,7 @@ function createServerConfig() {
     resolve: {
       alias: {
         "@": "./src",
+        "better-near-auth": path.resolve(__dirname, "../../../src"),
         "@tanstack/react-devtools": false,
         "@tanstack/react-router-devtools": false,
       },
@@ -194,7 +213,6 @@ function createServerConfig() {
         target: "async-node",
         output: {
           uniqueName: `${normalizedName}_server`,
-          publicPath: "/",
           library: { type: "commonjs-module" },
         },
         resolve: {
@@ -220,7 +238,7 @@ function createServerConfig() {
     },
     output: {
       distPath: { root: "dist" },
-      assetPrefix: "auto",
+      assetPrefix: "/",
       cleanDistPath: false,
     },
   });

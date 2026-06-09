@@ -5,7 +5,7 @@ import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import type { siwn } from "./index.js";
-import { type AccountId, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT } from "./types.js";
+import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -13,7 +13,8 @@ export interface AuthCallbacks {
 }
 
 export interface SIWNClientConfig {
-	recipient: string;
+	recipient?: string;
+	recipients?: DualNetworkConfig<string>;
 	networkId?: "mainnet" | "testnet";
 	cspNonce?: string;
 }
@@ -43,8 +44,14 @@ export interface SIWNClientActions {
 		buildSignedDelegateAction: (receiverId: string, buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder) => Promise<string>;
 		relayTransaction: (params: { payload: string }) => Promise<BetterFetchResponse<RelayResponseT>>;
 		getRelayStatus: (txHash: string) => Promise<BetterFetchResponse<RelayStatusResponseT>>;
-		getRelayerInfo: () => Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>>;
+		getRelayerInfo: (params?: GetRelayerInfoRequestT) => Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>>;
 		relayHistory: () => Promise<BetterFetchResponse<RelayHistoryResponseT>>;
+		createSubAccount: (params: CreateSubAccountRequestT) => Promise<BetterFetchResponse<CreateSubAccountResponseT>>;
+		checkSubAccountAvailability: (params: CheckSubAccountAvailabilityRequestT) => Promise<BetterFetchResponse<CheckSubAccountAvailabilityResponseT>>;
+		setNetwork: (network: "mainnet" | "testnet") => void;
+		getNetwork: () => "mainnet" | "testnet";
+		getSupportedNetworks: () => ("mainnet" | "testnet")[];
+		getRecipient: (network?: "mainnet" | "testnet") => string;
 		client: NearType;
 	};
 	signIn: {
@@ -58,6 +65,7 @@ export interface SIWNClientPlugin extends BetterAuthClientPlugin {
 	getAtoms: ($fetch: BetterFetch) => {
 		nearState: ReturnType<typeof atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>>;
 		walletConnected: ReturnType<typeof atom<boolean>>;
+		activeNetwork: ReturnType<typeof atom<"mainnet" | "testnet">>;
 	};
 	getActions: ($fetch: BetterFetch, $store: ClientStore, options: BetterAuthClientOptions | undefined) => SIWNClientActions;
 }
@@ -65,14 +73,25 @@ export interface SIWNClientPlugin extends BetterAuthClientPlugin {
 export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	const nearState = atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>(null);
 	const walletConnected = atom<boolean>(false);
+	const activeNetwork = atom<"mainnet" | "testnet">(config.networkId || "mainnet");
 
-	const network = config.networkId || "mainnet";
+	const getRecipient = (network?: "mainnet" | "testnet"): string => {
+		const net = network || activeNetwork.get();
+		if (config.recipients) return config.recipients[net];
+		return config.recipient ?? "";
+	};
 
-	let connector: InstanceType<typeof import("@hot-labs/near-connect").NearConnector> | null = null;
-	let near: Near | null = null;
-	let clientInitialized = false;
+	const getSupportedNetworks = (): ("mainnet" | "testnet")[] => {
+		if (config.recipients) return ["mainnet", "testnet"];
+		if (config.recipient) return [config.recipient.endsWith(".testnet") ? "testnet" : "mainnet"];
+		return ["mainnet"];
+	};
+
+	let connectors = new Map<"mainnet" | "testnet", InstanceType<typeof import("@hot-labs/near-connect").NearConnector>>();
+	let nearClients = new Map<"mainnet" | "testnet", Near>();
+	let initializedNetworks = new Set<"mainnet" | "testnet">();
 	let connectorModulePromise: Promise<typeof import("@hot-labs/near-connect")> | null = null;
-	let initClientPromise: Promise<boolean> | null = null;
+	let initPromises = new Map<"mainnet" | "testnet", Promise<boolean>>();
 
 	const loadConnector = async () => {
 		connectorModulePromise ??= import("@hot-labs/near-connect");
@@ -80,34 +99,38 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		return NearConnector;
 	};
 
-	const handleAccountConnection = async (accountId: string, publicKey?: string | null) => {
+	const handleAccountConnection = async (accountId: string, publicKey?: string | null, network?: "mainnet" | "testnet") => {
 		if (!accountId) return;
+		const net = network || activeNetwork.get();
 		nearState.set({
 			accountId,
 			publicKey: publicKey || null,
-			networkId: network,
+			networkId: net,
 		});
 		walletConnected.set(true);
 	};
 
-	const initClient = async ($fetch?: BetterFetch): Promise<boolean> => {
-		if (clientInitialized) return true;
-		if (initClientPromise) return initClientPromise;
+	const initClientForNetwork = async (network: "mainnet" | "testnet", $fetch?: BetterFetch): Promise<boolean> => {
+		if (initializedNetworks.has(network)) return true;
+		if (initPromises.has(network)) return initPromises.get(network)!;
 		if (typeof (globalThis as any).window === "undefined") return false;
 
-		initClientPromise = (async () => {
+		const initPromise = (async () => {
 			const NearConnector = await loadConnector();
-			connector = new NearConnector({ network, cspNonce: config.cspNonce });
-			near = new Near({
+			const connector = new NearConnector({ network, cspNonce: config.cspNonce });
+			connectors.set(network, connector);
+
+			const near = new Near({
 				network,
 				wallet: fromNearConnect(connector),
 			});
+			nearClients.set(network, near);
 
 			connector.on("wallet:signIn", async (data: EventMap["wallet:signIn"]) => {
 				const accountId = data.accounts?.[0]?.accountId;
 				const publicKey = data.accounts?.[0]?.publicKey;
 				if (accountId) {
-					await handleAccountConnection(accountId, publicKey);
+					await handleAccountConnection(accountId, publicKey, network);
 				}
 			});
 
@@ -121,11 +144,12 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 			void connector.getConnectedWallet().then(({ accounts }) => {
 				const account = accounts?.[0];
+				const net = activeNetwork.get();
 				if (account?.accountId && !nearState.get()) {
 					nearState.set({
 						accountId: account.accountId,
 						publicKey: account.publicKey ?? null,
-						networkId: network,
+						networkId: net,
 					});
 				}
 				if (account?.accountId) {
@@ -133,21 +157,27 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				}
 			}).catch(() => {});
 
+			initializedNetworks.add(network);
+
 			if ($fetch) {
 				void restoreFromSession($fetch);
 			}
 
-			clientInitialized = true;
 			return true;
 		})();
 
+		initPromises.set(network, initPromise);
+
 		try {
-			return await initClientPromise;
+			return await initPromise;
 		} finally {
-			if (!clientInitialized) {
-				initClientPromise = null;
-			}
+			initPromises.delete(network);
 		}
+	};
+
+	const initClient = async ($fetch?: BetterFetch): Promise<boolean> => {
+		const network = activeNetwork.get();
+		return initClientForNetwork(network, $fetch);
 	};
 
 	let sessionRestored = false;
@@ -171,24 +201,31 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 						publicKey: primary.publicKey ?? null,
 						networkId: primary.network as "mainnet" | "testnet",
 					});
+					activeNetwork.set(primary.network as "mainnet" | "testnet");
 				}
 			}
 		} catch {}
 		sessionRestored = true;
 	};
 
-	const requireConnector = async () => {
-		if (!connector) throw new Error("Wallet not initialized — this operation requires a browser environment");
+	const requireConnector = async (network?: "mainnet" | "testnet") => {
+		const net = network || activeNetwork.get();
+		await initClientForNetwork(net);
+		const connector = connectors.get(net);
+		if (!connector) throw new Error(`Wallet not initialized for ${net} — this operation requires a browser environment`);
 		return connector;
 	};
 
-	const requireNear = (): Near => {
-		if (!near) throw new Error("Wallet not initialized — this operation requires a browser environment");
-		return near;
+	const requireNear = (network?: "mainnet" | "testnet"): Near => {
+		const net = network || activeNetwork.get();
+		const client = nearClients.get(net);
+		if (!client) throw new Error(`Wallet not initialized for ${net} — this operation requires a browser environment`);
+		return client;
 	};
 
-	const ensureWalletConnected = async (): Promise<boolean> => {
-		const conn = await requireConnector();
+	const ensureWalletConnected = async (network?: "mainnet" | "testnet"): Promise<boolean> => {
+		const net = network || activeNetwork.get();
+		const conn = await requireConnector(net);
 		if (walletConnected.get()) {
 			try {
 				const { accounts } = await conn.getConnectedWallet();
@@ -201,7 +238,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				const accountId = data.accounts?.[0]?.accountId;
 				const publicKey = data.accounts?.[0]?.publicKey;
 				if (accountId) {
-					handleAccountConnection(accountId, publicKey);
+					handleAccountConnection(accountId, publicKey, net);
 					resolve(true);
 				}
 			};
@@ -218,12 +255,14 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 	};
 
 	const signWithWallet = async (): Promise<SignWithWalletResult> => {
-		const conn = await requireConnector();
-		const nearClient = requireNear();
+		const net = activeNetwork.get();
+		const conn = await requireConnector(net);
+		const nearClient = requireNear(net);
+		const recipient = getRecipient(net);
 
 		const nonceBytes = generateNonce();
 		const nonceHex = hex.encode(nonceBytes);
-		const message = `Sign in to ${config.recipient}`;
+		const message = `Sign in to ${recipient}`;
 
 		let connectedWallet: Awaited<ReturnType<typeof conn.getConnectedWallet>> | null = null;
 		try {
@@ -231,9 +270,18 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		} catch {}
 
 		if (connectedWallet?.accounts?.length) {
+			const accountId: string = connectedWallet.accounts[0]!.accountId;
+			const isTestnetAccount = accountId.endsWith(".testnet");
+			const isExpectedNetwork = (net === "testnet") === isTestnetAccount;
+			if (!isExpectedNetwork) {
+				connectedWallet = null;
+			}
+		}
+
+		if (connectedWallet?.accounts?.length) {
 			const signedMessage = await nearClient.signMessage({
 				message,
-				recipient: config.recipient,
+				recipient,
 				nonce: nonceBytes,
 			});
 
@@ -267,7 +315,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 			await conn.connect({
 				signMessageParams: {
 					message,
-					recipient: config.recipient,
+					recipient,
 					nonce: nonceBytes,
 				},
 			});
@@ -291,19 +339,20 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		receiverId: string,
 		buildActions: (builder: TransactionBuilder, receiverId: string) => TransactionBuilder,
 	): Promise<string> => {
+		const net = activeNetwork.get();
 		const state = nearState.get();
 		if (!state?.accountId) {
 			throw new Error("No NEAR account found — please sign in with your NEAR wallet");
 		}
 
 		if (!walletConnected.get()) {
-			const reconnected = await ensureWalletConnected();
+			const reconnected = await ensureWalletConnected(net);
 			if (!reconnected) {
 				throw new Error("Wallet connection required — please approve the connection to sign");
 			}
 		}
 
-		const nearClient = requireNear();
+		const nearClient = requireNear(net);
 		const builder = buildActions(nearClient.transaction(state.accountId), receiverId);
 
 		const { payload } = await builder.delegate();
@@ -317,6 +366,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		getAtoms: (_$fetch) => ({
 			nearState,
 			walletConnected,
+			activeNetwork,
 		}),
 
 		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined): SIWNClientActions => {
@@ -359,39 +409,49 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					getState: () => nearState.get(),
 					isWalletConnected: () => walletConnected.get(),
 					ensureConnected: async () => {
-						if (!clientInitialized) {
-							if (!(await initClient())) return false;
+						const net = activeNetwork.get();
+						if (!initializedNetworks.has(net)) {
+							if (!(await initClientForNetwork(net))) return false;
 						}
 						if (walletConnected.get()) {
 							try {
-								const { accounts } = await (await requireConnector()).getConnectedWallet();
-								if (accounts?.length) return true;
-		} catch (err) {
-			console.error("[siwn] restoreFromSession failed:", err instanceof Error ? err.message : err);
-		}
+								const conn = connectors.get(net);
+								if (conn) {
+									const { accounts } = await conn.getConnectedWallet();
+									if (accounts?.length) return true;
+								}
+							} catch (err) {
+								console.error("[siwn] restoreFromSession failed:", err instanceof Error ? err.message : err);
+							}
 						}
-						return ensureWalletConnected();
+						return ensureWalletConnected(net);
 					},
 					disconnect: async () => {
-						if (connector) await connector.disconnect();
+						for (const [_net, conn] of connectors) {
+							if (conn) {
+								try { await conn.disconnect(); } catch {}
+							}
+						}
 						walletConnected.set(false);
 						nearState.set(null);
 					},
 					link: async (
 						callbacks?: AuthCallbacks
 					): Promise<void> => {
+						const net = activeNetwork.get();
+						const recipient = getRecipient(net);
 						try {
 							const { signedMessage, accountId, nonceHex } = await signWithWallet();
-							const message = `Sign in to ${config.recipient}`;
+							const message = `Sign in to ${recipient}`;
 
-							await handleAccountConnection(accountId, signedMessage.publicKey);
+							await handleAccountConnection(accountId, signedMessage.publicKey, net);
 
 							const linkResponse = await $fetch<{ success: boolean; accountId: string; network: string; message: string }>("/near/link-account", {
 								method: "POST",
 								body: {
 									signedMessage,
 									message,
-									recipient: config.recipient,
+									recipient,
 									nonce: nonceHex,
 									accountId,
 								}
@@ -438,6 +498,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								publicKey: activeAccount.publicKey ?? null,
 								networkId: activeAccount.network,
 							});
+							activeNetwork.set(activeAccount.network as "mainnet" | "testnet");
 						}
 						return response;
 					},
@@ -460,9 +521,10 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							method: "GET",
 						});
 					},
-					getRelayerInfo: async (): Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>> => {
+					getRelayerInfo: async (params?: GetRelayerInfoRequestT): Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>> => {
 						return await $fetch("/near/relayer-info", {
-							method: "GET",
+							method: "POST",
+							body: params ?? {},
 						});
 					},
 					relayHistory: async (): Promise<BetterFetchResponse<RelayHistoryResponseT>> => {
@@ -470,9 +532,39 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							method: "GET",
 						});
 					},
+					createSubAccount: async (params: CreateSubAccountRequestT): Promise<BetterFetchResponse<CreateSubAccountResponseT>> => {
+						return await $fetch("/near/create-sub-account", {
+							method: "POST",
+							body: params,
+						});
+					},
+					checkSubAccountAvailability: async (params: CheckSubAccountAvailabilityRequestT): Promise<BetterFetchResponse<CheckSubAccountAvailabilityResponseT>> => {
+						return await $fetch("/near/check-sub-account-availability", {
+							method: "POST",
+							body: params,
+						});
+					},
+					setNetwork: (network: "mainnet" | "testnet") => {
+						const prev = activeNetwork.get();
+						if (prev !== network) {
+							const oldConn = connectors.get(prev);
+							if (oldConn) {
+								void oldConn.disconnect().catch(() => {});
+							}
+							walletConnected.set(false);
+							nearState.set(null);
+						}
+						activeNetwork.set(network);
+						void initClientForNetwork(network);
+					},
+					getNetwork: () => activeNetwork.get(),
+					getSupportedNetworks: () => getSupportedNetworks(),
+					getRecipient: (network?: "mainnet" | "testnet") => getRecipient(network),
 					get client(): NearType {
-						if (!near) throw new Error("Wallet not initialized — this operation requires a browser environment");
-						return near;
+						const net = activeNetwork.get();
+						const client = nearClients.get(net);
+						if (!client) throw new Error(`Wallet not initialized for ${net} — this operation requires a browser environment`);
+						return client;
 					},
 				},
 				signIn: {
@@ -481,16 +573,18 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					): Promise<void> => {
 						try {
 							const { signedMessage, accountId, nonceHex } = await signWithWallet();
-							const message = `Sign in to ${config.recipient}`;
+							const net = activeNetwork.get();
+							const recipient = getRecipient(net);
+							const message = `Sign in to ${recipient}`;
 
-							await handleAccountConnection(accountId, signedMessage.publicKey);
+							await handleAccountConnection(accountId, signedMessage.publicKey, net);
 
 							const verifyResponse: BetterFetchResponse<VerifyResponseT> = await $fetch("/near/verify", {
 								method: "POST",
 								body: {
 									signedMessage,
 									message,
-									recipient: config.recipient,
+									recipient,
 									nonce: nonceHex,
 									accountId,
 								}

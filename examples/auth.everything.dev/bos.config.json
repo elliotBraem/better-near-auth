@@ -10,6 +10,18 @@
   },
   "repository": "https://github.com/nearbuilders/everything-dev",
   "app": {
+    "host": {
+      "development": "local:host",
+      "production": "https://elliot-braem-4578-host-everything-dev-nearbuilder-195763a9c-ze.zephyrcloud.app",
+      "secrets": [
+        "CORS_ORIGIN",
+        "TENANT_WHITELIST",
+        "ALLOW_OVERRIDE",
+        "ALLOW_UNTRUSTED_SSR",
+        "CSP_STRICT"
+      ],
+      "integrity": "sha384-tEguGZihnWOCjrRHrtjycqEQEkNATlaT1FA9yy0NA9IThWMn52dtBZFKppKss5sP"
+    },
     "ui": {
       "name": "ui",
       "development": "local:ui"
@@ -24,75 +36,46 @@
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-3605-everything-dev-auth-plugin-bett-f19f96ec0-ze.zephyrcloud.app",
-      "integrity": "sha384-0+6PBccgYZwLDVxJJ3LDeA0EledPagot9TwxGvq59+qoJaBVc8qHJcxPTJNiHI6X",
+      "production": "https://elliot-braem-4250-everything-dev-auth-plugin-bett-01cc31550-ze.zephyrcloud.app",
+      "integrity": "sha384-HGCj8X8OaADQo1cBP6gyaTEdaGpEqO7EWWlpdp/3Xx4LyM/uVHmLfXTTgdl3NZ9S",
+      "variables": {
+        "baseUrl": "https://auth.everything.near",
+        "trustedOrigins": [
+          "https://everything.dev",
+          "https://*.everything.dev"
+        ],
+        "socialProviders": {
+          "github": {
+            "clientId": ""
+          }
+        },
+        "passkey": {
+          "rpID": "everything.dev",
+          "rpName": "Better NEAR Auth"
+        },
+        "siwn": {
+          "recipients": {
+            "mainnet": "auth.everything.near",
+            "testnet": "dev.allthethings.testnet"
+          },
+          "relayer": {
+            "accountId": ""
+          }
+        }
+      },
       "secrets": [
         "AUTH_DATABASE_URL",
         "BETTER_AUTH_SECRET",
-        "CORS_ORIGIN",
-        "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
-        "PASSKEY_RP_ID",
-        "PASSKEY_RP_NAME",
-        "PASSKEY_ORIGIN",
+        "FASTNEAR_API_KEY",
         "TWILIO_ACCOUNT_SID",
         "TWILIO_AUTH_TOKEN",
-        "TWILIO_PHONE_NUMBER"
+        "TWILIO_PHONE_NUMBER",
+        "NEAR_RELAYER_PRIVATE_KEY",
+        "NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET",
+        "NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET"
       ]
     }
   },
-  "shared": {
-    "ui": {
-      "effect": {
-        "version": "3.21.0",
-        "requiredVersion": "^3.21.0",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "zod": {
-        "version": "4.3.6",
-        "requiredVersion": "^4.3.6",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@orpc/contract": {
-        "version": "1.13.14",
-        "requiredVersion": "^1.13.14",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-auth": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "better-near-auth": {
-        "version": "1.4.2",
-        "requiredVersion": "^1.4.2",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@better-auth/api-key": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      },
-      "@better-auth/passkey": {
-        "version": "1.6.9",
-        "requiredVersion": "^1.6.9",
-        "singleton": true,
-        "strictVersion": false,
-        "shareScope": "default"
-      }
-    },
-    "plugins": {}
-  }
+  "plugins": {}
 }

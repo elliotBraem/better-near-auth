@@ -78,11 +78,42 @@ const sessionDataSchema = z.object({
   user: sessionUserSchema.nullable(),
 });
 
+const userPrincipalSchema = z.object({
+  type: z.literal("user"),
+  userId: z.string(),
+  user: sessionUserSchema,
+});
+
+const organizationPrincipalSchema = z.object({
+  type: z.literal("organization"),
+  organizationId: z.string(),
+});
+
+const anonymousPrincipalSchema = z.object({
+  type: z.literal("anonymous"),
+  userId: z.string(),
+  user: sessionUserSchema.nullable(),
+});
+
+const principalSchema = z.union([
+  userPrincipalSchema,
+  organizationPrincipalSchema,
+  anonymousPrincipalSchema,
+]);
+
+const apiKeyContextSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  permissions: z.record(z.string(), z.array(z.string())).nullable(),
+});
+
 const requestContextSchema = z.object({
   user: sessionUserSchema.nullable(),
   userId: z.string().nullable(),
   isAuthenticated: z.boolean(),
   authMethod: z.enum(["session", "apiKey", "anonymous", "none"]),
+  principal: principalSchema.nullable(),
+  apiKey: apiKeyContextSchema.nullable(),
   near: nearCapabilitiesSchema,
   organization: organizationContextSchema,
   organizations: z
@@ -99,6 +130,8 @@ const requestContextSchema = z.object({
 
 export const apiKeySchema = z.object({
   id: z.string(),
+  configId: z.string(),
+  referenceId: z.string(),
   name: z.string().nullable(),
   prefix: z.string().nullable(),
   start: z.string().nullable(),
@@ -213,6 +246,7 @@ const relayerInfoOutputSchema = z.object({
   storageBytes: z.number().optional(),
   hasContract: z.boolean().optional(),
   hasKey: z.boolean().optional(),
+  publicKey: z.string().optional(),
   createdAt: z.string().optional(),
   lastUsedAt: z.string().optional(),
 });
@@ -455,6 +489,7 @@ export const contract = oc.router({
         metadata: z.unknown().optional(),
         rateLimit: apiKeyRateLimitSchema.optional(),
         organizationId: z.string().optional(),
+        configId: z.string().optional(),
       }),
     )
     .output(apiKeySchema.extend({ key: z.string() }))
@@ -491,6 +526,7 @@ export const contract = oc.router({
     .input(
       z.object({
         key: z.string(),
+        configId: z.string().optional(),
         permissions: z.record(z.string(), z.array(z.string())).optional(),
       }),
     )
@@ -637,7 +673,12 @@ export const contract = oc.router({
     .errors(Errors),
 
   nearRelayerInfo: oc
-    .route({ method: "GET", path: "/v1/near/relayer-info" })
+    .route({ method: "POST", path: "/v1/near/relayer-info" })
+    .input(
+      z.object({
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
     .output(relayerInfoOutputSchema)
     .errors(Errors),
 
@@ -656,6 +697,40 @@ export const contract = oc.router({
       }),
     )
     .output(z.object({ result: z.unknown() }))
+    .errors(Errors),
+
+  nearCheckSubAccountAvailability: oc
+    .route({ method: "POST", path: "/v1/near/check-sub-account-availability" })
+    .input(
+      z.object({
+        subAccountId: z.string(),
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        available: z.boolean(),
+        accountId: z.string(),
+      }),
+    )
+    .errors(Errors),
+
+  nearCreateSubAccount: oc
+    .route({ method: "POST", path: "/v1/near/create-sub-account" })
+    .input(
+      z.object({
+        subAccountId: z.string(),
+        publicKey: z.string(),
+        network: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
+    .output(
+      z.object({
+        success: z.boolean(),
+        accountId: z.string(),
+        txHash: z.string().optional(),
+      }),
+    )
     .errors(Errors),
 });
 

@@ -27,6 +27,7 @@ export const Route = createFileRoute("/_layout/_authenticated/guestbook")({
             contractId: "hello.near-examples.near",
             methodName: "get_greeting",
           });
+          if (res.error) return undefined;
           const result = res?.data?.result;
           return typeof result === "string" ? result : undefined;
         },

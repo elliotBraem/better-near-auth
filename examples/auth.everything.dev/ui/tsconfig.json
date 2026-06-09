@@ -20,7 +20,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "better-near-auth": ["../../../src"],
+      "better-near-auth/*": ["../../../src/*"]
     }
   }
 }

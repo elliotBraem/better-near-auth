@@ -30,9 +30,7 @@ describe("resolvePasskeyRelyingPartyOptions", () => {
     expect(
       resolvePasskeyRelyingPartyOptions({
         baseUrl: "http://localhost:3000",
-        passkeyOrigin: "https://auth.example.com/passkey",
-        passkeyRpId: "https://example.com:443",
-        passkeyRpName: "Example Auth",
+        passkey: { origin: "https://auth.example.com/passkey", rpID: "https://example.com:443", rpName: "Example Auth" },
       }),
     ).toEqual({
       rpID: "example.com",
@@ -45,7 +43,7 @@ describe("resolvePasskeyRelyingPartyOptions", () => {
     expect(
       resolvePasskeyRelyingPartyOptions({
         baseUrl: "http://localhost:3000",
-        passkeyOrigin: "localhost:3000",
+        passkey: { origin: "localhost:3000" },
       }),
     ).toMatchObject({
       rpID: "localhost",
@@ -57,7 +55,7 @@ describe("resolvePasskeyRelyingPartyOptions", () => {
     expect(() =>
       resolvePasskeyRelyingPartyOptions({
         baseUrl: "http://localhost:3000",
-        passkeyOrigin: "https://",
+        passkey: { origin: "https://" },
       }),
     ).toThrow('Invalid passkey origin value: "https://"');
   });
@@ -66,7 +64,7 @@ describe("resolvePasskeyRelyingPartyOptions", () => {
     expect(() =>
       resolvePasskeyRelyingPartyOptions({
         baseUrl: "http://localhost:3000",
-        passkeyRpId: "https://",
+        passkey: { rpID: "https://" },
       }),
     ).toThrow('Invalid passkey RP ID value: "https://"');
   });

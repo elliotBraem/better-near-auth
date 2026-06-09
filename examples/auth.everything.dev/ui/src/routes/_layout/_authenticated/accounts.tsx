@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { sessionQueryOptions } from "@/app";
 import {
   AccountLinkingCard,
+  SubAccountCreationCard,
   useNearAccountsData,
   useSessionData,
 } from "@/components/demo-sections";
@@ -46,6 +47,7 @@ function AccountsPage() {
       </div>
 
       <AccountLinkingCard linkedAccounts={linkedAccounts} user={user} />
+      <SubAccountCreationCard />
     </div>
   );
 }

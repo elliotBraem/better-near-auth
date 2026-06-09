@@ -2,19 +2,21 @@ import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware }
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, BetterAuthPlugin, User, DBAdapter } from "better-auth/types";
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
-import type { SignedMessage, SignMessageParams, SignedDelegateAction } from "near-kit";
+import type { SignedMessage, SignMessageParams, SignedDelegateAction, PrivateKey } from "near-kit";
 import { hex, base58 } from "@scure/base";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
 import { schema } from "./schema.js";
 import type {
 	AccountId,
+	DualNetworkConfig,
 	ListAccountsResponseT,
 	ListedNearAccount,
 	NearAccount,
 	Profile,
 	RelayerInfo,
 	RelayedTransactionRecord,
+	SubAccountConfig,
 } from "./types.js";
 import {
 	LinkAccountRequest,
@@ -30,6 +32,11 @@ import {
 	SetPrimaryAccountRequest,
 	ViewContractRequest,
 	ViewContractResponse,
+	GetRelayerInfoRequest,
+	CreateSubAccountRequest,
+	CreateSubAccountResponse,
+	CheckSubAccountAvailabilityRequest,
+	CheckSubAccountAvailabilityResponse,
 } from "./types.js";
 export * from "./types.js";
 import {
@@ -106,6 +113,7 @@ interface RelayerState {
 	accountId: string;
 	network: "mainnet" | "testnet";
 	mode: "ephemeral" | "explicit";
+	publicKey: string;
 	createdAt?: Date;
 	lastUsedAt?: Date;
 }
@@ -158,11 +166,13 @@ async function initRelayer(
 		}
 
 		const near = createNear(network, headers, rpcUrl, keyStore);
+		const explicitPublicKey = parseKey(keys[0]!);
 		return {
 			near,
 			accountId: relayerConfig.accountId,
 			network,
 			mode: "explicit",
+			publicKey: explicitPublicKey.publicKey.toString(),
 		};
 	}
 
@@ -188,6 +198,7 @@ async function initRelayer(
 			accountId,
 			network,
 			mode: "ephemeral",
+			publicKey: keyPair.publicKey.toString(),
 			createdAt: existing.createdAt,
 			lastUsedAt: existing.lastUsedAt,
 		};
@@ -201,6 +212,7 @@ async function initRelayer(
 
 	const publicKeyBase58 = keyPair.publicKey.toString().replace("ed25519:", "");
 	const accountId = bytesToHex(keyPair.publicKey.data);
+	const createdAt = new Date();
 
 	const { encrypted, iv } = await encryptPrivateKey(privateKeyBytes, secret);
 
@@ -212,7 +224,8 @@ async function initRelayer(
 				iv,
 				publicKey: `ed25519:${publicKeyBase58}`,
 				network,
-				createdAt: new Date(),
+				createdAt,
+				lastUsedAt: createdAt,
 			},
 		});
 
@@ -229,7 +242,9 @@ async function initRelayer(
 		accountId,
 		network,
 		mode: "ephemeral",
-		createdAt: new Date(),
+		publicKey: keyPair.publicKey.toString(),
+		createdAt,
+		lastUsedAt: createdAt,
 	};
 }
 
@@ -262,8 +277,25 @@ async function defaultValidateLimitedAccessKey(
 	return false;
 }
 
+function isImplicitAccount(accountId: string): boolean {
+	return /^[0-9a-f]{64}$/.test(accountId);
+}
+
+function resolveParentAccount(
+	subAccountCfg: SubAccountConfig | undefined,
+	rState: RelayerState | null,
+): { parentAccount: string | null; subAccountAvailable: boolean } {
+	if (!rState) return { parentAccount: null, subAccountAvailable: false };
+	const parent = subAccountCfg?.parentAccount ?? rState.accountId;
+	if (!parent || isImplicitAccount(parent)) {
+		return { parentAccount: null, subAccountAvailable: false };
+	}
+	return { parentAccount: parent, subAccountAvailable: true };
+}
+
 export interface SIWNPluginOptions {
-	recipient: string;
+	recipient?: string;
+	recipients?: DualNetworkConfig<string>;
 	requireFullAccessKey?: boolean;
 	getNonce?: () => Promise<Uint8Array>;
 	getProfile?: (accountId: AccountId) => Promise<Profile | null>;
@@ -273,14 +305,54 @@ export interface SIWNPluginOptions {
 		recipient?: string;
 	}) => Promise<boolean>;
 	apiKey?: string;
-	rpcUrl?: string;
-	relayer?: RelayerConfig;
+	rpcUrl?: string | DualNetworkConfig<string>;
+	relayer?: RelayerConfig | DualNetworkConfig<RelayerConfig>;
+	subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
 }
 
 export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
+	if (!options.recipient && !options.recipients) {
+		throw new Error("Either 'recipient' or 'recipients' must be provided to siwn plugin");
+	}
+
 	const apiKey = options.apiKey;
-	let relayerState: RelayerState | null = null;
-	let relayerInitialized = false;
+
+	const getRecipient = (network: "mainnet" | "testnet"): string => {
+		if (options.recipients) return options.recipients[network];
+		return options.recipient!;
+	};
+
+	const getSupportedNetworks = (): ("mainnet" | "testnet")[] => {
+		if (options.recipients) return ["mainnet", "testnet"];
+		if (options.recipient) return [getNetworkFromAccountId(options.recipient)];
+		return ["mainnet"];
+	};
+
+	const getRelayerConfig = (network: "mainnet" | "testnet"): RelayerConfig | undefined => {
+		if (!options.relayer) return undefined;
+		if ("mainnet" in options.relayer && typeof options.relayer.mainnet === "object") {
+			return (options.relayer as DualNetworkConfig<RelayerConfig>)[network];
+		}
+		return options.relayer as RelayerConfig;
+	};
+
+	const getRpcUrl = (network: "mainnet" | "testnet"): string | undefined => {
+		if (!options.rpcUrl) return undefined;
+		if (typeof options.rpcUrl === "object") return (options.rpcUrl as DualNetworkConfig<string>)[network];
+		return options.rpcUrl as string;
+	};
+
+	const getSubAccountConfig = (network: "mainnet" | "testnet"): SubAccountConfig | undefined => {
+		if (!options.subAccount) return undefined;
+		if ("mainnet" in options.subAccount && typeof options.subAccount.mainnet === "object") {
+			return (options.subAccount as DualNetworkConfig<SubAccountConfig>)[network];
+		}
+		return options.subAccount as SubAccountConfig;
+	};
+
+	const primaryNetwork = getSupportedNetworks()[0];
+	const relayerStates = new Map<"mainnet" | "testnet", RelayerState | null>();
+	const relayerInitPromises = new Map<"mainnet" | "testnet", Promise<RelayerState | null>>();
 
 	const headers: Record<string, string> = {};
 	if (apiKey) {
@@ -288,15 +360,33 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 	}
 
 	const ensureRelayer = async (adapter: DBAdapter, secret: string | undefined, network: "mainnet" | "testnet") => {
-		if (relayerInitialized) return relayerState;
-		relayerInitialized = true;
-		relayerState = await initRelayer(options.relayer, network, adapter, secret, apiKey, options.rpcUrl);
-		return relayerState;
+		if (relayerStates.has(network)) return relayerStates.get(network) ?? null;
+
+		const existingInit = relayerInitPromises.get(network);
+		if (existingInit) return existingInit;
+
+		const relayerCfg = getRelayerConfig(network);
+		const networkRpcUrl = getRpcUrl(network);
+
+		const initPromise = initRelayer(relayerCfg, network, adapter, secret, apiKey, networkRpcUrl)
+			.then((state) => {
+				relayerStates.set(network, state);
+				relayerInitPromises.delete(network);
+				return state;
+			})
+			.catch((error) => {
+				relayerInitPromises.delete(network);
+				throw error;
+			});
+
+		relayerInitPromises.set(network, initPromise);
+		return initPromise;
 	};
 
 	const getNear = (network: "mainnet" | "testnet") => {
-		if (options.rpcUrl) {
-			return new Near({ network: { rpcUrl: options.rpcUrl, networkId: network }, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined });
+		const networkRpcUrl = getRpcUrl(network);
+		if (networkRpcUrl) {
+			return new Near({ network: { rpcUrl: networkRpcUrl, networkId: network }, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined });
 		}
 		return new Near({ network, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined });
 	};
@@ -774,7 +864,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						if (!options.requireFullAccessKey) {
 							const validateKey = options.validateLimitedAccessKey
 								|| ((args: { accountId: string; publicKey: string; recipient?: string }) =>
-									defaultValidateLimitedAccessKey(args.accountId, args.publicKey, args.recipient || options.recipient, near));
+									defaultValidateLimitedAccessKey(args.accountId, args.publicKey, args.recipient || getRecipient(network), near));
 
 							const isValidKey = await validateKey({
 								accountId: accountId,
@@ -980,9 +1070,9 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 							});
 						}
 
-						const relayerConfig = options.relayer;
-						if (relayerConfig?.whitelistedContracts?.length) {
-							if (!relayerConfig.whitelistedContracts.includes(delegateAction.receiverId)) {
+						const relayerConfigForNetwork = getRelayerConfig(network);
+						if (relayerConfigForNetwork?.whitelistedContracts?.length) {
+							if (!relayerConfigForNetwork.whitelistedContracts.includes(delegateAction.receiverId)) {
 								throw new APIError("FORBIDDEN", {
 									message: `Contract ${delegateAction.receiverId} is not whitelisted for relay`,
 									status: 403,
@@ -990,27 +1080,27 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 							}
 						}
 
-						if (relayerConfig?.maxGasPerTransaction) {
+						if (relayerConfigForNetwork?.maxGasPerTransaction) {
 							const totalGas = delegateAction.actions.reduce((sum: bigint, a) => {
 								return sum + ("functionCall" in a ? a.functionCall.gas : 0n);
 							}, 0n);
-							if (totalGas > BigInt(relayerConfig.maxGasPerTransaction)) {
+							if (totalGas > BigInt(relayerConfigForNetwork.maxGasPerTransaction)) {
 								throw new APIError("BAD_REQUEST", {
-									message: `Transaction gas (${totalGas}) exceeds relayer limit (${relayerConfig.maxGasPerTransaction})`,
+									message: `Transaction gas (${totalGas}) exceeds relayer limit (${relayerConfigForNetwork.maxGasPerTransaction})`,
 									status: 400,
 								});
 							}
 						}
 
-						if (relayerConfig?.maxDepositPerTransaction) {
+						if (relayerConfigForNetwork?.maxDepositPerTransaction) {
 							const totalDeposit = delegateAction.actions.reduce((sum: bigint, a) => {
 								if ("functionCall" in a) return sum + a.functionCall.deposit;
 								if ("transfer" in a) return sum + a.transfer.deposit;
 								return sum;
 							}, 0n);
-							if (totalDeposit > BigInt(relayerConfig.maxDepositPerTransaction)) {
+							if (totalDeposit > BigInt(relayerConfigForNetwork.maxDepositPerTransaction)) {
 								throw new APIError("BAD_REQUEST", {
-									message: `Transaction deposit (${totalDeposit}) exceeds relayer limit (${relayerConfig.maxDepositPerTransaction})`,
+									message: `Transaction deposit (${totalDeposit}) exceeds relayer limit (${relayerConfigForNetwork.maxDepositPerTransaction})`,
 									status: 400,
 								});
 							}
@@ -1123,27 +1213,23 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 			getRelayerInfo: createAuthEndpoint(
 				"/near/relayer-info",
 				{
-					method: "GET",
+					method: "POST",
+					body: GetRelayerInfoRequest,
 					use: [sessionMiddleware],
 				},
 				async (ctx) => {
-					const session = ctx.context.session;
-					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
-						model: "nearAccount",
-						where: [
-							{ field: "userId", operator: "eq", value: session.user.id },
-							{ field: "isPrimary", operator: "eq", value: true },
-						],
-					});
-
-					const network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
-					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+					const { network: requestedNetwork } = ctx.body;
+					const targetNetwork = (requestedNetwork ?? primaryNetwork) as "mainnet" | "testnet";
+					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, targetNetwork);
 
 					if (!rState) {
-						return ctx.json({ enabled: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
+						return ctx.json({ enabled: false, subAccountAvailable: false } satisfies Partial<RelayerInfo> & { enabled: boolean });
 					}
 
-					const near = getNear(network);
+					const subAccountCfg = getSubAccountConfig(targetNetwork);
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+
+					const near = getNear(rState.network);
 					let account;
 					try {
 						account = await near.getAccount(rState.accountId);
@@ -1164,6 +1250,7 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						accountId: rState.accountId,
 						mode: rState.mode,
 						network: rState.network,
+						publicKey: rState.publicKey,
 						balance: account.balance,
 						available: account.available,
 						staked: account.staked,
@@ -1173,6 +1260,8 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						hasKey: true,
 						createdAt: rState.createdAt,
 						lastUsedAt: rState.lastUsedAt,
+						parentAccount: parentAccount ?? undefined,
+						subAccountAvailable,
 					} as RelayerInfo & { enabled: boolean });
 				},
 			),
@@ -1238,10 +1327,180 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 						],
 					});
 
-					const network = (nearAccount?.network || "mainnet") as "mainnet" | "testnet";
+					const network = (nearAccount?.network || primaryNetwork) as "mainnet" | "testnet";
 					const near = getNear(network);
-					const result = await near.view(contractId, methodName, args ?? {});
+					let result: unknown;
+					try {
+						result = await near.view(contractId, methodName, args ?? {});
+					} catch (error: unknown) {
+						if (error instanceof APIError) throw error;
+						throw new APIError("BAD_REQUEST", {
+							message: error instanceof Error ? error.message : "Unknown error",
+						});
+					}
 					return ctx.json(ViewContractResponse.parse({ result }));
+				},
+			),
+			createSubAccount: createAuthEndpoint(
+				"/near/create-sub-account",
+				{
+					method: "POST",
+					body: CreateSubAccountRequest,
+					use: [sessionMiddleware],
+				},
+				async (ctx) => {
+					const { subAccountName, network: providedNetwork, publicKey } = ctx.body;
+					const session = ctx.context.session;
+
+					if (!session) {
+						throw new APIError("UNAUTHORIZED", {
+							message: "Must be authenticated to create a sub-account",
+							status: 401,
+						});
+					}
+
+					const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+						model: "nearAccount",
+						where: [
+							{ field: "userId", operator: "eq", value: session.user.id },
+							{ field: "isPrimary", operator: "eq", value: true },
+						],
+					});
+
+					const network = (providedNetwork || nearAccount?.network || primaryNetwork) as "mainnet" | "testnet";
+					const subAccountCfg = getSubAccountConfig(network);
+					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+
+					if (!rState) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Relayer not configured — sub-account creation requires a funded relayer",
+							status: 503,
+						});
+					}
+
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+
+					if (!subAccountAvailable || !parentAccount) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Sub-account creation requires a named parent account. Configure subAccount.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.",
+							status: 503,
+						});
+					}
+
+					if (parentAccount !== rState.accountId && !subAccountCfg?.parentKey) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Sub-account parent differs from relayer account. Configure subAccount.parentKey to enable signing as the parent account.",
+							status: 503,
+						});
+					}
+
+					const newAccountId = `${subAccountName}.${parentAccount}`;
+					const minDeposit = subAccountCfg?.minDeposit || "0.1 NEAR";
+
+					const near = getNear(network);
+					const exists = await near.accountExists(newAccountId);
+					if (exists) {
+						throw new APIError("CONFLICT", {
+							message: `Account ${newAccountId} already exists on ${network}`,
+							status: 409,
+						});
+					}
+
+					let txBuilder = rState.near
+						.transaction(parentAccount)
+						.createAccount(newAccountId)
+						.addKey(publicKey, { type: "fullAccess" });
+
+					if (subAccountCfg?.parentKey) {
+						txBuilder = txBuilder.signWith(subAccountCfg.parentKey as PrivateKey);
+					}
+
+					if (subAccountCfg?.addRelayerFCAK !== false && subAccountCfg?.relayerFCAK) {
+						const fcakPermission: { type: "functionCall"; receiverId: string; methodNames?: string[]; allowance?: string } = {
+							type: "functionCall",
+							receiverId: subAccountCfg.relayerFCAK.receiverId,
+						};
+						if (subAccountCfg.relayerFCAK.methodNames) {
+							fcakPermission.methodNames = subAccountCfg.relayerFCAK.methodNames;
+						}
+						if (subAccountCfg.relayerFCAK.allowance) {
+							fcakPermission.allowance = subAccountCfg.relayerFCAK.allowance as `${number} NEAR` | `${bigint} yocto`;
+						}
+						txBuilder.addKey(rState.publicKey, fcakPermission as any);
+					}
+
+					txBuilder.transfer(newAccountId, minDeposit as `${number} NEAR`);
+
+					try {
+						await txBuilder.send({ waitUntil: "EXECUTED" });
+
+						await ctx.context.adapter.create({
+							model: "nearAccount",
+							data: {
+								userId: session.user.id,
+								accountId: newAccountId,
+								network,
+								publicKey,
+								isPrimary: false,
+								createdAt: new Date(),
+							},
+						});
+
+						await ctx.context.internalAdapter.createAccount({
+							userId: session.user.id,
+							providerId: "siwn",
+							accountId: `${newAccountId}:${network}`,
+							createdAt: new Date(),
+							updatedAt: new Date(),
+						});
+
+						return ctx.json(CreateSubAccountResponse.parse({
+							success: true,
+							accountId: newAccountId,
+							network,
+							publicKey,
+							message: `Sub-account ${newAccountId} created on ${network}`,
+						}));
+					} catch (error: unknown) {
+						const msg = error instanceof Error ? error.message : "Unknown error";
+						throw new APIError("INTERNAL_SERVER_ERROR", {
+							message: `Failed to create sub-account: ${msg}`,
+							status: 500,
+						});
+					}
+				},
+			),
+			checkSubAccountAvailability: createAuthEndpoint(
+				"/near/check-sub-account-availability",
+				{
+					method: "POST",
+					body: CheckSubAccountAvailabilityRequest,
+				},
+				async (ctx) => {
+					const { subAccountName, network: providedNetwork } = ctx.body;
+
+					const network = (providedNetwork || primaryNetwork) as "mainnet" | "testnet";
+					const subAccountCfg = getSubAccountConfig(network);
+					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+
+					if (!subAccountAvailable || !parentAccount) {
+						throw new APIError("SERVICE_UNAVAILABLE", {
+							message: "Sub-account creation requires a named parent account. Configure subAccount.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.",
+							status: 503,
+						});
+					}
+
+					const accountId = `${subAccountName}.${parentAccount}`;
+
+					const near = getNear(network);
+					const exists = await near.accountExists(accountId);
+
+					return ctx.json(CheckSubAccountAvailabilityResponse.parse({
+						available: !exists,
+						accountId,
+					}));
 				},
 			),
 		},

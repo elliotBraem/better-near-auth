@@ -18,3 +18,23 @@ updateJson("examples/auth.everything.dev/package.json", (json) => {
 updateJson("examples/auth.everything.dev/plugins/auth/package.json", (json) => {
 	json.dependencies["better-near-auth"] = range;
 });
+
+updateJson("examples/auth.everything.dev/bos.config.json", (json) => {
+	if (json.shared?.ui?.["better-near-auth"]) {
+		json.shared.ui["better-near-auth"].version = version;
+		json.shared.ui["better-near-auth"].requiredVersion = range;
+	}
+});
+
+const skillFiles = [
+	"skills/client/SKILL.md",
+	"skills/siwn/SKILL.md",
+	"skills/relay/SKILL.md",
+	"skills/tanstack/SKILL.md",
+];
+
+for (const file of skillFiles) {
+	let content = readFileSync(file, "utf8");
+	content = content.replace(/library_version: "\d+\.\d+\.\d+"/, `library_version: "${version}"`);
+	writeFileSync(file, content);
+}
