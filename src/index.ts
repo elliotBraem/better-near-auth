@@ -1,6 +1,11 @@
 import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import type { Account, BetterAuthPlugin, User, DBAdapter } from "better-auth/types";
+import type { Account, User, DBAdapter } from "better-auth/types";
+// Explicit type imports for declaration emit
+import type {} from "@better-auth/core/env";
+import type {} from "@better-auth/core/oauth2";
+import type {} from "better-call";
+
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
 import type { SignedMessage, SignMessageParams, SignedDelegateAction, PrivateKey } from "near-kit";
 import { hex, base58 } from "@scure/base";
@@ -310,7 +315,7 @@ export interface SIWNPluginOptions {
 	subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
 }
 
-export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
+export const siwn = (options: SIWNPluginOptions) => {
 	if (!options.recipient && !options.recipients) {
 		throw new Error("Either 'recipient' or 'recipients' must be provided to siwn plugin");
 	}
@@ -1504,5 +1509,5 @@ export const siwn = (options: SIWNPluginOptions): BetterAuthPlugin => {
 				},
 			),
 		},
-	} satisfies BetterAuthPlugin);
+	});
 };

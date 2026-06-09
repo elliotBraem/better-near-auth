@@ -200,6 +200,34 @@ function parseTrustedOrigins(
   return { baseUrl: baseUrl ?? "http://localhost:3000", trustedOrigins: [...new Set(origins)] };
 }
 
+function buildRelayerConfig(
+  siwn: AuthPluginVariables["siwn"],
+  secrets: AuthPluginSecrets,
+): AuthConfig["siwn"]["relayer"] {
+  if (!siwn.relayer?.accountId) return undefined;
+  return {
+    accountId: siwn.relayer.accountId,
+    privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
+  };
+}
+
+function buildSubAccountConfig(
+  siwn: AuthPluginVariables["siwn"],
+  secrets: AuthPluginSecrets,
+): AuthConfig["siwn"]["subAccount"] {
+  if (!siwn.subAccount) return undefined;
+  return {
+    mainnet: {
+      parentAccount: siwn.subAccount.mainnet?.parentAccount,
+      parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+    },
+    testnet: {
+      parentAccount: siwn.subAccount.testnet?.parentAccount,
+      parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
+    },
+  };
+}
+
 function normalizeAuthConfig(
   variables: AuthPluginVariables,
   secrets: AuthPluginSecrets,
@@ -209,48 +237,27 @@ function normalizeAuthConfig(
     variables.trustedOrigins,
   );
 
+  const relayer = buildRelayerConfig(variables.siwn, secrets);
+  const subAccount = buildSubAccountConfig(variables.siwn, secrets);
+  const commonSiwn = {
+    apiKey: variables.siwn.apiKey,
+    rpcUrl: variables.siwn.rpcUrl,
+    relayer,
+    subAccount,
+  };
+
   const siwn =
-    "recipients" in variables.siwn
+    variables.siwn.recipients !== undefined
       ? {
           recipients: {
             mainnet: variables.siwn.recipients.mainnet,
             testnet: variables.siwn.recipients.testnet,
           },
-          apiKey: variables.siwn.apiKey,
-          rpcUrl: variables.siwn.rpcUrl,
-          relayer: variables.siwn.relayer?.accountId
-            ? {
-                accountId: variables.siwn.relayer.accountId,
-                privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
-              }
-            : undefined,
-          subAccount: {
-            mainnet: {
-              parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
-              parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
-            },
-            testnet: {
-              parentAccount: variables.siwn.subAccount?.testnet?.parentAccount,
-              parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
-            },
-          },
+          ...commonSiwn,
         }
       : {
           recipient: variables.siwn.recipient,
-          apiKey: variables.siwn.apiKey,
-          rpcUrl: variables.siwn.rpcUrl,
-          relayer: variables.siwn.relayer?.accountId
-            ? {
-                accountId: variables.siwn.relayer.accountId,
-                privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
-              }
-            : undefined,
-          subAccount: {
-            mainnet: {
-              parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
-              parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
-            },
-          },
+          ...commonSiwn,
         };
 
   const authConfig: AuthConfig = {
