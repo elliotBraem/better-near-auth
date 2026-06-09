@@ -10,7 +10,7 @@ import {
   memberAc,
   ownerAc,
 } from "better-auth/plugins/organization/access";
-import { siwn, type SIWNPluginOptions } from "better-near-auth";
+import { type SIWNPluginOptions, siwn } from "better-near-auth";
 
 const orgStatements = {
   ...defaultStatements,
@@ -38,9 +38,7 @@ import type { AuthConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
-function isRecipientsConfig(
-  config: SIWNPluginOptions,
-): config is SIWNPluginOptions & {
+function isRecipientsConfig(config: SIWNPluginOptions): config is SIWNPluginOptions & {
   recipients: { mainnet: string; testnet: string };
 } {
   return "recipients" in config && config.recipients !== undefined;

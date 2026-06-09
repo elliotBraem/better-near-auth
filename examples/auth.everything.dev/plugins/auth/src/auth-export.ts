@@ -1,5 +1,5 @@
-import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { Auth as AuthInstance } from "./auth-instance";
 import type { InferInput, InferOutput } from "./contract";
 
