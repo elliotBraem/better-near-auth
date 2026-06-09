@@ -711,7 +711,8 @@ export default createPlugin({
               typeof result.metadata === "string"
                 ? tryJsonParse<Record<string, unknown>>(result.metadata)
                 : result.metadata,
-            createdAt: result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
+            createdAt:
+              result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
           };
         }),
 
@@ -771,26 +772,26 @@ export default createPlugin({
         }),
 
       inviteMember: builder.inviteMember.use(requireAuth).handler(async ({ input, context }) => {
-          const result = await safeAuthApi(() =>
-            services.auth.api.createInvitation({
-              headers: createHeaders(context.reqHeaders),
-              body: {
-                email: input.email,
-                role: input.role,
-                organizationId: input.organizationId,
-                resend: input.resend,
-              },
-            }),
-          );
-          return {
-            id: result.id,
-            organizationId: result.organizationId,
-            email: result.email,
-            role: result.role,
-            status: result.status,
-            expiresAt: result.expiresAt,
-            inviterId: result.inviterId,
-          };
+        const result = await safeAuthApi(() =>
+          services.auth.api.createInvitation({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              email: input.email,
+              role: input.role,
+              organizationId: input.organizationId,
+              resend: input.resend,
+            },
+          }),
+        );
+        return {
+          id: result.id,
+          organizationId: result.organizationId,
+          email: result.email,
+          role: result.role,
+          status: result.status,
+          expiresAt: result.expiresAt,
+          inviterId: result.inviterId,
+        };
       }),
 
       getInvitation: builder.getInvitation.handler(async ({ input }) => {
