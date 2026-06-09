@@ -51,7 +51,7 @@ jobs:
 
       - name: Test
         working-directory: examples/auth.everything.dev
-        run: bun test
+        run: bun run test
 
       - name: Build and deploy
         working-directory: examples/auth.everything.dev
