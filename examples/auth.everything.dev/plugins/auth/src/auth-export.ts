@@ -1,6 +1,6 @@
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import type { InferInput, InferOutput } from "./contract";
 import type { Auth as AuthInstance } from "./auth-instance";
+import type { InferInput, InferOutput } from "./contract";
 
 export type Auth = AuthInstance;
 export type { Auth as BaseAuth } from "better-auth";

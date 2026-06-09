@@ -30,7 +30,11 @@ describe("resolvePasskeyRelyingPartyOptions", () => {
     expect(
       resolvePasskeyRelyingPartyOptions({
         baseUrl: "http://localhost:3000",
-        passkey: { origin: "https://auth.example.com/passkey", rpID: "https://example.com:443", rpName: "Example Auth" },
+        passkey: {
+          origin: "https://auth.example.com/passkey",
+          rpID: "https://example.com:443",
+          rpName: "Example Auth",
+        },
       }),
     ).toEqual({
       rpID: "example.com",

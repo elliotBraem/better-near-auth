@@ -4,9 +4,9 @@ import { z } from "every-plugin/zod";
 import { contract } from "./contract";
 import { createDatabase } from "./db";
 import { migrate } from "./db/migrator";
-import type { PluginsClient } from "./lib/plugins-types.gen";
 import type { ApiKeyContext, RequestAuthUser } from "./lib/auth";
 import { createAuthMiddleware } from "./lib/auth";
+import type { PluginsClient } from "./lib/plugins-types.gen";
 
 export default createPlugin.withPlugins<PluginsClient>()({
   variables: z.object({}),
@@ -70,4 +70,4 @@ export default createPlugin.withPlugins<PluginsClient>()({
       }),
     };
   },
-})
+});

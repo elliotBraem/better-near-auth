@@ -34,15 +34,13 @@ const orgRoles = {
   }),
 };
 
-import type { AuthConfig, AuthSiwnConfig, AuthSiwnRecipientConfig, AuthSiwnRecipientsConfig } from "./auth-export";
+import type { AuthConfig, AuthSiwnConfig, AuthSiwnRecipientsConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
 
 function isRecipientsConfig(config: AuthSiwnConfig): config is AuthSiwnRecipientsConfig {
   return "recipients" in config && config.recipients !== undefined;
 }
-
-
 
 export interface PasskeyRelyingPartyOptions {
   rpID: string;
@@ -241,7 +239,9 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
   const twilioConfig = config.phoneNumber?.twilio;
   const githubConfig = config.socialProviders?.github;
   const siwnOptions = buildSiwnOptions(config);
-  const mainnetRecipient = isRecipientsConfig(siwnOptions) ? siwnOptions.recipients.mainnet : siwnOptions.recipient;
+  const mainnetRecipient = isRecipientsConfig(siwnOptions)
+    ? siwnOptions.recipients.mainnet
+    : siwnOptions.recipient;
 
   return betterAuth({
     database: drizzleAdapter(db, {

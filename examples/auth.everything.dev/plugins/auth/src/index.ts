@@ -4,9 +4,9 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
+import type { AuthConfig } from "./auth-export";
 import type { Auth } from "./auth-instance";
 import { createAuthInstance } from "./auth-instance";
-import type { AuthConfig } from "./auth-export";
 import type { InferOutput } from "./contract";
 import { type apiKeySchema, contract } from "./contract";
 import type { AuthDatabase, DatabaseDriver } from "./db/driver";
@@ -204,50 +204,54 @@ function normalizeAuthConfig(
   variables: AuthPluginVariables,
   secrets: AuthPluginSecrets,
 ): { authConfig: AuthConfig; apiKeyHeaders: string[] } {
-  const { baseUrl, trustedOrigins } = parseTrustedOrigins(variables.baseUrl, variables.trustedOrigins);
+  const { baseUrl, trustedOrigins } = parseTrustedOrigins(
+    variables.baseUrl,
+    variables.trustedOrigins,
+  );
 
-  const siwn = "recipients" in variables.siwn
-    ? {
-        recipients: {
-          mainnet: variables.siwn.recipients.mainnet,
-          testnet: variables.siwn.recipients.testnet,
-        },
-        apiKey: variables.siwn.apiKey,
-        rpcUrl: variables.siwn.rpcUrl,
-        relayer: variables.siwn.relayer?.accountId
-          ? {
-              accountId: variables.siwn.relayer.accountId,
-              privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
-            }
-          : undefined,
-        subAccount: {
-          mainnet: {
-            parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
-            parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+  const siwn =
+    "recipients" in variables.siwn
+      ? {
+          recipients: {
+            mainnet: variables.siwn.recipients.mainnet,
+            testnet: variables.siwn.recipients.testnet,
           },
-          testnet: {
-            parentAccount: variables.siwn.subAccount?.testnet?.parentAccount,
-            parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
+          apiKey: variables.siwn.apiKey,
+          rpcUrl: variables.siwn.rpcUrl,
+          relayer: variables.siwn.relayer?.accountId
+            ? {
+                accountId: variables.siwn.relayer.accountId,
+                privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
+              }
+            : undefined,
+          subAccount: {
+            mainnet: {
+              parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
+              parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+            },
+            testnet: {
+              parentAccount: variables.siwn.subAccount?.testnet?.parentAccount,
+              parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
+            },
           },
-        },
-      }
-    : {
-        recipient: variables.siwn.recipient,
-        apiKey: variables.siwn.apiKey,
-        rpcUrl: variables.siwn.rpcUrl,
-        relayer: variables.siwn.relayer?.accountId
-          ? {
-              accountId: variables.siwn.relayer.accountId,
-              privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
-            }
-          : undefined,
-        subAccount: {
-          mainnet: {
-            parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
-            parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+        }
+      : {
+          recipient: variables.siwn.recipient,
+          apiKey: variables.siwn.apiKey,
+          rpcUrl: variables.siwn.rpcUrl,
+          relayer: variables.siwn.relayer?.accountId
+            ? {
+                accountId: variables.siwn.relayer.accountId,
+                privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
+              }
+            : undefined,
+          subAccount: {
+            mainnet: {
+              parentAccount: variables.siwn.subAccount?.mainnet?.parentAccount,
+              parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+            },
           },
-        },
-      };
+        };
 
   const authConfig: AuthConfig = {
     secret: secrets.BETTER_AUTH_SECRET,
@@ -306,21 +310,18 @@ export default createPlugin({
 
       const { authConfig, apiKeyHeaders } = normalizeAuthConfig(config.variables, config.secrets);
 
-      const auth = createAuthInstance(
-        authConfig,
-        driver.db,
-      );
+      const auth = createAuthInstance(authConfig, driver.db);
 
       console.log("[Auth] Better Auth instance created");
 
-        return {
-          auth,
-          db: driver.db,
-          driver,
-          handler: (req: Request) => auth.handler(req),
-          apiKeyHeaders,
-        } satisfies PluginAuthServices;
-      }),
+      return {
+        auth,
+        db: driver.db,
+        driver,
+        handler: (req: Request) => auth.handler(req),
+        apiKeyHeaders,
+      } satisfies PluginAuthServices;
+    }),
 
   shutdown: () =>
     Effect.sync(() => {
@@ -405,10 +406,26 @@ export default createPlugin({
 
         let user: typeof schema.user.$inferSelect | null = null;
         let authMethod: "session" | "apiKey" | "anonymous" | "none" = "none";
-        let principal: | { type: "user"; userId: string; user: NonNullable<typeof schema.user.$inferSelect> } | { type: "organization"; organizationId: string } | null = null;
-        let apiKeyInfo: { id: string; name: string | null; permissions: Record<string, string[]> | null } | null = null;
+        let principal:
+          | { type: "user"; userId: string; user: NonNullable<typeof schema.user.$inferSelect> }
+          | { type: "organization"; organizationId: string }
+          | null = null;
+        let apiKeyInfo: {
+          id: string;
+          name: string | null;
+          permissions: Record<string, string[]> | null;
+        } | null = null;
         let resolvedOrganizationId: string | null = null;
-        let session: { session: { id: string; token: string; userId: string; expiresAt: Date; activeOrganizationId: string | null } | null; user: (typeof schema.user.$inferSelect) & { isAnonymous?: boolean | null } | null } | null = null;
+        let session: {
+          session: {
+            id: string;
+            token: string;
+            userId: string;
+            expiresAt: Date;
+            activeOrganizationId: string | null;
+          } | null;
+          user: (typeof schema.user.$inferSelect & { isAnonymous?: boolean | null }) | null;
+        } | null = null;
 
         if (apiKeyValue) {
           let apiKeyResolved = false;
@@ -425,7 +442,17 @@ export default createPlugin({
             const r = keyResult as {
               valid: boolean;
               error?: { code?: string; message?: string } | null;
-              key?: { id: string; configId: string; referenceId: string; name: string | null; prefix: string | null; start: string | null; enabled: boolean; permissions: Record<string, string[]> | string | null; metadata: unknown } | null;
+              key?: {
+                id: string;
+                configId: string;
+                referenceId: string;
+                name: string | null;
+                prefix: string | null;
+                start: string | null;
+                enabled: boolean;
+                permissions: Record<string, string[]> | string | null;
+                metadata: unknown;
+              } | null;
             };
 
             if (!r.valid || !r.key) continue;
@@ -1054,7 +1081,11 @@ export default createPlugin({
             };
           }
         }
-        return { valid: false, error: { code: "KEY_NOT_FOUND", message: "Invalid API key" }, key: null };
+        return {
+          valid: false,
+          error: { code: "KEY_NOT_FOUND", message: "Invalid API key" },
+          key: null,
+        };
       }),
 
       listMembers: builder.listMembers.use(requireAuth).handler(async ({ input }) => {

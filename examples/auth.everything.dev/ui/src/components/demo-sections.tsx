@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import type { ListedNearAccount, RelayerInfo } from "better-near-auth";
-import type { ApiClient } from "@/lib/api";
 import {
   Check,
   CheckCircle2,
@@ -76,9 +75,7 @@ function explorerTxUrl(txHash: string) {
 function formatNearDisplay(balance: string): string {
   if (!balance?.trim()) return "0";
   const trimmed = balance.trim();
-  const near = /^\d+$/.test(trimmed)
-    ? Number(trimmed) / 1e24
-    : Number.parseFloat(trimmed);
+  const near = /^\d+$/.test(trimmed) ? Number(trimmed) / 1e24 : Number.parseFloat(trimmed);
   if (!Number.isFinite(near)) return trimmed;
   if (near >= 1) return near.toLocaleString(undefined, { maximumFractionDigits: 4 });
   if (near > 0) return near.toLocaleString(undefined, { maximumFractionDigits: 6 });
@@ -488,7 +485,9 @@ export function RelayerCard() {
           </div>
           <div className={`${NEO_BORDER} p-3`}>
             <div className="text-xs text-muted-foreground">Available</div>
-            <div className="text-sm font-medium">{formatNearDisplay(data.available ?? "0")} NEAR</div>
+            <div className="text-sm font-medium">
+              {formatNearDisplay(data.available ?? "0")} NEAR
+            </div>
           </div>
         </div>
 
@@ -984,7 +983,9 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
       <CardContent className="space-y-4">
         <form onSubmit={onSubmit} className="flex gap-2">
           <Input
-            placeholder={canSignGuestbook ? "Leave a message..." : "Connect a NEAR account to sign..."}
+            placeholder={
+              canSignGuestbook ? "Leave a message..." : "Connect a NEAR account to sign..."
+            }
             value={newGreeting}
             onChange={(e) => setNewGreeting(e.target.value)}
             disabled={isPending || !canSignGuestbook}
@@ -1095,7 +1096,6 @@ export function SessionInfoCard({
     return pid !== "siwn" && pid !== "unknown";
   }).length;
   const providerCount = nearAccountCount + oauthAccountCount;
-  
 
   return (
     <Card>
@@ -1441,9 +1441,11 @@ export function SubAccountCreationCard() {
         <CardContent>
           <p className="text-sm text-muted-foreground">
             Sub-account creation requires a named parent account. Configure{" "}
-            <code className="text-xs font-mono bg-muted px-1 rounded">subAccount.parentAccount</code>{" "}
-            in your SIWN plugin options, or use an explicit relayer with a named account instead of an
-            ephemeral one.
+            <code className="text-xs font-mono bg-muted px-1 rounded">
+              subAccount.parentAccount
+            </code>{" "}
+            in your SIWN plugin options, or use an explicit relayer with a named account instead of
+            an ephemeral one.
           </p>
         </CardContent>
       </Card>
@@ -1459,10 +1461,7 @@ export function SubAccountCreationCard() {
         </CardTitle>
         <CardDescription>
           Create a new NEAR sub-account under{" "}
-          <code className="text-xs font-mono bg-muted px-1 rounded">
-            {parentAccount}
-          </code>{" "}
-          on{" "}
+          <code className="text-xs font-mono bg-muted px-1 rounded">{parentAccount}</code> on{" "}
           <Badge variant="outline" className="text-xs">
             {network}
           </Badge>
