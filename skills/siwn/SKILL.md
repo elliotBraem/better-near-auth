@@ -8,7 +8,7 @@ description: >
   or debugging NEP-413 verify or nonce issues.
 type: core
 library: better-near-auth
-library_version: "1.6.2"
+library_version: "1.6.3"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/profile.ts"
