@@ -16,46 +16,32 @@ import type { ClientRuntimeConfig } from "everything-dev/types";
 import { getRuntimeConfig } from "everything-dev/ui/runtime";
 import type { Auth } from "./auth-types.gen";
 
-type AuthVariables = {
-  baseUrl?: string;
-  trustedOrigins?: string[];
-  apiKeyHeaders?: string[];
-  socialProviders?: {
-    github?: {
-      clientId?: string;
-    };
-  };
-  passkey?: {
-    rpID?: string;
-    rpName?: string;
-    origin?: string;
-  };
+type RuntimeAuthVariables = {
   siwn: {
     recipient?: string;
     recipients?: {
       mainnet?: string;
       testnet?: string;
     };
-    rpcUrl?: string;
-    relayer?: {
-      accountId?: string;
-    };
-    subAccount?: {
-      mainnet?: {
-        parentAccount?: string;
-      };
-      testnet?: {
-        parentAccount?: string;
-      };
-    };
   };
 };
-type RuntimeAuthConfig = NonNullable<ClientRuntimeConfig["auth"]> & {
-  variables: AuthVariables;
+
+type CreateAuthClientOptions = {
+  runtimeConfig?: Partial<ClientRuntimeConfig>;
+  headers?: HeadersInit;
+  cspNonce?: string;
 };
 
-function hasAuthVariables(auth: ClientRuntimeConfig["auth"] | undefined): auth is RuntimeAuthConfig {
-  return !!auth && typeof auth === "object" && "variables" in auth;
+type SiwnClientConfig = Parameters<typeof siwnClient>[0] & {
+  cspNonce?: string;
+};
+
+function hasAuthVariables(auth: ClientRuntimeConfig["auth"] | undefined): auth is NonNullable<
+  ClientRuntimeConfig["auth"]
+> & {
+  variables: RuntimeAuthVariables;
+} {
+  return !!auth && typeof auth === "object" && typeof auth.variables === "object";
 }
 
 function readRuntimeConfig(config?: Partial<ClientRuntimeConfig>) {
@@ -68,7 +54,7 @@ function readRuntimeConfig(config?: Partial<ClientRuntimeConfig>) {
   }
 }
 
-function getAuthVariables(config?: Partial<ClientRuntimeConfig>): AuthVariables {
+function getAuthVariables(config?: Partial<ClientRuntimeConfig>): RuntimeAuthVariables {
   const runtimeConfig = readRuntimeConfig(config);
   if (!runtimeConfig || !hasAuthVariables(runtimeConfig.auth)) {
     throw new Error("Missing auth runtime configuration");
@@ -76,27 +62,75 @@ function getAuthVariables(config?: Partial<ClientRuntimeConfig>): AuthVariables 
   return runtimeConfig.auth.variables;
 }
 
-function getSiwnClientConfig(config?: Partial<ClientRuntimeConfig>) {
-  const runtimeConfig = readRuntimeConfig(config);
-  const variables = getAuthVariables(config);
+function getProviderId(account: {
+  providerId?: unknown;
+  accountId?: unknown;
+  network?: unknown;
+}): string {
+  if (typeof account.providerId === "string" && account.providerId.length > 0) {
+    return account.providerId;
+  }
 
-  const mainnetRecipient = variables.siwn.recipients?.mainnet ?? variables.siwn.recipient;
+  if (
+    typeof account.accountId === "string" &&
+    (account.network === "mainnet" || account.network === "testnet")
+  ) {
+    return "siwn";
+  }
+
+  return "unknown";
+}
+
+export function getAccountProviderId(account: {
+  providerId?: unknown;
+  accountId?: unknown;
+  network?: unknown;
+}): string {
+  return getProviderId(account);
+}
+
+export function getNearAccountId(
+  linkedAccounts: Array<{ providerId?: unknown; accountId?: unknown; network?: unknown }>,
+): string | null {
+  if (!Array.isArray(linkedAccounts)) {
+    return null;
+  }
+
+  const nearAccount = linkedAccounts.find((account) => getProviderId(account) === "siwn");
+  if (typeof nearAccount?.accountId !== "string") {
+    return null;
+  }
+
+  return nearAccount.accountId.split(":")[0] || null;
+}
+
+export function getLinkedProviders(
+  linkedAccounts: Array<{ providerId?: unknown; accountId?: unknown; network?: unknown }>,
+): string[] {
+  if (!Array.isArray(linkedAccounts)) {
+    return [];
+  }
+
+  return [...new Set(linkedAccounts.map((account) => getProviderId(account)))];
+}
+
+function getSiwnClientConfig(options: CreateAuthClientOptions): SiwnClientConfig {
+  const runtimeConfig = readRuntimeConfig(options.runtimeConfig);
+  const variables = getAuthVariables(options.runtimeConfig);
+  const siwn = variables.siwn;
+
+  const mainnetRecipient = siwn.recipients?.mainnet ?? siwn.recipient;
   if (!mainnetRecipient) {
     throw new Error("Missing auth SIWN recipient");
   }
 
-  const networkId = runtimeConfig?.networkId ?? (mainnetRecipient.endsWith(".testnet") ? "testnet" : "mainnet");
-  const testnetRecipient = variables.siwn.recipients?.testnet;
+  const networkId =
+    runtimeConfig?.networkId ?? (mainnetRecipient.endsWith(".testnet") ? "testnet" : "mainnet");
+  const testnetRecipient = siwn.recipients?.testnet;
+  const recipient =
+    networkId === "testnet" && testnetRecipient ? testnetRecipient : mainnetRecipient;
 
-  return testnetRecipient
-    ? {
-        recipients: { mainnet: mainnetRecipient, testnet: testnetRecipient },
-        networkId,
-      }
-    : {
-        recipient: mainnetRecipient,
-        networkId,
-      };
+  return { recipient, networkId, cspNonce: options.cspNonce };
 }
 
 function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
@@ -106,14 +140,14 @@ function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
   return "";
 }
 
-export function createAuthClient(config?: Partial<ClientRuntimeConfig>, headers?: HeadersInit) {
-  const nearAuthConfig = getSiwnClientConfig(config);
+export function createAuthClient(options: CreateAuthClientOptions = {}) {
+  const nearAuthConfig = getSiwnClientConfig(options);
 
   return createBetterAuthClient({
-    baseURL: getHostUrl(config),
+    baseURL: getHostUrl(options.runtimeConfig),
     fetchOptions: {
       credentials: "include",
-      ...(headers ? { headers } : {}),
+      ...(options.headers ? { headers: options.headers } : {}),
     },
     plugins: [
       inferAdditionalFields<Auth>(),

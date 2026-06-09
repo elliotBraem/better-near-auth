@@ -34,9 +34,15 @@ const orgRoles = {
   }),
 };
 
-import type { AuthConfig } from "./auth-export";
+import type { AuthConfig, AuthSiwnConfig, AuthSiwnRecipientConfig, AuthSiwnRecipientsConfig } from "./auth-export";
 import type { AuthDatabase } from "./db/driver";
 import * as schema from "./db/schema";
+
+function isRecipientsConfig(config: AuthSiwnConfig): config is AuthSiwnRecipientsConfig {
+  return "recipients" in config && config.recipients !== undefined;
+}
+
+
 
 export interface PasskeyRelyingPartyOptions {
   rpID: string;
@@ -85,7 +91,7 @@ export function resolvePasskeyRelyingPartyOptions(
 }
 
 function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
-  if ("recipients" in config.siwn) {
+  if (isRecipientsConfig(config.siwn)) {
     return {
       recipients: {
         mainnet: config.siwn.recipients.mainnet,
@@ -131,6 +137,12 @@ function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
         parentAccount: config.siwn.subAccount?.mainnet?.parentAccount,
         ...(config.siwn.subAccount?.mainnet?.parentKey
           ? { parentKey: config.siwn.subAccount.mainnet.parentKey }
+          : {}),
+      },
+      testnet: {
+        parentAccount: config.siwn.subAccount?.testnet?.parentAccount,
+        ...(config.siwn.subAccount?.testnet?.parentKey
+          ? { parentKey: config.siwn.subAccount.testnet.parentKey }
           : {}),
       },
     },
@@ -229,7 +241,7 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
   const twilioConfig = config.phoneNumber?.twilio;
   const githubConfig = config.socialProviders?.github;
   const siwnOptions = buildSiwnOptions(config);
-  const mainnetRecipient = "recipients" in siwnOptions ? siwnOptions.recipients.mainnet : siwnOptions.recipient;
+  const mainnetRecipient = isRecipientsConfig(siwnOptions) ? siwnOptions.recipients.mainnet : siwnOptions.recipient;
 
   return betterAuth({
     database: drizzleAdapter(db, {

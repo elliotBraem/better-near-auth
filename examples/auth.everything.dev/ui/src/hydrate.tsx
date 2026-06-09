@@ -45,7 +45,7 @@ export async function hydrate() {
           hostUrl: runtimeConfig.hostUrl,
           rpcBase: runtimeConfig.rpcBase,
         }),
-        authClient: createAuthClient(runtimeConfig, undefined, cspNonce),
+        authClient: createAuthClient({ runtimeConfig, cspNonce }),
       },
     });
 

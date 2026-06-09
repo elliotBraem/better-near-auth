@@ -359,7 +359,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		return payload;
 	};
 
-	return {
+	const plugin: SIWNClientPlugin = {
 		id: "siwn",
 		$InferServerPlugin: {} as ReturnType<typeof siwn>,
 
@@ -607,5 +607,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 				}
 			};
 		}
-	} satisfies BetterAuthClientPlugin;
+	};
+
+	return plugin;
 };

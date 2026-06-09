@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
-import type { ListedNearAccount } from "better-near-auth";
+import type { ListedNearAccount, RelayerInfo } from "better-near-auth";
+import type { ApiClient } from "@/lib/api";
 import {
   Check,
   CheckCircle2,
@@ -24,8 +25,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   type Organization,
-  type PrivateData,
-  type RelayerData,
   type SessionData,
   sessionQueryOptions,
   useApiClient,
@@ -42,7 +41,7 @@ import {
   CardTitle,
 } from "@/components";
 import { Input } from "@/components/ui/input";
-import { getLinkedProviders, getNearAccountId, getProviderConfig } from "@/lib/auth-utils";
+import { getLinkedProviders, getNearAccountId, getProviderConfig } from "@/lib/auth";
 import { NearProfile } from "./near-profile";
 import RelayFeed from "./relay-feed";
 
@@ -51,6 +50,13 @@ type SendMode = "relay" | "direct";
 type RelayStatus = "idle" | "pending" | "completed" | "failed";
 type AuthUser = NonNullable<SessionData["user"]> | null;
 type LinkingProvider = "google" | "github" | "near";
+type RelayerData = RelayerInfo & { enabled: boolean };
+type PrivateData = {
+  message: string;
+  userId: string | null;
+  organizationId: string | null;
+  apiKeyId: string | null;
+};
 type CreationState =
   | { phase: "idle" }
   | { phase: "creating" }

@@ -27,7 +27,10 @@ export function createRouter(opts: CreateRouterOptions) {
       apiClient: opts.context.apiClient,
       authClient:
         opts.context.authClient ??
-        createAuthClient(opts.context.runtimeConfig, undefined, opts.context.cspNonce),
+        createAuthClient({
+          runtimeConfig: opts.context.runtimeConfig,
+          cspNonce: opts.context.cspNonce,
+        }),
       session: opts.context.session,
     },
     ...(cspNonce ? { ssr: { nonce: cspNonce } } : {}),

@@ -1,32 +1,22 @@
 import { ORPCError } from "every-plugin/orpc";
+import type { AuthRequestContext as GeneratedAuthRequestContext } from "./auth-types.gen";
 import type { PluginsClient } from "./plugins-types.gen";
 
-export interface RequestAuthUser {
-  id: string;
-  role?: string;
-  email?: string;
-  name?: string;
-}
-
-export interface ApiKeyContext {
-  id: string;
-  name: string | null;
-  permissions: Record<string, string[]> | null;
-}
+export type RequestAuthUser = NonNullable<GeneratedAuthRequestContext["user"]>;
+export type ApiKeyContext = NonNullable<GeneratedAuthRequestContext["apiKey"]>;
 
 export interface RequestAuthContext {
-  userId?: string;
-  user?: RequestAuthUser;
-  organizationId?: string;
-  apiKey?: ApiKeyContext | null;
+  userId?: GeneratedAuthRequestContext["userId"];
+  user?: GeneratedAuthRequestContext["user"];
+  organizationId?: GeneratedAuthRequestContext["organization"]["activeOrganizationId"];
+  apiKey?: GeneratedAuthRequestContext["apiKey"];
   reqHeaders?: Headers;
   getRawBody?: () => Promise<string>;
 }
 
 export interface AuthContext extends RequestAuthContext {
-  userId: RequestAuthUser["id"];
+  userId: NonNullable<GeneratedAuthRequestContext["userId"]>;
   user: RequestAuthUser;
-  apiKey?: ApiKeyContext | null;
 }
 
 export type AuthPluginClientFactory = PluginsClient["auth"];

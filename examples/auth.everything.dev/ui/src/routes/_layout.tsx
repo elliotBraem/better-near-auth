@@ -27,7 +27,6 @@ export const Route = createFileRoute("/_layout")({
     );
 
     return {
-      assetsUrl: context.assetsUrl || "",
       runtimeConfig: context.runtimeConfig,
       session,
     };
