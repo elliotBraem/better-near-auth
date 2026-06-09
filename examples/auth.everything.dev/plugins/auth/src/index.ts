@@ -1,4 +1,3 @@
-import type { User } from "better-auth/types";
 import { and, eq } from "drizzle-orm";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
@@ -7,8 +6,7 @@ import { z } from "every-plugin/zod";
 import type { AuthConfig } from "./auth-export";
 import type { Auth } from "./auth-instance";
 import { createAuthInstance } from "./auth-instance";
-import type { InferOutput } from "./contract";
-import { type apiKeySchema, contract } from "./contract";
+import { contract } from "./contract";
 import type { AuthDatabase, DatabaseDriver } from "./db/driver";
 import { createDatabaseDriver } from "./db/driver";
 import { migrate } from "./db/migrator";
@@ -111,10 +109,6 @@ function tryJsonParse<T>(value: string | null | undefined): T | undefined {
 
 function createHeaders(reqHeaders?: Record<string, string>): Headers {
   return new Headers(Object.entries(reqHeaders ?? {}) as [string, string][]);
-}
-
-interface UserWithAnonymous extends User {
-  isAnonymous?: boolean | null;
 }
 
 const localDevTrustedOrigins = [
@@ -384,7 +378,7 @@ export default createPlugin({
                 emailVerified: u.emailVerified,
                 image: u.image ?? null,
                 role: u.role ?? null,
-                isAnonymous: (u as UserWithAnonymous).isAnonymous ?? null,
+                isAnonymous: (u as any).isAnonymous ?? null,
               }
             : null,
         };
@@ -446,32 +440,17 @@ export default createPlugin({
                 body: { key: apiKeyValue, configId },
               }),
             );
-            const r = keyResult as {
-              valid: boolean;
-              error?: { code?: string; message?: string } | null;
-              key?: {
-                id: string;
-                configId: string;
-                referenceId: string;
-                name: string | null;
-                prefix: string | null;
-                start: string | null;
-                enabled: boolean;
-                permissions: Record<string, string[]> | string | null;
-                metadata: unknown;
-              } | null;
-            };
 
-            if (!r.valid || !r.key) continue;
+            if (!keyResult.valid || !keyResult.key) continue;
 
             apiKeyResolved = true;
             authMethod = "apiKey";
 
-            const key = r.key;
+            const key = keyResult.key;
             const parsedPermissions =
               typeof key.permissions === "string"
-                ? (tryJsonParse<Record<string, string[]>>(key.permissions as string) ?? null)
-                : (key.permissions as Record<string, string[]> | null);
+                ? (tryJsonParse<Record<string, string[]>>(key.permissions) ?? null)
+                : key.permissions;
 
             apiKeyInfo = {
               id: key.id,
@@ -488,8 +467,8 @@ export default createPlugin({
                 user = dbUser;
                 principal = {
                   type: "user",
-                  userId: dbUser.id,
-                  user: dbUser as NonNullable<typeof schema.user.$inferSelect>,
+                  userId: key.referenceId,
+                  user: dbUser,
                 };
               }
             } else if (key.configId === "org-keys") {
@@ -509,7 +488,7 @@ export default createPlugin({
         if (!apiKeyValue && !principal) {
           const rawSession = await services.auth.api.getSession({ headers });
           const rawUser = rawSession?.user ?? null;
-          session = rawSession as typeof session;
+          session = rawSession;
 
           if (rawUser) {
             const dbUser = await services.db.query.user.findFirst({
@@ -523,7 +502,7 @@ export default createPlugin({
               principal = {
                 type: "user",
                 userId: user.id,
-                user: user as NonNullable<typeof schema.user.$inferSelect>,
+                user: user,
               };
             }
           }
@@ -657,7 +636,7 @@ export default createPlugin({
                   emailVerified: principal.user.emailVerified ?? false,
                   image: principal.user.image ?? null,
                   role: principal.user.role ?? null,
-                  isAnonymous: (principal.user as UserWithAnonymous).isAnonymous ?? null,
+                  isAnonymous: (principal.user as any).isAnonymous ?? null,
                 },
               }
             : principal.type === "organization"
@@ -677,7 +656,7 @@ export default createPlugin({
                 emailVerified: user.emailVerified,
                 image: user.image ?? null,
                 role: user.role ?? null,
-                isAnonymous: (user as UserWithAnonymous).isAnonymous ?? null,
+                isAnonymous: (user as any).isAnonymous ?? null,
               }
             : null,
           userId: user?.id ?? null,
@@ -723,24 +702,16 @@ export default createPlugin({
               },
             }),
           );
-          const org = result as {
-            id: string;
-            name: string;
-            slug: string;
-            logo?: string | null;
-            metadata?: unknown;
-            createdAt: Date | string;
-          };
           return {
-            id: org.id,
-            name: org.name,
-            slug: org.slug,
-            logo: org.logo ?? null,
+            id: result.id,
+            name: result.name,
+            slug: result.slug,
+            logo: result.logo ?? null,
             metadata:
-              typeof org.metadata === "string"
-                ? tryJsonParse<Record<string, unknown>>(org.metadata)
-                : (org.metadata as Record<string, unknown> | undefined),
-            createdAt: org.createdAt instanceof Date ? org.createdAt : new Date(org.createdAt),
+              typeof result.metadata === "string"
+                ? tryJsonParse<Record<string, unknown>>(result.metadata)
+                : result.metadata,
+            createdAt: result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
           };
         }),
 
@@ -800,27 +771,26 @@ export default createPlugin({
         }),
 
       inviteMember: builder.inviteMember.use(requireAuth).handler(async ({ input, context }) => {
-        const result = await safeAuthApi(() =>
-          services.auth.api.createInvitation({
-            headers: createHeaders(context.reqHeaders),
-            body: {
-              email: input.email,
-              role: input.role,
-              organizationId: input.organizationId,
-              resend: input.resend,
-            },
-          }),
-        );
-        const inv = result as typeof schema.invitation.$inferSelect;
-        return {
-          id: inv.id,
-          organizationId: inv.organizationId,
-          email: inv.email,
-          role: inv.role,
-          status: inv.status,
-          expiresAt: inv.expiresAt,
-          inviterId: inv.inviterId,
-        };
+          const result = await safeAuthApi(() =>
+            services.auth.api.createInvitation({
+              headers: createHeaders(context.reqHeaders),
+              body: {
+                email: input.email,
+                role: input.role,
+                organizationId: input.organizationId,
+                resend: input.resend,
+              },
+            }),
+          );
+          return {
+            id: result.id,
+            organizationId: result.organizationId,
+            email: result.email,
+            role: result.role,
+            status: result.status,
+            expiresAt: result.expiresAt,
+            inviterId: result.inviterId,
+          };
       }),
 
       getInvitation: builder.getInvitation.handler(async ({ input }) => {
@@ -960,12 +930,10 @@ export default createPlugin({
             return { id: null, role: null, organizationId: null };
           }
 
-          const m = member as InferOutput<"getActiveMember">;
-
           return {
-            id: m.id,
-            role: m.role,
-            organizationId: m.organizationId ?? null,
+            id: member.id,
+            role: member.role,
+            organizationId: member.organizationId ?? null,
           };
         }),
 
@@ -983,7 +951,7 @@ export default createPlugin({
             query: Object.keys(query).length > 0 ? query : undefined,
           }),
         );
-        return (result as { apiKeys?: Array<z.infer<typeof apiKeySchema>> }).apiKeys ?? [];
+        return result.apiKeys ?? [];
       }),
 
       createApiKey: builder.createApiKey.use(requireAuth).handler(async ({ input, context }) => {
@@ -1005,7 +973,7 @@ export default createPlugin({
             },
           }),
         );
-        return result as z.infer<typeof apiKeySchema> & { key: string };
+        return result;
       }),
 
       updateApiKey: builder.updateApiKey.use(requireAuth).handler(async ({ input, context }) => {
@@ -1025,7 +993,7 @@ export default createPlugin({
             },
           }),
         );
-        return result as z.infer<typeof apiKeySchema>;
+        return result;
       }),
 
       deleteApiKey: builder.deleteApiKey.use(requireAuth).handler(async ({ input, context }) => {
@@ -1054,17 +1022,12 @@ export default createPlugin({
               },
             }),
           );
-          const r = result as {
-            valid: boolean;
-            error?: { code?: string; message?: string } | null;
-            key?: z.infer<typeof apiKeySchema> | null;
-          };
           return {
-            valid: r.valid,
-            error: r.error
-              ? { code: r.error.code ?? "UNKNOWN", message: r.error.message ?? undefined }
+            valid: result.valid,
+            error: result.error
+              ? { code: result.error.code ?? "UNKNOWN", message: result.error.message ?? undefined }
               : null,
-            key: r.key ?? null,
+            key: result.key ?? null,
           };
         }
 
@@ -1075,16 +1038,11 @@ export default createPlugin({
               body: { key: input.key, configId, permissions: input.permissions },
             }),
           );
-          const r = result as {
-            valid: boolean;
-            error?: { code?: string; message?: string } | null;
-            key?: z.infer<typeof apiKeySchema> | null;
-          };
-          if (r.valid) {
+          if (result.valid) {
             return {
               valid: true,
               error: null,
-              key: r.key ?? null,
+              key: result.key ?? null,
             };
           }
         }

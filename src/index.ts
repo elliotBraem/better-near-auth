@@ -7,23 +7,21 @@ import type {} from "@better-auth/core/oauth2";
 import type {} from "better-call";
 
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
-import type { SignedMessage, SignMessageParams, SignedDelegateAction, PrivateKey } from "near-kit";
+import type { SignedDelegateAction, PrivateKey } from "near-kit";
 import { hex, base58 } from "@scure/base";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
 import { schema } from "./schema.js";
-import type {
-	AccountId,
-	DualNetworkConfig,
-	ListAccountsResponseT,
-	ListedNearAccount,
-	NearAccount,
-	Profile,
-	RelayerInfo,
-	RelayedTransactionRecord,
-	SubAccountConfig,
-} from "./types.js";
 import {
+	type AccountId,
+	type DualNetworkConfig,
+	type ListAccountsResponseT,
+	type ListedNearAccount,
+	type NearAccount,
+	type Profile,
+	type RelayerInfo,
+	type RelayedTransactionRecord,
+	type SubAccountConfig,
 	LinkAccountRequest,
 	NonceRequest,
 	NonceResponse,
@@ -51,11 +49,9 @@ import {
 } from "./utils.js";
 
 async function hashNonce(nonce: Uint8Array): Promise<string> {
-	const encoder = new TextEncoder();
-	const data = encoder.encode(Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join(''));
+	const data = new TextEncoder().encode(hex.encode(nonce));
 	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-	const hashArray = Array.from(new Uint8Array(hashBuffer));
-	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+	return hex.encode(new Uint8Array(hashBuffer));
 }
 
 function deriveEmail(accountId: string): string | null {
@@ -456,8 +452,8 @@ export const siwn = (options: SIWNPluginOptions) => {
 						const nonceBytes = hex.decode(nonce);
 
 						const isValid = await verifyNep413Signature(
-							signedMessage as SignedMessage,
-							{ message, recipient, nonce: nonceBytes } as SignMessageParams,
+						signedMessage,
+						{ message, recipient, nonce: nonceBytes },
 							{ near, maxAge: 15 * 60 * 1000 },
 						);
 
@@ -728,38 +724,38 @@ export const siwn = (options: SIWNPluginOptions) => {
 					method: "POST",
 					body: NonceRequest,
 				},
-			async (ctx) => {
-				const { accountId, networkId } = ctx.body;
-				const network = getNetworkFromAccountId(accountId);
+				async (ctx) => {
+					const { accountId, networkId } = ctx.body;
+					const network = getNetworkFromAccountId(accountId);
 
-				if (networkId !== network) {
-					throw new APIError("BAD_REQUEST", {
-						message: "Network ID mismatch with account ID",
-						status: 400,
+					if (networkId !== network) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Network ID mismatch with account ID",
+							status: 400,
+						});
+					}
+
+					const near = getNear(network);
+					const exists = await near.accountExists(accountId);
+					if (!exists) {
+						throw new APIError("BAD_REQUEST", {
+							message: "Account does not exist on-chain",
+							status: 400,
+						});
+					}
+
+					const nonce = options.getNonce ? await options.getNonce() : generateNonce();
+
+					const nonceString = hex.encode(nonce);
+
+					await ctx.context.internalAdapter.createVerificationValue({
+						identifier: `siwn:${accountId}:${network}`,
+						value: nonceString,
+						expiresAt: new Date(Date.now() + 15 * 60 * 1000),
 					});
-				}
 
-				const near = getNear(network);
-				const exists = await near.accountExists(accountId);
-				if (!exists) {
-					throw new APIError("BAD_REQUEST", {
-						message: "Account does not exist on-chain",
-						status: 400,
-					});
-				}
-
-				const nonce = options.getNonce ? await options.getNonce() : generateNonce();
-
-				const nonceString = hex.encode(nonce);
-
-				await ctx.context.internalAdapter.createVerificationValue({
-					identifier: `siwn:${accountId}:${network}`,
-					value: nonceString,
-					expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-				});
-
-				return ctx.json(NonceResponse.parse({ nonce: nonceString }));
-			},
+					return ctx.json(NonceResponse.parse({ nonce: nonceString }));
+				},
 			),
 			getSiwnProfile: createAuthEndpoint(
 				"/near/profile",
@@ -825,8 +821,8 @@ export const siwn = (options: SIWNPluginOptions) => {
 						const nonceBytes = hex.decode(nonce);
 
 						const isValid = await verifyNep413Signature(
-							signedMessage as SignedMessage,
-							{ message, recipient, nonce: nonceBytes } as SignMessageParams,
+						signedMessage,
+						{ message, recipient, nonce: nonceBytes },
 							{ near, maxAge: 15 * 60 * 1000 },
 						);
 
@@ -1267,7 +1263,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 						lastUsedAt: rState.lastUsedAt,
 						parentAccount: parentAccount ?? undefined,
 						subAccountAvailable,
-					} as RelayerInfo & { enabled: boolean });
+					});
 				},
 			),
 			getRelayHistory: createAuthEndpoint(
@@ -1287,7 +1283,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 								{ field: "userId", operator: "eq", value: session.user.id },
 							],
 						});
-						transactions = (result || []) as RelayedTransactionRecord[];
+						transactions = result || [];
 					} catch (err) {
 						console.error("relay-history findMany error:", err);
 					}

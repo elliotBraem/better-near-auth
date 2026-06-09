@@ -63,15 +63,17 @@ export interface SIWNClientPlugin extends BetterAuthClientPlugin {
 	id: "siwn";
 	$InferServerPlugin: ReturnType<typeof siwn>;
 	getAtoms: ($fetch: BetterFetch) => {
-		nearState: ReturnType<typeof atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>>;
+		nearState: ReturnType<typeof atom<NearState>>;
 		walletConnected: ReturnType<typeof atom<boolean>>;
 		activeNetwork: ReturnType<typeof atom<"mainnet" | "testnet">>;
 	};
 	getActions: ($fetch: BetterFetch, $store: ClientStore, options: BetterAuthClientOptions | undefined) => SIWNClientActions;
 }
 
+type NearState = { accountId: string | null; publicKey: string | null; networkId: string } | null;
+
 export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
-	const nearState = atom<{ accountId: string | null; publicKey: string | null; networkId: string } | null>(null);
+	const nearState = atom<NearState>(null);
 	const walletConnected = atom<boolean>(false);
 	const activeNetwork = atom<"mainnet" | "testnet">(config.networkId || "mainnet");
 
@@ -199,9 +201,9 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					nearState.set({
 						accountId: primary.accountId,
 						publicKey: primary.publicKey ?? null,
-						networkId: primary.network as "mainnet" | "testnet",
+						networkId: primary.network,
 					});
-					activeNetwork.set(primary.network as "mainnet" | "testnet");
+					activeNetwork.set(primary.network);
 				}
 			}
 		} catch {}
@@ -374,28 +376,28 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 
 			return {
 				near: {
-					nonce: async (params: NonceRequestT, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<NonceResponseT>> => {
+					nonce: async (params: NonceRequestT, fetchOptions?: BetterFetchOption) => {
 						return await $fetch("/near/nonce", {
 							method: "POST",
 							body: params,
 							...fetchOptions
 						});
 					},
-					verify: async (params: VerifyRequestT, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<VerifyResponseT>> => {
+					verify: async (params: VerifyRequestT, fetchOptions?: BetterFetchOption) => {
 						return await $fetch("/near/verify", {
 							method: "POST",
 							body: params,
 							...fetchOptions
 						});
 					},
-					getProfile: async (accountId?: AccountId, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<ProfileResponseT>> => {
+					getProfile: async (accountId?: AccountId, fetchOptions?: BetterFetchOption) => {
 						return await $fetch("/near/profile", {
 							method: "POST",
 							body: { accountId },
 							...fetchOptions
 						});
 					},
-					view: async (params: ViewContractRequestT, fetchOptions?: BetterFetchOption): Promise<BetterFetchResponse<ViewContractResponseT>> => {
+					view: async (params: ViewContractRequestT, fetchOptions?: BetterFetchOption) => {
 						return await $fetch("/near/view", {
 							method: "POST",
 							body: params,
@@ -435,9 +437,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 						walletConnected.set(false);
 						nearState.set(null);
 					},
-					link: async (
-						callbacks?: AuthCallbacks
-					): Promise<void> => {
+					link: async (callbacks?: AuthCallbacks) => {
 						const net = activeNetwork.get();
 						const recipient = getRecipient(net);
 						try {
@@ -474,7 +474,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					unlink: async (
 						params: { accountId: string; network?: "mainnet" | "testnet" },
 						fetchOptions?: BetterFetchOption
-					): Promise<BetterFetchResponse<{ success: boolean; message: string }>> => {
+					) => {
 						return await $fetch("/near/unlink-account", {
 							method: "POST",
 							body: params,
@@ -484,9 +484,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					listAccounts: async (): Promise<BetterFetchResponse<ListAccountsResponseT>> => {
 						return await $fetch("/near/list-accounts", { method: "GET" });
 					},
-					setPrimaryAccount: async (
-						params: SetPrimaryAccountRequestT
-					): Promise<BetterFetchResponse<SetPrimaryAccountResponseT>> => {
+					setPrimaryAccount: async (params: SetPrimaryAccountRequestT) => {
 						const response = await $fetch<SetPrimaryAccountResponseT>("/near/set-primary-account", {
 							method: "POST",
 							body: params,
@@ -498,7 +496,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 								publicKey: activeAccount.publicKey ?? null,
 								networkId: activeAccount.network,
 							});
-							activeNetwork.set(activeAccount.network as "mainnet" | "testnet");
+							activeNetwork.set(activeAccount.network);
 						}
 						return response;
 					},
@@ -508,37 +506,35 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					): Promise<string> => {
 						return buildSignedDelegateActionInternal(receiverId, buildActions);
 					},
-					relayTransaction: async (params: {
-						payload: string;
-					}): Promise<BetterFetchResponse<RelayResponseT>> => {
+					relayTransaction: async (params: { payload: string }) => {
 						return await $fetch("/near/relay", {
 							method: "POST",
 							body: params,
 						});
 					},
-					getRelayStatus: async (txHash: string): Promise<BetterFetchResponse<RelayStatusResponseT>> => {
+					getRelayStatus: async (txHash: string) => {
 						return await $fetch(`/near/relay-status/${txHash}`, {
 							method: "GET",
 						});
 					},
-					getRelayerInfo: async (params?: GetRelayerInfoRequestT): Promise<BetterFetchResponse<RelayerInfo & { enabled: boolean }>> => {
+					getRelayerInfo: async (params?: GetRelayerInfoRequestT) => {
 						return await $fetch("/near/relayer-info", {
 							method: "POST",
 							body: params ?? {},
 						});
 					},
-					relayHistory: async (): Promise<BetterFetchResponse<RelayHistoryResponseT>> => {
+					relayHistory: async () => {
 						return await $fetch("/near/relay-history", {
 							method: "GET",
 						});
 					},
-					createSubAccount: async (params: CreateSubAccountRequestT): Promise<BetterFetchResponse<CreateSubAccountResponseT>> => {
+					createSubAccount: async (params: CreateSubAccountRequestT) => {
 						return await $fetch("/near/create-sub-account", {
 							method: "POST",
 							body: params,
 						});
 					},
-					checkSubAccountAvailability: async (params: CheckSubAccountAvailabilityRequestT): Promise<BetterFetchResponse<CheckSubAccountAvailabilityResponseT>> => {
+					checkSubAccountAvailability: async (params: CheckSubAccountAvailabilityRequestT) => {
 						return await $fetch("/near/check-sub-account-availability", {
 							method: "POST",
 							body: params,
@@ -568,9 +564,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					},
 				},
 				signIn: {
-					near: async (
-						callbacks?: AuthCallbacks
-					): Promise<void> => {
+					near: async (callbacks?: AuthCallbacks) => {
 						try {
 							const { signedMessage, accountId, nonceHex } = await signWithWallet();
 							const net = activeNetwork.get();
