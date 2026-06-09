@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.6.1
+
+### Patch Changes
+
+- [`20570b6`](https://github.com/elliotBraem/better-near-auth/commit/20570b667be9b1bfd59c764ddc176679b2f681f6) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Fixed the release workflow to properly authenticate with npm and separate versioning from publishing. The workflow now uses `NODE_AUTH_TOKEN` with `registry-url` for npm auth, adds idempotent publish guards, and creates GitHub releases manually with changelog extraction.
+
 ## 1.6.0
 
 ### Minor Changes
