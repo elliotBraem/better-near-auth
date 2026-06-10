@@ -53,6 +53,12 @@ jobs:
         working-directory: examples/auth.everything.dev
         run: bun run test
 
+      - name: Install NEAR CLI
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/near-cli-rs/releases/download/v0.23.5/near-cli-rs-installer.sh | sh
+
+      - name: Verify NEAR CLI
+        run: near --version
+
       - name: Build and deploy
         working-directory: examples/auth.everything.dev
         run: bun run deploy
