@@ -52,7 +52,7 @@ function updateHostConfig(url, integrity) {
 }
 
 const baseConfig = {
-  externals: ["pg", "@electric-sql/pglite"],
+  externals: ["pg", "@electric-sql/pglite", "@opentelemetry/api"],
   devtool: shouldDeploy ? false : "source-map",
   plugins: [
     new EmitPluginManifest(),

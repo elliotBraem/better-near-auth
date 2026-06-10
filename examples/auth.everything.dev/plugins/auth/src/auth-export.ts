@@ -1,9 +1,9 @@
+import type { Auth as BetterAuthResult } from "better-auth";
 import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
-import type { Auth as AuthInstance } from "./auth-instance";
 import type { InferInput, InferOutput } from "./contract";
 
-export type Auth = AuthInstance;
+export type Auth = BetterAuthResult;
 export type { Auth as BaseAuth } from "better-auth";
 
 export type AuthSession = Auth["$Infer"]["Session"];
