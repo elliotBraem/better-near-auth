@@ -71,7 +71,7 @@
     "build": "node_modules/.bin/bos build",
     "deploy": "node_modules/.bin/bos build --deploy",
     "publish": "node_modules/.bin/bos publish",
-    "typecheck": "bun run types:gen && if [ -d ui ]; then bun run --cwd ui typecheck; fi && if [ -d api ]; then bun run --cwd api typecheck; fi",
+    "typecheck": "bun run types:gen && if [ -d ui ]; then bun run --cwd ui typecheck; fi && if [ -d api ]; then bun run --cwd api typecheck; fi && if [ -d host ]; then bun run --cwd host typecheck; fi",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -118,7 +118,7 @@
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
-    "better-near-auth": "^1.6.3",
+    "better-near-auth": "catalog:",
     "@electric-sql/pglite": "catalog:",
     "@better-auth/core": "catalog:"
   }

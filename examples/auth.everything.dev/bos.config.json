@@ -1,7 +1,6 @@
 {
-  "extends": "bos://dev.everything.near/everything.dev",
   "account": "auth.everything.near",
-  "domain": "everything.dev",
+  "domain": "auth.everything.dev",
   "title": "Better NEAR Auth",
   "description": "Authentication example app showcasing better-near-auth with NEAR Sign-In, passkeys, GitHub OAuth, organizations, and API keys",
   "testnet": "dev.allthethings.testnet",
@@ -10,22 +9,40 @@
   },
   "repository": "https://github.com/nearbuilders/everything-dev",
   "app": {
+    "host": {
+      "development": "local:host",
+      "secrets": [
+        "CORS_ORIGIN",
+        "TENANT_WHITELIST",
+        "ALLOW_OVERRIDE",
+        "ALLOW_UNTRUSTED_SSR",
+        "CSP_STRICT"
+      ],
+      "production": "https://elliot-braem-4686-host-better-near-auth-elliotbra-b527d8376-ze.zephyrcloud.app",
+      "integrity": "sha384-geJjVtN/z3NlEUoZorxKSLIuT4ZcptJd+JJFENC4ap/zdUQvbEtZ07K5+Wz7q97Q"
+    },
     "ui": {
       "name": "ui",
-      "development": "local:ui"
+      "development": "local:ui",
+      "production": "https://elliot-braem-4680-ui-better-near-auth-elliotbraem-d72ec6f55-ze.zephyrcloud.app",
+      "integrity": "sha384-GDbBvnx/K4vb60PkKPwiQd3XylGhshlw5MVqNqk+e3apCZauDOOZ15NFuFl4dOUC",
+      "ssr": "https://elliot-braem-4681-ui-better-near-auth-elliotbraem-c5ccea37a-ze.zephyrcloud.app",
+      "ssrIntegrity": "sha384-mjEMvB+TUzqhzXaqxiAzgeBkTQ1sqO2/ndMP7AtUuxr7tJWKo1FuuZ4OgRq11/Lm"
     },
     "api": {
       "name": "api",
       "development": "local:api",
       "secrets": [
         "API_DATABASE_URL"
-      ]
+      ],
+      "production": "https://elliot-braem-4682-api-better-near-auth-elliotbrae-1d399c7b6-ze.zephyrcloud.app",
+      "integrity": "sha384-OQGhJZNMPsj4Y96H/7UxCX7nov0/LSUxhuYRdMRF9rkEoYFiRvUTWf8zNg1i6nDm"
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-4615-everything-dev-auth-plugin-bett-544a63d21-ze.zephyrcloud.app",
-      "integrity": "sha384-hdiTtgW15RyAVkpNdgNxQxKP3xOkMs2jJ27O53l1zEi++nghcPFn8QZQb9avuLMe",
+      "production": "https://elliot-braem-4683-everything-dev-auth-plugin-bett-bcca2dfe5-ze.zephyrcloud.app",
+      "integrity": "sha384-rLbjlO0rAwwxTVMqTidYPINdqiGNuiWrhcxNcsso3+DAoo/H9tkJbBFBy81bupTC",
       "variables": {
         "socialProviders": {
           "github": {
@@ -57,37 +74,7 @@
         "NEAR_RELAYER_PRIVATE_KEY",
         "NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET",
         "NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET"
-      ],
-      "shared": {
-        "better-auth": {
-          "version": "1.6.9",
-          "requiredVersion": "^1.6.9",
-          "singleton": true,
-          "strictVersion": false,
-          "shareScope": "default"
-        },
-        "better-near-auth": {
-          "version": "1.6.1",
-          "requiredVersion": "^1.5.0",
-          "singleton": true,
-          "strictVersion": false,
-          "shareScope": "default"
-        },
-        "@better-auth/api-key": {
-          "version": "1.6.9",
-          "requiredVersion": "^1.6.9",
-          "singleton": true,
-          "strictVersion": false,
-          "shareScope": "default"
-        },
-        "@better-auth/passkey": {
-          "version": "1.6.9",
-          "requiredVersion": "^1.6.9",
-          "singleton": true,
-          "strictVersion": false,
-          "shareScope": "default"
-        }
-      }
+      ]
     }
   }
 }
