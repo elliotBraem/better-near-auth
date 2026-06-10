@@ -130,7 +130,14 @@ function getSiwnClientConfig(options: CreateAuthClientOptions): SiwnClientConfig
   const recipient =
     networkId === "testnet" && testnetRecipient ? testnetRecipient : mainnetRecipient;
 
-  return { recipient, networkId, cspNonce: options.cspNonce };
+  return {
+    recipient,
+    networkId,
+    cspNonce: options.cspNonce,
+    ...(siwn.recipients
+      ? { recipients: siwn.recipients as { mainnet: string; testnet: string } }
+      : {}),
+  };
 }
 
 function getHostUrl(config?: Partial<ClientRuntimeConfig>) {

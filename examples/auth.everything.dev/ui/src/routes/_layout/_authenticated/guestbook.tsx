@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { sessionQueryOptions } from "@/app";
+import { Globe } from "lucide-react";
+import { sessionQueryOptions, useAuthClient } from "@/app";
 import {
   GuestbookCard,
   RelayerCard,
@@ -17,22 +18,22 @@ export const Route = createFileRoute("/_layout/_authenticated/guestbook")({
       sessionQueryOptions(context.authClient, context.session),
     );
     if (session?.user) {
-      const network = (context.authClient.near.getState()?.networkId || "mainnet") as
-        | "mainnet"
-        | "testnet";
-      await context.queryClient.ensureQueryData({
-        queryKey: ["greeting", network],
-        queryFn: async () => {
-          const res = await context.authClient.near.view({
-            contractId: "hello.near-examples.near",
-            methodName: "get_greeting",
-          });
-          if (res.error) return undefined;
-          const result = res?.data?.result;
-          return typeof result === "string" ? result : undefined;
-        },
-        staleTime: 30_000,
-      });
+      const network = context.authClient.near.getNetwork() as "mainnet" | "testnet";
+      if (network === "mainnet") {
+        await context.queryClient.ensureQueryData({
+          queryKey: ["greeting", network],
+          queryFn: async () => {
+            const res = await context.authClient.near.view({
+              contractId: "hello.near-examples.near",
+              methodName: "get_greeting",
+            });
+            if (res.error) return undefined;
+            const result = res?.data?.result;
+            return typeof result === "string" ? result : undefined;
+          },
+          staleTime: 30_000,
+        });
+      }
     }
   },
   component: GuestbookPage,
@@ -40,6 +41,31 @@ export const Route = createFileRoute("/_layout/_authenticated/guestbook")({
 
 function GuestbookPage() {
   const { data: greeting } = useGuestbookGreeting();
+  const auth = useAuthClient();
+  const network = auth.useActiveNetwork();
+
+  if (network === "testnet") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Guestbook</h1>
+          <p className="text-sm text-muted-foreground">
+            Compare gasless relayed signing with direct wallet transactions.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border p-12 text-center">
+          <Globe className="mb-4 h-8 w-8 text-muted-foreground" />
+          <h2 className="text-lg font-medium">Not supported on Testnet</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Switch to Mainnet to try the gasless relayed guestbook demo.
+          </p>
+        </div>
+
+        <RelayFeedCard />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

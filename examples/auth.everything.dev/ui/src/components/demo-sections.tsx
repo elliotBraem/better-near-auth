@@ -211,7 +211,7 @@ export function useGuestbookGreeting(enabled = true) {
       const result = res?.data?.result;
       return typeof result === "string" ? result : undefined;
     },
-    enabled,
+    enabled: enabled && network === "mainnet",
   });
 }
 
