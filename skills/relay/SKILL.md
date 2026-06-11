@@ -139,7 +139,7 @@ View calls are read-only, authenticated, and executed server-side.
 | ------ | ---- | ----------- |
 | POST | `/near/relay` | Relay a signed delegate action on-chain |
 | GET | `/near/relay-status/:txHash` | Check relayed transaction status |
-| GET | `/near/relayer-info` | Get relayer accountId, mode, balance |
+| POST | `/near/relayer-info` | Get relayer accountId, mode, balance |
 | GET | `/near/relay-history` | List relayed transactions for current user |
 | POST | `/near/view` | Server-side read-only contract call |
 
@@ -284,12 +284,4 @@ The ephemeral relayer encrypts its private key using HKDF-SHA256 derived from `B
 
 Source: src/utils.ts:21-41, src/index.ts:134
 
-### HIGH Tension: Ephemeral simplicity vs production reliability
 
-Ephemeral mode is zero-config but requires funding an implicit account with no human-readable name. Explicit mode uses a named, pre-funded account but requires managing private keys securely. Agents optimizing for setup simplicity may default to ephemeral without warning about the funding requirement, or use explicit mode with the private key hardcoded instead of using environment variables.
-
-See also: client/SKILL.md — delegate action building pattern
-
-### HIGH Tension: Whitelist security vs development flexibility
-
-Strict `whitelistedContracts` prevents relay abuse but blocks calls to new contracts during development. Omitting the whitelist enables any contract call at the relayer's expense. Agents may copy quickstart examples without `whitelistedContracts` into production code, or add overly permissive whitelists that defeat the security purpose.

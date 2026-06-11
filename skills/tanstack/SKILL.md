@@ -235,6 +235,8 @@ Methods that throw on server: `buildSignedDelegateAction`, `ensureConnected`, `s
 
 Properties that return defaults on server: `getAccountId()` → `null`, `getState()` → `null`, `isWalletConnected()` → `false`.
 
+See also: siwn/SKILL.md — server-side plugin options such as `recipient`, `requireFullAccessKey`, and custom profile/access key validation
+
 ## File Consolidation
 
 Replace three separate files with one `auth.ts`:

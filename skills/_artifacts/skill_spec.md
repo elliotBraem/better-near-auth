@@ -1,4 +1,5 @@
 # Better-Near-Auth — Skill Spec
+# Generated: 2026-06-11 | Library version: 1.6.3
 
 Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) and a built-in NEP-366 delegate action relayer. It provides wallet-based authentication for web applications and enables gasless on-chain transactions on behalf of authenticated users.
 
@@ -18,7 +19,7 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | siwn | core | siwn | Plugin setup, nonce/verify, account linking, profiles | 4 |
 | relay | core | relay | Relayer modes, delegate actions, whitelisting, gas limits | 4 |
 | client | core | client | siwnClient config, wallet actions, sign-in, delegate building, SSR behavior | 5 |
-| tanstack | framework | tanstack | Router context singleton, useAuthClient hook, sessionQueryOptions, type inference, SSR wiring | 4 |
+| tanstack | framework | tanstack | Router context singleton, useAuthClient hook, sessionQueryOptions, type inference, SSR wiring | 5 |
 
 ## Failure Mode Inventory
 
@@ -40,17 +41,18 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | 3 | Constructing transactions with wrong builder pattern | HIGH | src/client.ts:240-260, maintainer interview | client, tanstack |
 | 4 | Missing BETTER_AUTH_SECRET for ephemeral key encryption | HIGH | src/utils.ts:21-41, src/index.ts:134 | — |
 
-### client (5 failure modes)
+### client (6 failure modes)
 
 | # | Mistake | Priority | Source | Cross-skill? |
 |---|---------|----------|--------|--------------|
 | 1 | Creating multiple siwnClient instances | CRITICAL | src/client.ts:64-72 | tanstack |
-| 2 | Calling buildSignedDelegateAction without connected wallet | HIGH | src/client.ts:240-253 | tanstack |
-| 3 | Using authClient.near.verify directly instead of signIn.near | MEDIUM | src/client.ts:402-437 | — |
-| 4 | Not listening to wallet disconnect events | MEDIUM | src/client.ts:65-66, src/client.ts:102-108 | — |
-| 5 | Using near.client.send() without ensureConnected | HIGH | src/client.ts:249-253, src/client.ts:310-317 | tanstack |
+| 2 | Recipient mismatch between server and client | CRITICAL | src/client.ts:108, src/index.ts:225 | siwn, tanstack |
+| 3 | Using near.client.send() without ensureConnected | HIGH | src/client.ts:249-253, src/client.ts:310-317 | tanstack |
+| 4 | Constructing transactions with wrong builder pattern | HIGH | src/client.ts:240-260 | relay, tanstack |
+| 5 | Using authClient.near.verify directly instead of signIn.near | MEDIUM | src/client.ts:402-437 | — |
+| 6 | Not listening to wallet disconnect events | MEDIUM | src/client.ts:65-66, src/client.ts:102-108 | — |
 
-### tanstack (4 failure modes)
+### tanstack (5 failure modes)
 
 | # | Mistake | Priority | Source | Cross-skill? |
 |---|---------|----------|--------|--------------|
@@ -58,6 +60,7 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | 2 | Threading runtimeConfig through query options and component props | HIGH | auth.ts:54-67 | — |
 | 3 | Using near.client.send() without ensureConnected | HIGH | src/client.ts:249-253 | client |
 | 4 | Module-level singleton in SSR causes cross-request state leaks | MEDIUM | router.server.tsx:60-71 | — |
+| 5 | Calling createAuthClient() without runtimeConfig on the server | MEDIUM | auth.ts:18-27 | — |
 
 ## Tensions
 
@@ -78,6 +81,8 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | client | siwn | Client recipient must match server recipient; loading server skill ensures consistency |
 | client | tanstack | Client skill documents siwnClient singleton requirement; tanstack skill implements it |
 | tanstack | client | TanStack skill references ensureConnected, SSR behavior, and wallet state patterns from client skill |
+| tanstack | siwn | TanStack skill depends on server-side SIWN plugin options (recipient, key validation) for correct router context setup |
+| siwn | tanstack | SIWN server plugin config affects TanStack client setup (recipient, networkId); understanding both prevents SSR misconfiguration |
 
 ## Subsystems & Reference Candidates
 

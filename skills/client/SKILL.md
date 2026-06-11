@@ -204,11 +204,18 @@ const result = await authClient.near.view({
 | `link(callbacks?)` | `Promise<void>` | Link NEAR account to session |
 | `unlink(params)` | `Promise<Response>` | Unlink NEAR account |
 | `listAccounts()` | `Promise<Response>` | List linked NEAR accounts |
+| `setPrimaryAccount(params)` | `Promise<Response<SetPrimaryAccountResponse>>` | Set primary linked NEAR account |
+| `createSubAccount(params)` | `Promise<Response<CreateSubAccountResponse>>` | Create a sub-account |
+| `checkSubAccountAvailability(params)` | `Promise<Response<CheckSubAccountAvailabilityResponse>>` | Check if a sub-account name is available |
 | `buildSignedDelegateAction(receiverId, buildActions)` | `Promise<string>` | Build + sign delegate action, returns base64 payload |
 | `relayTransaction({ payload })` | `Promise<Response<RelayResponse>>` | Submit delegate action to relayer |
 | `getRelayStatus(txHash)` | `Promise<Response<RelayStatusResponse>>` | Check relayed tx status |
 | `getRelayerInfo()` | `Promise<Response<RelayerInfo>>` | Get relayer info and balance |
 | `relayHistory()` | `Promise<Response<RelayHistoryResponse>>` | List relayed transactions |
+| `setNetwork(network)` | `void` | Switch active network (mainnet/testnet) |
+| `getNetwork()` | `"mainnet" \| "testnet"` | Get currently active network |
+| `getSupportedNetworks()` | `("mainnet" \| "testnet")[]` | List supported networks |
+| `getRecipient(network?)` | `string` | Get configured recipient for a network |
 | `client` | `Near` | Access near-kit Near instance (throws on server) |
 
 ### authClient.signIn

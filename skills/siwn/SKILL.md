@@ -122,6 +122,7 @@ You cannot unlink the last authentication method — link another account first.
 | POST | `/near/link-account` | Link NEAR account to session |
 | POST | `/near/unlink-account` | Unlink NEAR account |
 | GET | `/near/list-accounts` | List linked NEAR accounts |
+| POST | `/near/set-primary-account` | Set primary linked NEAR account |
 
 ## Plugin Options
 
@@ -135,6 +136,8 @@ You cannot unlink the last authentication method — link another account first.
 | `apiKey` | `string` | `process.env.FASTNEAR_API_KEY` | API key for RPC |
 | `rpcUrl` | `string` | — | Custom RPC URL |
 | `relayer` | `RelayerConfig` | — | See relay skill |
+| `recipients` | `DualNetworkConfig<string>` | — | Per-network recipient (overrides `recipient` for mainnet/testnet) |
+| `subAccount` | `SubAccountConfig \| DualNetworkConfig<SubAccountConfig>` | — | Sub-account configuration for delegated account creation |
 
 ## Email Handling
 
