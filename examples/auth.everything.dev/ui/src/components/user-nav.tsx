@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { forwardRef, useCallback } from "react";
 import {
   organizationsQueryKey,
   organizationsQueryOptions,
@@ -120,15 +120,15 @@ export function UserNav() {
   );
 }
 
-function MenuButton({ title }: { title: string }) {
-  return (
-    <button
-      type="button"
-      className="w-6 h-6 rounded-full bg-foreground transition-all duration-200 ease-out hover:shadow-lg hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      title={title}
-    />
-  );
-}
+const MenuButton = forwardRef<HTMLButtonElement, { title: string }>(({ title, ...props }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    className="w-6 h-6 rounded-full bg-foreground transition-all duration-200 ease-out hover:shadow-lg hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    title={title}
+    {...props}
+  />
+));
 
 function DotControl() {
   return (
