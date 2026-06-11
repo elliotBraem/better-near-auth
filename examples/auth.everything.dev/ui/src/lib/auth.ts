@@ -181,6 +181,21 @@ export function useAuthClient(): AuthClient {
   return useRouter().options.context.authClient;
 }
 
+export const organizationsQueryKey = ["organizations"] as const;
+
+export function organizationsQueryOptions(authClient: AuthClient, enabled?: boolean) {
+  return {
+    queryKey: organizationsQueryKey,
+    queryFn: async () => {
+      const { data } = await authClient.organization.list();
+      return (data || []) as Organization[];
+    },
+    staleTime: 30 * 1000,
+    gcTime: 10 * 60 * 1000,
+    enabled: !!enabled,
+  };
+}
+
 export const sessionQueryKey = ["session"] as const;
 
 export function sessionQueryOptions(authClient: AuthClient, initialSession?: SessionData | null) {
@@ -199,14 +214,23 @@ export function sessionQueryOptions(authClient: AuthClient, initialSession?: Ses
     : { ...baseOptions, initialData: initialSession };
 }
 
-export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
-  return useQuery({
-    queryKey: ["relay-history"],
+export const relayHistoryQueryKey = ["relay-history"] as const;
+
+export function relayHistoryQueryOptions(
+  authClient: AuthClient,
+  session: SessionData | null | undefined,
+) {
+  return {
+    queryKey: relayHistoryQueryKey,
     queryFn: async (): Promise<RelayedTransactionT[]> => {
       const res = await authClient.near.relayHistory();
       return res?.data?.transactions ?? [];
     },
     enabled: !!session,
     refetchInterval: 2000,
-  });
+  };
+}
+
+export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
+  return useQuery(relayHistoryQueryOptions(authClient, session));
 }

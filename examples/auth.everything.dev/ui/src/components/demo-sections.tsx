@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   type Organization,
+  relayHistoryQueryKey,
   type SessionData,
   sessionQueryOptions,
   useApiClient,
@@ -901,7 +902,7 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
     },
     onSuccess: (data) => {
       setRelayTxHash(data?.txHash ?? null);
-      queryClient.invalidateQueries({ queryKey: ["relay-history"] });
+      queryClient.invalidateQueries({ queryKey: relayHistoryQueryKey });
       toast.success("Message relayed (gasless)!");
     },
     onError: (error, _vars, context) => {
@@ -935,7 +936,7 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
       return context;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["relay-history"] });
+      queryClient.invalidateQueries({ queryKey: relayHistoryQueryKey });
       queryClient.invalidateQueries({ queryKey });
       toast.success("Message sent directly!");
     },

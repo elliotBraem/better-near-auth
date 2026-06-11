@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import type { Organization } from "@/app";
-import { sessionQueryOptions, useAuthClient } from "@/app";
+import { useCallback } from "react";
+import {
+  organizationsQueryKey,
+  organizationsQueryOptions,
+  sessionQueryKey,
+  sessionQueryOptions,
+  useAuthClient,
+} from "@/app";
 import { Button, OrgSwitcher } from "@/components";
 import {
   DropdownMenu,
@@ -19,15 +25,7 @@ export function UserNav() {
   const router = useRouter();
   const { data: session } = useQuery(sessionQueryOptions(auth));
   const user = session?.user;
-  const { data: organizations } = useQuery({
-    queryKey: ["organizations"],
-    queryFn: async () => {
-      const { data } = await auth.organization.list();
-      return (data || []) as Organization[];
-    },
-    staleTime: 30 * 1000,
-    enabled: !!user,
-  });
+  const { data: organizations } = useQuery(organizationsQueryOptions(auth, !!user));
   const activeOrgId = session?.session?.activeOrganizationId;
 
   const activeOrg = organizations?.find((org) => org.id === activeOrgId);
@@ -41,9 +39,9 @@ export function UserNav() {
       await auth.near.disconnect().catch(() => {});
     },
     onSuccess: async () => {
-      queryClient.setQueryData(["session"], null);
-      queryClient.removeQueries({ queryKey: ["organizations"] });
-      await queryClient.invalidateQueries({ queryKey: ["session"] });
+      queryClient.setQueryData(sessionQueryKey, null);
+      queryClient.removeQueries({ queryKey: organizationsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
       await router.invalidate();
       await navigate({ to: "/", replace: true });
     },
@@ -63,16 +61,18 @@ export function UserNav() {
     );
   }
 
-  const handleOrgSwitch = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["session"] });
-    await queryClient.invalidateQueries({ queryKey: ["organizations"] });
-  };
+  const handleOrgSwitch = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
+    await queryClient.invalidateQueries({ queryKey: organizationsQueryKey });
+  }, [queryClient]);
+
+  const organizationsList = organizations ?? [];
 
   return (
     <div className="flex items-center gap-2">
-      {organizations?.length > 0 && (
+      {organizationsList.length > 0 && (
         <OrgSwitcher
-          organizations={organizations}
+          organizations={organizationsList}
           activeOrgId={activeOrgId}
           onSwitch={handleOrgSwitch}
         />

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RelayedTransactionT } from "better-near-auth";
 import { CheckCircle2, Clock, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { sessionQueryOptions, useAuthClient, useRelayHistory } from "@/app";
+import { relayHistoryQueryOptions, sessionQueryOptions, useAuthClient } from "@/app";
 import { Badge } from "@/components/ui/badge";
 
 function explorerTxUrl(txHash: string): string {
@@ -66,7 +66,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function RelayFeed() {
   const auth = useAuthClient();
   const { data: session } = useQuery(sessionQueryOptions(auth));
-  const { data: transactions, isPending } = useRelayHistory(session, auth);
+  const { data: transactions, isPending } = useQuery(relayHistoryQueryOptions(auth, session));
 
   if (isPending) {
     return (
