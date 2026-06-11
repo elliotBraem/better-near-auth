@@ -8,7 +8,7 @@
   "staging": {
     "domain": "staging.dev.everything.dev"
   },
-  "repository": "https://github.com/nearbuilders/everything-dev",
+  "repository": "https://github.com/elliotBraem/better-near-auth",
   "app": {
     "ui": {
       "name": "ui",
@@ -39,7 +39,7 @@
           }
         },
         "passkey": {
-          "rpID": "everything.dev",
+          "rpID": "auth.everything.dev",
           "rpName": "Better NEAR Auth"
         },
         "siwn": {
