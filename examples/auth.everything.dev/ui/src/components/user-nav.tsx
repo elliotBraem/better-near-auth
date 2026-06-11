@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import type { Organization } from "@/app";
 import { sessionQueryOptions, useAuthClient } from "@/app";
 import { Button, OrgSwitcher } from "@/components";
@@ -17,6 +16,7 @@ export function UserNav() {
   const auth = useAuthClient();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const router = useRouter();
   const { data: session } = useQuery(sessionQueryOptions(auth));
   const user = session?.user;
   const { data: organizations } = useQuery({
@@ -30,9 +30,7 @@ export function UserNav() {
   });
   const activeOrgId = session?.session?.activeOrganizationId;
 
-  const activeOrg = useMemo(() => {
-    return organizations?.find((org) => org.id === activeOrgId);
-  }, [organizations, activeOrgId]);
+  const activeOrg = organizations?.find((org) => org.id === activeOrgId);
 
   const signOutMutation = useMutation({
     mutationFn: async () => {
@@ -44,8 +42,10 @@ export function UserNav() {
     },
     onSuccess: async () => {
       queryClient.setQueryData(["session"], null);
+      queryClient.removeQueries({ queryKey: ["organizations"] });
       await queryClient.invalidateQueries({ queryKey: ["session"] });
-      navigate({ to: "/", replace: true });
+      await router.invalidate();
+      await navigate({ to: "/", replace: true });
     },
     onError: (error: Error) => {
       console.error("Sign out error:", error);
@@ -70,7 +70,7 @@ export function UserNav() {
 
   return (
     <div className="flex items-center gap-2">
-      {organizations && organizations.length > 0 && (
+      {organizations?.length > 0 && (
         <OrgSwitcher
           organizations={organizations}
           activeOrgId={activeOrgId}
@@ -80,11 +80,7 @@ export function UserNav() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="w-6 h-6 rounded-full bg-foreground transition-all duration-200 ease-out hover:shadow-lg hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            title="menu"
-          />
+          <MenuButton title="menu" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>
@@ -124,15 +120,21 @@ export function UserNav() {
   );
 }
 
+function MenuButton({ title }: { title: string }) {
+  return (
+    <button
+      type="button"
+      className="w-6 h-6 rounded-full bg-foreground transition-all duration-200 ease-out hover:shadow-lg hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      title={title}
+    />
+  );
+}
+
 function DotControl() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="w-6 h-6 rounded-full bg-foreground transition-all duration-200 ease-out hover:shadow-lg hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          title="actions"
-        />
+        <MenuButton title="actions" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuLabel className="text-xs text-muted-foreground">navigate</DropdownMenuLabel>
