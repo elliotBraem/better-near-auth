@@ -54,12 +54,15 @@ async function hashNonce(nonce: Uint8Array): Promise<string> {
 	return hex.encode(new Uint8Array(hashBuffer));
 }
 
-function deriveEmail(accountId: string): string | null {
+function deriveEmail(accountId: string, recipient: string): string {
 	if (accountId.endsWith(".near")) {
 		const localPart = accountId.slice(0, -5);
-		return `${localPart}@near.email`;
+		if (!localPart.includes(".")) {
+			return `${localPart}@near.email`;
+		}
 	}
-	return null;
+	const randomId = crypto.randomUUID().slice(0, 8);
+	return `temp-${randomId}@${recipient}`;
 }
 
 function nearAccountKey(account: Pick<NearAccount, "accountId" | "network">): string {
@@ -927,7 +930,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 						}
 
 						if (!user) {
-							const userEmail = deriveEmail(accountId) ?? "";
+							const userEmail = deriveEmail(accountId, getRecipient(network));
 
 							const profile = await (options.getProfile || ((id: AccountId) => defaultGetProfile(id, apiKey)))(accountId);
 

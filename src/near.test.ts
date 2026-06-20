@@ -293,9 +293,7 @@ describe("siwn plugin", () => {
 			expect((user as any).email).toBe("test@near.email");
 		});
 
-		it("should create a testnet user without email", async () => {
-			const { verifyNep413Signature } = await import("near-kit");
-
+		it("should create a testnet user with temp email", async () => {
 			const testnetSignedMessage = {
 				accountId: MOCK_TESTNET_ACCOUNT_ID,
 				publicKey: MOCK_PUBLIC_KEY,
@@ -305,7 +303,7 @@ describe("siwn plugin", () => {
 			const nonceBytes = makeUniqueNonce();
 			const nonceHex = hex.encode(nonceBytes);
 
-			const { client } = await setup();
+			const { client, db } = await setup();
 			const { data, error } = await client.near.verify({
 				signedMessage: testnetSignedMessage,
 				message: `Sign in to ${MOCK_RECIPIENT}`,
@@ -316,6 +314,61 @@ describe("siwn plugin", () => {
 			expect(error).toBeNull();
 			expect(data?.success).toBe(true);
 			expect(data?.user.network).toBe("testnet");
+
+			const users = await db.findMany({ model: "user" });
+			const user = users.find((u: any) => u.id === data?.user.id);
+			expect(user).toBeDefined();
+			expect((user as any).email).toMatch(/^temp-[a-f0-9]{8}@example\.near$/);
+		});
+
+		it("should create a user with temp email for .tg accounts", async () => {
+			const { client, db } = await setup();
+			const nonceBytes = makeUniqueNonce();
+			const nonceHex = hex.encode(nonceBytes);
+
+			const { data, error } = await client.near.verify({
+				signedMessage: {
+					accountId: "alice.tg",
+					publicKey: MOCK_PUBLIC_KEY,
+					signature: "mock-signature-base64",
+				},
+				message: `Sign in to ${MOCK_RECIPIENT}`,
+				recipient: MOCK_RECIPIENT,
+				nonce: nonceHex,
+				accountId: "alice.tg",
+			});
+			expect(error).toBeNull();
+			expect(data?.success).toBe(true);
+
+			const users = await db.findMany({ model: "user" });
+			const user = users.find((u: any) => u.id === data?.user.id);
+			expect(user).toBeDefined();
+			expect((user as any).email).toMatch(/^temp-[a-f0-9]{8}@example\.near$/);
+		});
+
+		it("should create a user with temp email for subaccounts", async () => {
+			const { client, db } = await setup();
+			const nonceBytes = makeUniqueNonce();
+			const nonceHex = hex.encode(nonceBytes);
+
+			const { data, error } = await client.near.verify({
+				signedMessage: {
+					accountId: "sub.app.near",
+					publicKey: MOCK_PUBLIC_KEY,
+					signature: "mock-signature-base64",
+				},
+				message: `Sign in to ${MOCK_RECIPIENT}`,
+				recipient: MOCK_RECIPIENT,
+				nonce: nonceHex,
+				accountId: "sub.app.near",
+			});
+			expect(error).toBeNull();
+			expect(data?.success).toBe(true);
+
+			const users = await db.findMany({ model: "user" });
+			const user = users.find((u: any) => u.id === data?.user.id);
+			expect(user).toBeDefined();
+			expect((user as any).email).toMatch(/^temp-[a-f0-9]{8}@example\.near$/);
 		});
 
 		it("should link existing user on re-verify with same accountId", async () => {
