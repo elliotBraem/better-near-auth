@@ -8,7 +8,7 @@ description: >
   configuring RotatingKeyStore for high-throughput relay.
 type: core
 library: better-near-auth
-library_version: "1.6.3"
+library_version: "1.6.4"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/utils.ts"

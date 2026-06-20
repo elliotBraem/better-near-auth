@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.6.4
+
+### Patch Changes
+
+- [`9cb88d3`](https://github.com/elliotBraem/better-near-auth/commit/9cb88d3b13d1f1f72478f9d33da9e02e4219c8c0) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Fix login for non-.near NEAR accounts (.tg, .testnet, subaccounts, implicit accounts) by falling back to a temp-{random}@{recipient} email instead of an empty string that collides on the UNIQUE constraint
+
 ## 1.6.3
 
 ### Patch Changes
