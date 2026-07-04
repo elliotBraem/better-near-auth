@@ -439,7 +439,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 					requireRequest: true,
 				},
 				async (ctx) => {
-					const { signedMessage, message, recipient, nonce, accountId } = ctx.body;
+					const { signedMessage, message, recipient, nonce, accountId, callbackUrl } = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
 					const session = ctx.context.session;
 
@@ -456,7 +456,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 						const isValid = await verifyNep413Signature(
 						signedMessage,
-						{ message, recipient, nonce: nonceBytes },
+						{ message, recipient, nonce: nonceBytes, callbackUrl },
 							{ near, maxAge: 15 * 60 * 1000 },
 						);
 
@@ -816,6 +816,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 						recipient,
 						nonce,
 						accountId,
+						callbackUrl,
 					} = ctx.body;
 					const network = getNetworkFromAccountId(accountId);
 
@@ -825,7 +826,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 						const isValid = await verifyNep413Signature(
 						signedMessage,
-						{ message, recipient, nonce: nonceBytes },
+						{ message, recipient, nonce: nonceBytes, callbackUrl },
 							{ near, maxAge: 15 * 60 * 1000 },
 						);
 

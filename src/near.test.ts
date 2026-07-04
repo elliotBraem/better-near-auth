@@ -271,6 +271,22 @@ describe("siwn plugin", () => {
 			expect(error).toBeDefined();
 		});
 
+		it("should pass callbackUrl through to NEP-413 verification (redirect wallets)", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+			(verifyNep413Signature as any).mockClear();
+			const { client } = await setup();
+
+			const { data, error } = await client.near.verify({
+				...makeVerifyBody(),
+				callbackUrl: "myapp://callback/success",
+			});
+
+			expect(error).toBeNull();
+			expect(data?.success).toBe(true);
+			const params = (verifyNep413Signature as any).mock.calls.at(-1)?.[1];
+			expect(params?.callbackUrl).toBe("myapp://callback/success");
+		});
+
 		it("should detect nonce replay", async () => {
 			const { client } = await setup();
 			const body = makeVerifyBody();
