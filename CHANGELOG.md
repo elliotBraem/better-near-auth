@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.6.5
+
+### Patch Changes
+
+- [`c8b7e3a`](https://github.com/elliotBraem/better-near-auth/commit/c8b7e3a87e72ded05f3b7e1e010dee28cc8b9eb6) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add Google OAuth support to auth.everything.dev example; read GitHub clientId from environment
+
 ## 1.6.4
 
 ### Patch Changes
