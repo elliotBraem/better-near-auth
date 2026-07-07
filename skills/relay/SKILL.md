@@ -6,9 +6,10 @@ description: >
   gas/deposit limits, check relay status and history, and use the contract view
   endpoint. Load when setting up relayer config, debugging relay failures, or
   configuring RotatingKeyStore for high-throughput relay.
-type: core
-library: better-near-auth
-library_version: "1.6.4"
+metadata:
+  type: core
+  library: better-near-auth
+  library_version: "1.6.4"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/utils.ts"

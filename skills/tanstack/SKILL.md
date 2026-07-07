@@ -7,12 +7,13 @@ description: >
   Load when scaffolding a new TanStack Router app with better-near-auth,
   wiring auth into router context, or debugging wallet state loss after
   sign-in in SSR/CSR TanStack apps.
-type: framework
 requires:
   - client
   - siwn
-library: better-near-auth
-library_version: "1.6.4"
+metadata:
+  type: framework
+  library: better-near-auth
+  library_version: "1.6.4"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/lib/auth.ts"

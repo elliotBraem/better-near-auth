@@ -6,9 +6,10 @@ description: >
   account linking and unlinking, and NEAR profile lookup. Load when adding
   NEAR wallet sign-in to a Better Auth server, configuring siwn() plugin options,
   or debugging NEP-413 verify or nonce issues.
-type: core
-library: better-near-auth
-library_version: "1.6.4"
+metadata:
+  type: core
+  library: better-near-auth
+  library_version: "1.6.4"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/profile.ts"

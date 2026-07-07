@@ -5,10 +5,11 @@ description: >
   connection via NearConnect, use authClient.near actions for sign-in, profile
   lookup, account management, delegate action building with TransactionBuilder,
   and relay submission. Load when implementing NEAR wallet sign-in on the client,
-  using authClient.near.* methods, or building delegate actions for gasless relay.
-type: core
-library: better-near-auth
-library_version: "1.6.4"
+  using authClient.near.* methods,   or building delegate actions for gasless relay.
+metadata:
+  type: core
+  library: better-near-auth
+  library_version: "1.6.4"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
   - "elliotBraem/better-near-auth:src/types.ts"
