@@ -62,6 +62,7 @@ export const LinkAccountRequest = z.object({
 	recipient: z.string(),
 	nonce: z.string(),
 	accountId: AccountIdSchema,
+	callbackUrl: z.string().optional(),
 });
 
 export const SetPrimaryAccountRequest = z.object({
@@ -80,6 +81,7 @@ export const VerifyRequest = z.object({
 	recipient: z.string(),
 	nonce: z.string(),
 	accountId: AccountIdSchema,
+	callbackUrl: z.string().optional(),
 });
 
 export const RelayRequest = z.object({
