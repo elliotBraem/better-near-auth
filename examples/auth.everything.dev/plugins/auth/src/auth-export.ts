@@ -65,6 +65,10 @@ export interface AuthConfig {
       clientId?: string;
       clientSecret?: string;
     };
+    google?: {
+      clientId?: string;
+      clientSecret?: string;
+    };
   };
   passkey?: AuthPasskeyConfig;
   phoneNumber?: {

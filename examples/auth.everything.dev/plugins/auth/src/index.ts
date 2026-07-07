@@ -60,6 +60,11 @@ const authVariablesSchema = z.object({
           clientId: z.string().optional(),
         })
         .optional(),
+      google: z
+        .object({
+          clientId: z.string().optional(),
+        })
+        .optional(),
     })
     .optional(),
   passkey: z
@@ -76,6 +81,7 @@ const authSecretsSchema = z.object({
   AUTH_DATABASE_URL: z.string(),
   BETTER_AUTH_SECRET: z.string(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
   FASTNEAR_API_KEY: z.string().optional(),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
@@ -275,6 +281,10 @@ function normalizeAuthConfig(
       github: {
         clientId: variables.socialProviders?.github?.clientId,
         clientSecret: secrets.GITHUB_CLIENT_SECRET,
+      },
+      google: {
+        clientId: variables.socialProviders?.google?.clientId,
+        clientSecret: secrets.GOOGLE_CLIENT_SECRET,
       },
     },
     passkey: variables.passkey,

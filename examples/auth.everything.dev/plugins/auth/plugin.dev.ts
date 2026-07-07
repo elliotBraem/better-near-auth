@@ -28,6 +28,9 @@ export default {
         github: {
           clientId: process.env.GITHUB_CLIENT_ID,
         },
+        google: {
+          clientId: process.env.GOOGLE_CLIENT_ID,
+        },
       },
       passkey: {
         rpID: process.env.PASSKEY_RP_ID,
@@ -64,6 +67,7 @@ export default {
       BETTER_AUTH_SECRET:
         process.env.BETTER_AUTH_SECRET || "dev-only-secret-do-not-use-in-production",
       GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
       FASTNEAR_API_KEY: process.env.FASTNEAR_API_KEY,
       TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
       TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,

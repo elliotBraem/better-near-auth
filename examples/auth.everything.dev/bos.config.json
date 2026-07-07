@@ -34,9 +34,8 @@
       "integrity": "sha384-rLbjlO0rAwwxTVMqTidYPINdqiGNuiWrhcxNcsso3+DAoo/H9tkJbBFBy81bupTC",
       "variables": {
         "socialProviders": {
-          "github": {
-            "clientId": ""
-          }
+          "github": {},
+          "google": {}
         },
         "passkey": {
           "rpID": "auth.everything.dev",
@@ -56,6 +55,7 @@
         "AUTH_DATABASE_URL",
         "BETTER_AUTH_SECRET",
         "GITHUB_CLIENT_SECRET",
+        "GOOGLE_CLIENT_SECRET",
         "FASTNEAR_API_KEY",
         "TWILIO_ACCOUNT_SID",
         "TWILIO_AUTH_TOKEN",

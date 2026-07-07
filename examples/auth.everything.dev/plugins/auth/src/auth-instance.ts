@@ -214,6 +214,7 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
   const passkeyOptions = resolvePasskeyRelyingPartyOptions(config);
   const twilioConfig = config.phoneNumber?.twilio;
   const githubConfig = config.socialProviders?.github;
+  const googleConfig = config.socialProviders?.google;
   const siwnOptions = buildSiwnOptions(config);
   const mainnetRecipient = isRecipientsConfig(siwnOptions)
     ? siwnOptions.recipients.mainnet
@@ -231,6 +232,10 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       github: {
         clientId: githubConfig?.clientId ?? "",
         clientSecret: githubConfig?.clientSecret ?? "",
+      },
+      google: {
+        clientId: googleConfig?.clientId ?? "",
+        clientSecret: googleConfig?.clientSecret ?? "",
       },
     },
     plugins: [
