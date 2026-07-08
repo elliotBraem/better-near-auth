@@ -17,6 +17,8 @@ export type AuthOrganizationSummary = NonNullable<AuthOrganizationContext["organ
 export type AuthOrganizationMember = InferOutput<"listMembers">[number];
 export type AuthApiKey = InferOutput<"listApiKeys">[number];
 export type AuthInvitation = InferOutput<"listInvitations">[number];
+export type AuthAllOrganization = InferOutput<"listAllOrganizations">[number];
+export type AuthAllOrganizations = InferOutput<"listAllOrganizations">;
 
 export type GetActiveMemberInput = InferInput<"getActiveMember">;
 export type GetOrganizationInput = InferInput<"getOrganization">;
