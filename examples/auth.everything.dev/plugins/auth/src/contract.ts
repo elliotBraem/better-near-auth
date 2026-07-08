@@ -296,6 +296,22 @@ export const contract = oc.router({
     )
     .errors(Errors),
 
+  listAllOrganizations: oc
+    .route({ method: "GET", path: "/v1/auth/organizations/all" })
+    .output(
+      z.array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          slug: z.string(),
+          logo: z.string().nullable(),
+          createdAt: z.date(),
+          metadata: z.record(z.string(), z.unknown()).nullable(),
+        }),
+      ),
+    )
+    .errors(Errors),
+
   createOrganization: oc
     .route({ method: "POST", path: "/v1/auth/organizations" })
     .input(

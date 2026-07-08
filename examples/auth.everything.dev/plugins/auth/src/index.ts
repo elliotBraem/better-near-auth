@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
@@ -371,6 +371,26 @@ export default createPlugin({
       });
     });
 
+    const requireAdmin = builder.middleware(async ({ context, next }) => {
+      const headers = createHeaders(context.reqHeaders);
+      const session = await services.auth.api.getSession({ headers });
+
+      if (!session?.user) {
+        throw new ORPCError("UNAUTHORIZED", { message: "Authentication required" });
+      }
+      if (session.user.role !== "admin") {
+        throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
+      }
+
+      return next({
+        context: {
+          userId: session.user.id,
+          user: session.user,
+          reqHeaders: context.reqHeaders,
+        },
+      });
+    });
+
     return {
       health: builder.health.handler(async () => ({
         status: "ok" as const,
@@ -719,6 +739,30 @@ export default createPlugin({
             role: m.role,
           }));
       }),
+
+      listAllOrganizations: builder.listAllOrganizations
+        .use(requireAdmin)
+        .handler(async () => {
+          const orgs = await services.db
+            .select()
+            .from(schema.organization)
+            .where(
+              and(
+                isNotNull(schema.organization.metadata),
+                sql`${schema.organization.metadata}::jsonb ? 'daoAccountId'`,
+                sql`(${schema.organization.metadata}::jsonb ->> 'isPersonal') IS DISTINCT FROM 'true'`,
+              ),
+            )
+            .orderBy(desc(schema.organization.createdAt));
+          return orgs.map((org) => ({
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            logo: org.logo ?? null,
+            createdAt: org.createdAt,
+            metadata: tryJsonParse<Record<string, unknown>>(org.metadata) ?? null,
+          }));
+        }),
 
       createOrganization: builder.createOrganization
         .use(requireAuth)
