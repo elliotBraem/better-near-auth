@@ -75,6 +75,11 @@ const authVariablesSchema = z.object({
     })
     .optional(),
   siwn: z.union([authSiwnRecipientSchema, authSiwnRecipientsSchema]),
+  email: z
+    .object({
+      from: z.string(),
+    })
+    .optional(),
 });
 
 const authSecretsSchema = z.object({
@@ -89,6 +94,11 @@ const authSecretsSchema = z.object({
   NEAR_RELAYER_PRIVATE_KEY: z.string().optional(),
   NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: z.string().optional(),
   NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: z.string().optional(),
+  email: z
+    .object({
+      resend: z.string().optional(),
+    })
+    .optional(),
 });
 
 type AuthPluginVariables = z.infer<typeof authVariablesSchema>;
@@ -302,6 +312,11 @@ function normalizeAuthConfig(
       ...siwn,
       apiKey: secrets.FASTNEAR_API_KEY,
     },
+    email: variables.email?.from
+      ? {
+          from: variables.email.from,
+        }
+      : undefined,
   };
 
   return { authConfig, apiKeyHeaders: variables.apiKeyHeaders ?? ["x-api-key"] };
@@ -333,7 +348,7 @@ export default createPlugin({
 
       const { authConfig, apiKeyHeaders } = normalizeAuthConfig(config.variables, config.secrets);
 
-      const auth = createAuthInstance(authConfig, driver.db);
+      const auth = createAuthInstance(authConfig, driver.db, config.secrets.email?.resend);
 
       console.log("[Auth] Better Auth instance created");
 
@@ -360,26 +375,6 @@ export default createPlugin({
         throw new ORPCError("UNAUTHORIZED", {
           message: "Authentication required",
         });
-      }
-
-      return next({
-        context: {
-          userId: session.user.id,
-          user: session.user,
-          reqHeaders: context.reqHeaders,
-        },
-      });
-    });
-
-    const requireAdmin = builder.middleware(async ({ context, next }) => {
-      const headers = createHeaders(context.reqHeaders);
-      const session = await services.auth.api.getSession({ headers });
-
-      if (!session?.user) {
-        throw new ORPCError("UNAUTHORIZED", { message: "Authentication required" });
-      }
-      if (session.user.role !== "admin") {
-        throw new ORPCError("FORBIDDEN", { message: "Admin access required" });
       }
 
       return next({
@@ -740,7 +735,7 @@ export default createPlugin({
           }));
       }),
 
-      listAllOrganizations: builder.listAllOrganizations.use(requireAdmin).handler(async () => {
+      listAllOrganizations: builder.listAllOrganizations.use(requireAuth).handler(async () => {
         const orgs = await services.db
           .select()
           .from(schema.organization)

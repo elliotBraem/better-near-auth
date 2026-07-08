@@ -81,6 +81,9 @@ export interface AuthConfig {
     };
   };
   siwn: AuthSiwnConfig;
+  email?: {
+    from: string;
+  };
 }
 
 export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;

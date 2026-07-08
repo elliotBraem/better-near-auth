@@ -37,6 +37,9 @@ export default {
         rpName: process.env.PASSKEY_RP_NAME,
         origin: process.env.PASSKEY_ORIGIN,
       },
+      email: {
+        from: process.env.EMAIL_FROM,
+      },
       siwn: {
         ...(testnetRecipient
           ? {
@@ -72,6 +75,9 @@ export default {
       TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
       TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
       TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
+      email: {
+        resend: process.env.RESEND_API_KEY,
+      },
       NEAR_RELAYER_PRIVATE_KEY: process.env.NEAR_RELAYER_PRIVATE_KEY,
       NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: process.env.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
       NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: process.env.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,

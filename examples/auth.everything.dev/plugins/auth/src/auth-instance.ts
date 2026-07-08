@@ -123,13 +123,39 @@ function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
   };
 }
 
-async function sendEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
-  console.log(`\n📧 [Email Preview] ============================================`);
-  console.log(`To: ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`----------------------------------------------------------------`);
-  console.log(text);
-  console.log(`================================================================\n`);
+async function sendEmail(
+  { to, subject, text, html }: { to: string; subject: string; text: string; html?: string },
+  emailApiKey?: string,
+  from?: string,
+) {
+  try {
+    if (!emailApiKey || !from) {
+      throw new Error("no email API key or from address configured");
+    }
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${emailApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to, subject, text, ...(html ? { html } : {}) }),
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Resend error ${res.status}: ${errorText}`);
+    }
+  } catch (err) {
+    console.log(`\n📧 [Email Preview — ${err instanceof Error ? err.message : "send failed"}] ===`);
+    console.log(`To: ${to}`);
+    console.log(`From: ${from ?? "(not configured)"}`);
+    console.log(`Subject: ${subject}`);
+    console.log(`----------------------------------------------------------------`);
+    console.log(text);
+    if (html) {
+      console.log(`\n[HTML version available but not shown in console]`);
+    }
+    console.log(`================================================================\n`);
+  }
 }
 
 async function sendSMS(
@@ -210,7 +236,8 @@ async function createPersonalOrganization(
   return personalOrg;
 }
 
-export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
+export function createAuthInstance(config: AuthConfig, db: AuthDatabase, emailApiKey?: string) {
+  const emailConfig = config.email;
   const passkeyOptions = resolvePasskeyRelyingPartyOptions(config);
   const twilioConfig = config.phoneNumber?.twilio;
   const githubConfig = config.socialProviders?.github;
@@ -261,11 +288,15 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
         roles: orgRoles,
         async sendInvitationEmail(data) {
           const inviteLink = `${config.baseUrl}/accept-invitation/${data.id}`;
-          await sendEmail({
-            to: data.email,
-            subject: `Invitation to join ${data.organization.name}`,
-            text: `You've been invited by ${data.inviter.user.name} (${data.inviter.user.email}) to join ${data.organization.name}.\n\nClick here to accept: ${inviteLink}`,
-          });
+          await sendEmail(
+            {
+              to: data.email,
+              subject: `Invitation to join ${data.organization.name}`,
+              text: `You've been invited by ${data.inviter.user.name} (${data.inviter.user.email}) to join ${data.organization.name}.\n\nClick here to accept: ${inviteLink}`,
+            },
+            emailApiKey,
+            emailConfig?.from,
+          );
         },
       }),
       apiKey([
@@ -298,20 +329,28 @@ export function createAuthInstance(config: AuthConfig, db: AuthDatabase) {
       enabled: true,
       requireEmailVerification: true,
       sendResetPassword: async ({ user, url }) => {
-        await sendEmail({
-          to: user.email,
-          subject: "Reset your password",
-          text: `Click the link to reset your password: ${url}`,
-        });
+        await sendEmail(
+          {
+            to: user.email,
+            subject: "Reset your password",
+            text: `Click the link to reset your password: ${url}`,
+          },
+          emailApiKey,
+          emailConfig?.from,
+        );
       },
     },
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        await sendEmail({
-          to: user.email,
-          subject: "Verify your email address",
-          text: `Click the link to verify your email: ${url}`,
-        });
+        await sendEmail(
+          {
+            to: user.email,
+            subject: "Verify your email address",
+            text: `Click the link to verify your email: ${url}`,
+          },
+          emailApiKey,
+          emailConfig?.from,
+        );
       },
       sendOnSignUp: true,
       sendOnSignIn: true,
