@@ -740,29 +740,27 @@ export default createPlugin({
           }));
       }),
 
-      listAllOrganizations: builder.listAllOrganizations
-        .use(requireAdmin)
-        .handler(async () => {
-          const orgs = await services.db
-            .select()
-            .from(schema.organization)
-            .where(
-              and(
-                isNotNull(schema.organization.metadata),
-                sql`${schema.organization.metadata}::jsonb ? 'daoAccountId'`,
-                sql`(${schema.organization.metadata}::jsonb ->> 'isPersonal') IS DISTINCT FROM 'true'`,
-              ),
-            )
-            .orderBy(desc(schema.organization.createdAt));
-          return orgs.map((org) => ({
-            id: org.id,
-            name: org.name,
-            slug: org.slug,
-            logo: org.logo ?? null,
-            createdAt: org.createdAt,
-            metadata: tryJsonParse<Record<string, unknown>>(org.metadata) ?? null,
-          }));
-        }),
+      listAllOrganizations: builder.listAllOrganizations.use(requireAdmin).handler(async () => {
+        const orgs = await services.db
+          .select()
+          .from(schema.organization)
+          .where(
+            and(
+              isNotNull(schema.organization.metadata),
+              sql`${schema.organization.metadata}::jsonb ? 'daoAccountId'`,
+              sql`(${schema.organization.metadata}::jsonb ->> 'isPersonal') IS DISTINCT FROM 'true'`,
+            ),
+          )
+          .orderBy(desc(schema.organization.createdAt));
+        return orgs.map((org) => ({
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          logo: org.logo ?? null,
+          createdAt: org.createdAt,
+          metadata: tryJsonParse<Record<string, unknown>>(org.metadata) ?? null,
+        }));
+      }),
 
       createOrganization: builder.createOrganization
         .use(requireAuth)
