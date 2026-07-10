@@ -12,20 +12,14 @@
   "app": {
     "ui": {
       "name": "ui",
-      "development": "local:ui",
-      "production": "https://elliot-braem-4680-ui-better-near-auth-elliotbraem-d72ec6f55-ze.zephyrcloud.app",
-      "integrity": "sha384-GDbBvnx/K4vb60PkKPwiQd3XylGhshlw5MVqNqk+e3apCZauDOOZ15NFuFl4dOUC",
-      "ssr": "https://elliot-braem-4681-ui-better-near-auth-elliotbraem-c5ccea37a-ze.zephyrcloud.app",
-      "ssrIntegrity": "sha384-mjEMvB+TUzqhzXaqxiAzgeBkTQ1sqO2/ndMP7AtUuxr7tJWKo1FuuZ4OgRq11/Lm"
+      "development": "local:ui"
     },
     "api": {
       "name": "api",
       "development": "local:api",
       "secrets": [
         "API_DATABASE_URL"
-      ],
-      "production": "https://elliot-braem-4682-api-better-near-auth-elliotbrae-1d399c7b6-ze.zephyrcloud.app",
-      "integrity": "sha384-OQGhJZNMPsj4Y96H/7UxCX7nov0/LSUxhuYRdMRF9rkEoYFiRvUTWf8zNg1i6nDm"
+      ]
     },
     "auth": {
       "name": "everything-dev_auth-plugin",

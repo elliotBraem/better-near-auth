@@ -1,3 +1,10 @@
+/**
+ * Client router factory — creates a TanStack Router with browser history.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import { dehydrate, hydrate } from "@tanstack/react-query";
 import { createBrowserHistory, createRouter as createTanStackRouter } from "@tanstack/react-router";
 import type { CreateRouterOptions } from "./app";

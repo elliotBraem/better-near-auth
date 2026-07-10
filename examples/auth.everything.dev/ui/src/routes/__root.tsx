@@ -1,3 +1,11 @@
+/**
+ * HTML shell — head/scripts/styles, runtime config handoff.
+ * Root boundary between the host-rendered document and the UI application.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
   ClientOnly,
@@ -11,9 +19,9 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { getRemoteScripts } from "everything-dev/ui/head";
 import { getSocialImageMeta } from "everything-dev/ui/metadata";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "sonner";
 import type { RouterContext } from "@/app";
 import { getBaseStyles } from "@/app";
+import { Toaster } from "@/components/ui/sonner";
 import { sessionQueryKey } from "@/lib/auth";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 

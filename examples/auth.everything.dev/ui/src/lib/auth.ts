@@ -1,3 +1,10 @@
+/**
+ * Better-Auth client with NEAR SIWN, passkey, API key, and organization plugins.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import { apiKeyClient } from "@better-auth/api-key/client";
 import { passkeyClient } from "@better-auth/passkey/client";
 import { useQuery } from "@tanstack/react-query";
@@ -130,14 +137,7 @@ function getSiwnClientConfig(options: CreateAuthClientOptions): SiwnClientConfig
   const recipient =
     networkId === "testnet" && testnetRecipient ? testnetRecipient : mainnetRecipient;
 
-  return {
-    recipient,
-    networkId,
-    cspNonce: options.cspNonce,
-    ...(siwn.recipients
-      ? { recipients: siwn.recipients as { mainnet: string; testnet: string } }
-      : {}),
-  };
+  return { recipient, networkId, cspNonce: options.cspNonce };
 }
 
 function getHostUrl(config?: Partial<ClientRuntimeConfig>) {
@@ -181,21 +181,6 @@ export function useAuthClient(): AuthClient {
   return useRouter().options.context.authClient;
 }
 
-export const organizationsQueryKey = ["organizations"] as const;
-
-export function organizationsQueryOptions(authClient: AuthClient, enabled?: boolean) {
-  return {
-    queryKey: organizationsQueryKey,
-    queryFn: async () => {
-      const { data } = await authClient.organization.list();
-      return (data || []) as Organization[];
-    },
-    staleTime: 30 * 1000,
-    gcTime: 10 * 60 * 1000,
-    enabled: !!enabled,
-  };
-}
-
 export const sessionQueryKey = ["session"] as const;
 
 export function sessionQueryOptions(authClient: AuthClient, initialSession?: SessionData | null) {
@@ -214,23 +199,14 @@ export function sessionQueryOptions(authClient: AuthClient, initialSession?: Ses
     : { ...baseOptions, initialData: initialSession };
 }
 
-export const relayHistoryQueryKey = ["relay-history"] as const;
-
-export function relayHistoryQueryOptions(
-  authClient: AuthClient,
-  session: SessionData | null | undefined,
-) {
-  return {
-    queryKey: relayHistoryQueryKey,
+export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
+  return useQuery({
+    queryKey: ["relay-history"],
     queryFn: async (): Promise<RelayedTransactionT[]> => {
       const res = await authClient.near.relayHistory();
       return res?.data?.transactions ?? [];
     },
     enabled: !!session,
     refetchInterval: 2000,
-  };
-}
-
-export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
-  return useQuery(relayHistoryQueryOptions(authClient, session));
+  });
 }

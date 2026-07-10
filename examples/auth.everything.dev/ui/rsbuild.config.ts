@@ -1,3 +1,10 @@
+/**
+ * Rsbuild configuration with Module Federation for the UI remote.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -55,7 +62,7 @@ const SHARE_DEFAULTS = {
   strictVersion: false,
   eager: false,
   shareScope: "default",
-};
+} as const;
 
 const uiSharedDeps = {
   react: { version: getInstalledVersion("react", pkg.dependencies.react), ...SHARE_DEFAULTS },
@@ -183,6 +190,7 @@ function createClientConfig() {
         target: "web",
         output: {
           uniqueName: normalizedName,
+          chunkFilename: "static/js/async/[name].[contenthash].js",
         },
         resolve: {
           fallback: { bufferutil: false, "utf-8-validate": false },
@@ -202,7 +210,6 @@ function createClientConfig() {
       distPath: { root: "dist", css: "static/css", js: "static/js" },
       assetPrefix: "auto",
       filename: { js: "[name].js", css: "style.css" },
-      chunkFilename: "static/js/async/[name].[contenthash].js",
       copy: [{ from: path.resolve(__dirname, "public"), to: "./" }],
     },
   });

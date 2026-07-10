@@ -1,3 +1,5 @@
+name: auth.everything.near
+
 x-pg-common: &pg-common
   image: postgres:17-alpine
   environment: &pg-env
@@ -12,24 +14,28 @@ x-pg-common: &pg-common
 services:
   postgres-api:
     <<: *pg-common
+    container_name: auth.everything.near-postgres-api
     environment:
       <<: *pg-env
       POSTGRES_DB: api_db
     ports:
       - "5432:5432"
     volumes:
-      - postgres_api_data:/var/lib/postgresql/data
+      - auth_everything_near_postgres_api_data:/var/lib/postgresql/data
 
   postgres-auth:
     <<: *pg-common
+    container_name: auth.everything.near-postgres-auth
     environment:
       <<: *pg-env
       POSTGRES_DB: auth_db
     ports:
       - "5433:5432"
     volumes:
-      - postgres_auth_data:/var/lib/postgresql/data
+      - auth_everything_near_postgres_auth_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_api_data:
-  postgres_auth_data:
+  auth_everything_near_postgres_api_data:
+    name: auth_everything_near_postgres_api_data
+  auth_everything_near_postgres_auth_data:
+    name: auth_everything_near_postgres_auth_data

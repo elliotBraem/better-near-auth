@@ -1,3 +1,8 @@
+/**
+ * Dev-mode plugin configuration for the local API server.
+ *
+ */
+
 import "dotenv/config";
 import type { PluginConfigInput } from "every-plugin";
 import packageJson from "./package.json" with { type: "json" };

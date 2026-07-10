@@ -1,3 +1,11 @@
+/**
+ * SSR router factory — creates request-scoped server router and server-side
+ * API/auth clients per request. Mirrors the client router shape for hydration consistency.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import { dehydrate, hydrate, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter as createTanStackRouter } from "@tanstack/react-router";
 import {

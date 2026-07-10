@@ -1,3 +1,11 @@
+/**
+ * Client bootstrap — creates browser-side QueryClient, Router, and auth/API clients.
+ * Called from the host-rendered HTML shell.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import { createApiClient, createAuthClient, getCspNonce, getRuntimeConfig } from "./app";
 import "./styles.css";
 

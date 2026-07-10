@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "rsbuild.config.ts"],
   "exclude": ["node_modules", "dist"],
   "compilerOptions": {
     "target": "ES2022",
@@ -13,6 +13,7 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
 
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": true,

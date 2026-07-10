@@ -1,3 +1,10 @@
+/**
+ * Rspack configuration with Module Federation for the API remote.
+ *
+ * BE CAREFUL MODIFYING THIS FILE — changes will be overwritten by `bos sync` / `bos upgrade`.
+ * Prefer upstream changes at https://github.com/nearbuilders/everything-dev
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,7 +59,7 @@ function updateHostConfig(url, integrity) {
 }
 
 const baseConfig = {
-  externals: ["pg", "@electric-sql/pglite", "@opentelemetry/api"],
+  externals: ["pg", "@electric-sql/pglite"],
   devtool: shouldDeploy ? false : "source-map",
   plugins: [
     new EmitPluginManifest(),
