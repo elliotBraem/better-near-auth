@@ -4,8 +4,8 @@ import { z } from "every-plugin/zod";
 import { contract } from "./contract";
 import { createDatabase } from "./db";
 import { migrate } from "./db/migrator";
-import type { ApiKeyContext, RequestAuthUser } from "./lib/auth";
 import { createAuthMiddleware } from "./lib/auth";
+import { ContextSchema } from "./lib/context";
 import type { PluginsClient } from "./lib/plugins-types.gen";
 
 export default createPlugin.withPlugins<PluginsClient>()({
@@ -15,13 +15,7 @@ export default createPlugin.withPlugins<PluginsClient>()({
     API_DATABASE_URL: z.string().default("pglite:.bos/api/:memory:"),
   }),
 
-  context: z.object({
-    userId: z.string().optional(),
-    user: z.custom<RequestAuthUser>().optional(),
-    organizationId: z.string().optional(),
-    apiKey: z.custom<ApiKeyContext>().nullable().optional(),
-    reqHeaders: z.custom<Record<string, string>>().optional(),
-  }),
+  context: ContextSchema,
 
   contract,
 
@@ -64,7 +58,7 @@ export default createPlugin.withPlugins<PluginsClient>()({
         return {
           message: "Authenticated request context resolved",
           userId: context.userId ?? null,
-          organizationId: context.organizationId ?? null,
+          organizationId: context.organization?.activeOrganizationId ?? null,
           apiKeyId: context.apiKey?.id ?? null,
         };
       }),

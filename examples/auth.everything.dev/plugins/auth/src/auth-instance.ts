@@ -236,7 +236,12 @@ async function createPersonalOrganization(
   return personalOrg;
 }
 
-export function createAuthInstance(config: AuthConfig, db: AuthDatabase, emailApiKey?: string) {
+export function createAuthInstance(
+  config: AuthConfig,
+  db: AuthDatabase,
+  secrets?: { email?: { resend?: string } },
+) {
+  const emailApiKey = secrets?.email?.resend;
   const emailConfig = config.email;
   const passkeyOptions = resolvePasskeyRelyingPartyOptions(config);
   const twilioConfig = config.phoneNumber?.twilio;

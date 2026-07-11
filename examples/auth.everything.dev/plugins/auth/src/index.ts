@@ -94,11 +94,7 @@ const authSecretsSchema = z.object({
   NEAR_RELAYER_PRIVATE_KEY: z.string().optional(),
   NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: z.string().optional(),
   NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: z.string().optional(),
-  email: z
-    .object({
-      resend: z.string().optional(),
-    })
-    .optional(),
+  RESEND_API_KEY: z.string().optional(),
 });
 
 type AuthPluginVariables = z.infer<typeof authVariablesSchema>;
@@ -348,7 +344,9 @@ export default createPlugin({
 
       const { authConfig, apiKeyHeaders } = normalizeAuthConfig(config.variables, config.secrets);
 
-      const auth = createAuthInstance(authConfig, driver.db, config.secrets.email?.resend);
+      const auth = createAuthInstance(authConfig, driver.db, {
+        email: { resend: config.secrets.RESEND_API_KEY },
+      });
 
       console.log("[Auth] Better Auth instance created");
 
