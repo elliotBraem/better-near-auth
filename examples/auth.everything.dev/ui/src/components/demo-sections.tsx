@@ -22,7 +22,6 @@ import {
 import { Gas, generateKey } from "near-kit";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { relayHistoryQueryKey } from "@/lib/query-keys";
 import {
   type Organization,
   type SessionData,
@@ -42,6 +41,7 @@ import {
 } from "@/components";
 import { Input } from "@/components/ui/input";
 import { getLinkedProviders, getNearAccountId } from "@/lib/auth";
+import { relayHistoryQueryKey } from "@/lib/query-keys";
 import { NearProfile } from "./near-profile";
 import RelayFeed from "./relay-feed";
 

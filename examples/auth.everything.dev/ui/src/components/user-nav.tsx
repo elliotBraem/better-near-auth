@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { forwardRef, useCallback } from "react";
-import { sessionQueryKey } from "@/lib/auth";
+import type { AuthClient, Organization } from "@/app";
 import { sessionQueryOptions, useAuthClient } from "@/app";
-import type { Organization, AuthClient } from "@/app";
 import { Button, OrgSwitcher } from "@/components";
+import { sessionQueryKey } from "@/lib/auth";
 
 const organizationsQueryKey = ["organizations"] as const;
 
@@ -18,6 +18,7 @@ function organizationsQueryOptions(authClient: AuthClient, enabled: boolean) {
     enabled,
   };
 }
+
 import {
   DropdownMenu,
   DropdownMenuContent,

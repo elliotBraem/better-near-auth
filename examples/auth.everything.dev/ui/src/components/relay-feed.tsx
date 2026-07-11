@@ -1,12 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RelayedTransactionT } from "better-near-auth";
 import { CheckCircle2, Clock, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { sessionQueryOptions, useAuthClient } from "@/app";
-import { relayHistoryQueryKey } from "@/lib/query-keys";
 import type { SessionData } from "@/app";
+import { sessionQueryOptions, useAuthClient } from "@/app";
 import { Badge } from "@/components/ui/badge";
+import { relayHistoryQueryKey } from "@/lib/query-keys";
 
-function relayHistoryQueryOptions(authClient: ReturnType<typeof useAuthClient>, session: SessionData | null | undefined) {
+function relayHistoryQueryOptions(
+  authClient: ReturnType<typeof useAuthClient>,
+  session: SessionData | null | undefined,
+) {
   return {
     queryKey: relayHistoryQueryKey,
     queryFn: async (): Promise<RelayedTransactionT[]> => {
