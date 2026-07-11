@@ -1,8 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RelayedTransactionT } from "better-near-auth";
 import { CheckCircle2, Clock, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { relayHistoryQueryOptions, sessionQueryOptions, useAuthClient } from "@/app";
+import { sessionQueryOptions, useAuthClient } from "@/app";
+import { relayHistoryQueryKey } from "@/lib/query-keys";
+import type { SessionData } from "@/app";
 import { Badge } from "@/components/ui/badge";
+
+function relayHistoryQueryOptions(authClient: ReturnType<typeof useAuthClient>, session: SessionData | null | undefined) {
+  return {
+    queryKey: relayHistoryQueryKey,
+    queryFn: async (): Promise<RelayedTransactionT[]> => {
+      const res = await authClient.near.relayHistory();
+      return res?.data?.transactions ?? [];
+    },
+    enabled: !!session,
+    refetchInterval: 2000,
+  };
+}
 
 function explorerTxUrl(txHash: string): string {
   return `https://near.rocks/tx/${txHash}`;

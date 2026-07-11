@@ -22,9 +22,9 @@ import {
 import { Gas, generateKey } from "near-kit";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { relayHistoryQueryKey } from "@/lib/query-keys";
 import {
   type Organization,
-  relayHistoryQueryKey,
   type SessionData,
   sessionQueryOptions,
   useApiClient,
