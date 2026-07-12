@@ -106,6 +106,7 @@ function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
           }
         : undefined,
       subAccount: config.siwn.subAccount,
+      secrets: config.siwn.secrets,
     };
   }
 
@@ -120,6 +121,7 @@ function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
         }
       : undefined,
     subAccount: config.siwn.subAccount,
+    secrets: config.siwn.secrets,
   };
 }
 

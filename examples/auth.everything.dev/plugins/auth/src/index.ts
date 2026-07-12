@@ -231,19 +231,24 @@ function buildRelayerConfig(
 
 function buildSubAccountConfig(
   siwn: AuthPluginVariables["siwn"],
-  secrets: AuthPluginSecrets,
 ): AuthConfig["siwn"]["subAccount"] {
   if (!siwn.subAccount) return undefined;
   return {
     mainnet: {
       parentAccount: siwn.subAccount.mainnet?.parentAccount,
-      parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
     },
     testnet: {
       parentAccount: siwn.subAccount.testnet?.parentAccount,
-      parentKey: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
     },
   };
+}
+
+function buildSecrets(secrets: AuthPluginSecrets): AuthConfig["siwn"]["secrets"] {
+  const parentKey: DualNetworkConfig<string> = {
+    mainnet: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
+    testnet: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
+  };
+  return { parentKey };
 }
 
 function normalizeAuthConfig(
@@ -256,12 +261,14 @@ function normalizeAuthConfig(
   );
 
   const relayer = buildRelayerConfig(variables.siwn, secrets);
-  const subAccount = buildSubAccountConfig(variables.siwn, secrets);
+  const subAccount = buildSubAccountConfig(variables.siwn);
+  const secretsConfig = buildSecrets(secrets);
   const commonSiwn = {
     apiKey: variables.siwn.apiKey,
     rpcUrl: variables.siwn.rpcUrl,
     relayer,
     subAccount,
+    secrets: secretsConfig,
   };
 
   const siwn =

@@ -40,6 +40,9 @@ export interface AuthSiwnBaseConfig {
     privateKey?: string;
   };
   subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
+  secrets?: {
+    parentKey?: string | DualNetworkConfig<string>;
+  };
 }
 
 export interface AuthSiwnRecipientConfig extends AuthSiwnBaseConfig {
