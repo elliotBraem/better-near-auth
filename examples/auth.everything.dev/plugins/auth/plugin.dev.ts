@@ -58,6 +58,12 @@ export default {
         subAccount: {
           mainnet: {
             parentAccount: process.env.NEAR_SUB_ACCOUNT_PARENT_MAINNET,
+            // parentHasFullAccess: true,
+            // minDeposit: "0.1 NEAR",
+            // deploy: { fromPublished: { accountId: "myapp.near" } },
+            // init: { methodName: "init", args: { owner: "myapp.near" } },
+            // addRelayerFCAK: true,
+            // relayerFCAK: { receiverId: "myapp.near", methodNames: ["*"], allowance: "0.25 NEAR" },
           },
           testnet: {
             parentAccount: process.env.NEAR_SUB_ACCOUNT_PARENT_TESTNET,

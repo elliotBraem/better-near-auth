@@ -1,10 +1,10 @@
+import type { DualNetworkConfig } from "better-near-auth";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { AuthConfig } from "./auth-export";
-import type { DualNetworkConfig } from "better-near-auth";
 import { createAuthInstance } from "./auth-instance";
 import { contract, type InferOutput } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
@@ -12,6 +12,36 @@ import { migrate } from "./db/migrator";
 import * as schema from "./db/schema";
 
 const API_KEY_CONFIG_IDS = ["user-keys", "org-keys"] as const;
+
+const subAccountNetworkSchema = z.object({
+  parentAccount: z.string().optional(),
+  parentHasFullAccess: z.boolean().optional(),
+  minDeposit: z.string().optional(),
+  deploy: z
+    .object({
+      fromPublished: z
+        .object({
+          accountId: z.string().optional(),
+          codeHash: z.string().optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+  init: z
+    .object({
+      methodName: z.string(),
+      args: z.record(z.string(), z.any()).optional(),
+    })
+    .optional(),
+  addRelayerFCAK: z.boolean().optional(),
+  relayerFCAK: z
+    .object({
+      receiverId: z.string(),
+      methodNames: z.array(z.string()).optional(),
+      allowance: z.string().optional(),
+    })
+    .optional(),
+});
 
 const authSiwnBaseSchema = z.object({
   apiKey: z.string().optional(),
@@ -23,16 +53,8 @@ const authSiwnBaseSchema = z.object({
     .optional(),
   subAccount: z
     .object({
-      mainnet: z
-        .object({
-          parentAccount: z.string().optional(),
-        })
-        .optional(),
-      testnet: z
-        .object({
-          parentAccount: z.string().optional(),
-        })
-        .optional(),
+      mainnet: subAccountNetworkSchema.optional(),
+      testnet: subAccountNetworkSchema.optional(),
     })
     .optional(),
 });
@@ -234,14 +256,20 @@ function buildSubAccountConfig(
   siwn: AuthPluginVariables["siwn"],
 ): AuthConfig["siwn"]["subAccount"] {
   if (!siwn.subAccount) return undefined;
+
+  function pickDefined<T extends Record<string, unknown>>(obj?: T): T | undefined {
+    if (!obj) return undefined;
+    const result = { ...obj };
+    for (const key of Object.keys(result)) {
+      if (result[key] === undefined) delete result[key];
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+
   return {
-    mainnet: {
-      parentAccount: siwn.subAccount.mainnet?.parentAccount,
-    },
-    testnet: {
-      parentAccount: siwn.subAccount.testnet?.parentAccount,
-    },
-  };
+    mainnet: pickDefined(siwn.subAccount.mainnet),
+    testnet: pickDefined(siwn.subAccount.testnet),
+  } as NonNullable<AuthConfig["siwn"]["subAccount"]>;
 }
 
 function buildSecrets(secrets: AuthPluginSecrets): AuthConfig["siwn"]["secrets"] {

@@ -6,9 +6,11 @@ description: >
   client into the UI with siwnClient/passkey/API-key/organization plugins,
   protect routes with session checks, compose with the auth plugin in-process
   via createPlugin.withPlugins, and use the auth context (getContext) in your
-  own oRPC middleware. Load when adding auth to an everything.dev app,
-  configuring SIWN recipients from runtime config, calling auth endpoints from
-  another plugin, or debugging auth context resolution.
+  own oRPC middleware. Sub-account creation is supported in bos.config.json
+  for scalar fields (parentHasFullAccess, minDeposit, deploy.fromPublished,
+  init with static args, addRelayerFCAK, relayerFCAK). Load when adding auth
+  to an everything.dev app, configuring SIWN recipients from runtime config,
+  calling auth endpoints from another plugin, or debugging auth context resolution.
 requires:
   - siwn
   - client
@@ -35,7 +37,7 @@ sources:
 
 The `@everything-dev/auth-plugin` wraps `better-near-auth` and Better Auth into an everything-plugin (oRPC + Effect + Module Federation). It provides session management, NEAR SIWN, passkeys, OAuth, phone OTP, anonymous accounts, organizations, API keys, and a NEAR relayer — all behind a typed oRPC contract.
 
-This skill covers **consuming** the plugin: registration, UI auth client, route protection, in-process composition, and the auth context. See also `better-near-auth#siwn`, `better-near-auth#client`, `better-near-auth#relay` for the underlying plugin config.
+This skill covers **consuming** the plugin: registration, UI auth client, route protection, in-process composition, and the auth context. See also `better-near-auth#siwn`, `better-near-auth#client`, `better-near-auth#relay`, `better-near-auth#subaccount` for the underlying plugin config.
 
 ## Registering in bos.config.json
 
@@ -57,10 +59,22 @@ Deployed under `app.auth` as a Module Federation container:
             "mainnet": "auth.everything.near",
             "testnet": "dev.allthethings.testnet"
           },
-          "relayer": { "accountId": "" }
+          "relayer": { "accountId": "" },
+          "subAccount": {
+            "mainnet": {
+              "parentAccount": "myapp.near",
+              "parentHasFullAccess": true,
+              "minDeposit": "0.1 NEAR",
+              "deploy": { "fromPublished": { "accountId": "myapp.near" } },
+              "init": { "methodName": "init", "args": { "owner": "myapp.near" } }
+            },
+            "testnet": {
+              "parentAccount": "dev.myapp.testnet"
+            }
+          }
         }
       },
-      "secrets": ["AUTH_DATABASE_URL", "BETTER_AUTH_SECRET", "GITHUB_CLIENT_SECRET", "FASTNEAR_API_KEY"]
+      "secrets": ["AUTH_DATABASE_URL", "BETTER_AUTH_SECRET", "GITHUB_CLIENT_SECRET", "FASTNEAR_API_KEY", "NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET", "NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET"]
     }
   }
 }
@@ -113,6 +127,17 @@ _authenticated layout pattern: use `sessionQueryOptions` to fetch session, `ensu
 | GitHub/Google | `auth.signIn.social({ provider, callbackURL })` |
 
 The `auth.near.*`, `auth.organization.*`, `auth.passkey.*`, `auth.apiKey.*` namespaces are available. See `better-near-auth#client` for `authClient.near.*` API.
+
+### Sub-Account Creation
+
+The plugin supports sub-account creation and availability checks through the Better Auth client and the oRPC contract:
+
+| Operation | Client call | oRPC route |
+|-----------|-------------|------------|
+| Check availability | `auth.near.checkSubAccountAvailability({ subAccountName })` | `POST /v1/near/check-sub-account-availability` |
+| Create sub-account | `auth.near.createSubAccount({ subAccountName, publicKey })` | `POST /v1/near/create-sub-account` |
+
+Pass `network: "mainnet" | "testnet"` optionally. Both require authentication. Sub-account config (`parentAccount`, `parentHasFullAccess`, `minDeposit`, etc.) is set via `bos.config.json` `variables.siwn.subAccount` — see `better-near-auth#subaccount` for the full config reference and which fields are serializable through JSON config.
 
 ## Contract and Types
 

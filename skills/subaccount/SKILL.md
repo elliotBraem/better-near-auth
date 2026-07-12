@@ -318,6 +318,61 @@ const result = await authClient.near.createSubAccount({
 console.log(result.data.accountId); // myapp.parent.near
 ```
 
+## Plugin Config (everything.dev)
+
+When using the `@everything-dev/auth-plugin`, the following `SubAccountConfig` fields can be set through `bos.config.json` `variables.siwn.subAccount`. Fields that accept functions (`extendTx`, `onCreated`, `onRollback`, dynamic `init.args`) or binary data (`deploy.wasm`) are not serializable through JSON config — use the raw `better-near-auth` library for those.
+
+```json
+{
+  "app": {
+    "auth": {
+      "variables": {
+        "siwn": {
+          "subAccount": {
+            "mainnet": {
+              "parentAccount": "myapp.near",
+              "parentHasFullAccess": true,
+              "minDeposit": "0.1 NEAR",
+              "deploy": { "fromPublished": { "accountId": "myapp.near" } },
+              "init": { "methodName": "init", "args": { "owner": "myapp.near" } },
+              "addRelayerFCAK": true,
+              "relayerFCAK": {
+                "receiverId": "myapp.near",
+                "methodNames": ["*"],
+                "allowance": "0.25 NEAR"
+              }
+            },
+            "testnet": {
+              "parentAccount": "dev.myapp.testnet"
+            }
+          }
+        }
+      },
+      "secrets": [
+        "NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET",
+        "NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET"
+      ]
+    }
+  }
+}
+```
+
+The plugin's server code forwards these to the `siwn()` plugin's `subAccount` config automatically. The parent keys go in `secrets` — see `better-near-auth#auth-plugin` for plugin registration details.
+
+### Available vs. unavailable fields via plugin config
+
+| Scalar (available in bos.config.json) | Non-scalar (not serializable) |
+|---|---|
+| `parentAccount` | `deploy.wasm` |
+| `parentHasFullAccess` | `init.args` (dynamic — function) |
+| `minDeposit` | `extendTx` |
+| `deploy.fromPublished` | `onCreated` |
+| `init` (static `args` object) | `onRollback` |
+| `addRelayerFCAK` | |
+| `relayerFCAK` | |
+
+For non-scalar fields, configure `siwn()` directly on the server instead of using the plugin config.
+
 ## Common Mistakes
 
 ### HIGH Not setting parentHasFullAccess when parent needs recovery
