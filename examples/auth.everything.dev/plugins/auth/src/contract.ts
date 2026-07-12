@@ -719,7 +719,7 @@ export const contract = oc.router({
     .route({ method: "POST", path: "/v1/near/check-sub-account-availability" })
     .input(
       z.object({
-        subAccountId: z.string(),
+        subAccountName: z.string(),
         network: z.enum(["mainnet", "testnet"]).optional(),
       }),
     )
@@ -727,6 +727,8 @@ export const contract = oc.router({
       z.object({
         available: z.boolean(),
         accountId: z.string(),
+        parentAccount: z.string().optional(),
+        reason: z.enum(["taken", "invalid", "too-long", "not-configured"]).optional(),
       }),
     )
     .errors(Errors),
@@ -735,7 +737,7 @@ export const contract = oc.router({
     .route({ method: "POST", path: "/v1/near/create-sub-account" })
     .input(
       z.object({
-        subAccountId: z.string(),
+        subAccountName: z.string(),
         publicKey: z.string(),
         network: z.enum(["mainnet", "testnet"]).optional(),
       }),

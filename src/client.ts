@@ -5,7 +5,7 @@ import { hex } from "@scure/base";
 import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import type { siwn } from "./index.js";
-import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT } from "./types.js";
+import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT, SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -534,12 +534,18 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 							body: params,
 						});
 					},
-					checkSubAccountAvailability: async (params: CheckSubAccountAvailabilityRequestT) => {
-						return await $fetch("/near/check-sub-account-availability", {
-							method: "POST",
-							body: params,
-						});
-					},
+				checkSubAccountAvailability: async (params: CheckSubAccountAvailabilityRequestT) => {
+					if (!SUB_ACCOUNT_LABEL_REGEX.test(params.subAccountName) || params.subAccountName.length < 2) {
+						return {
+							data: { available: false, accountId: "", reason: "invalid" as const },
+							error: null,
+						} as BetterFetchResponse<CheckSubAccountAvailabilityResponseT>;
+					}
+					return await $fetch("/near/check-sub-account-availability", {
+						method: "POST",
+						body: params,
+					});
+				},
 					setNetwork: (network: "mainnet" | "testnet") => {
 						const prev = activeNetwork.get();
 						if (prev !== network) {

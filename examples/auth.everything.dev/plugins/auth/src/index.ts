@@ -1463,16 +1463,17 @@ export default createPlugin({
         return result;
       }),
 
-      nearCheckSubAccountAvailability: builder.nearCheckSubAccountAvailability.handler(
-        async ({ input }) => {
+      nearCheckSubAccountAvailability: builder.nearCheckSubAccountAvailability
+        .use(requireAuth)
+        .handler(async ({ input, context }) => {
           const result = await safeCall<InferOutput<"nearCheckSubAccountAvailability">>(() =>
             services.auth.api.checkSubAccountAvailability({
-              body: { subAccountId: input.subAccountId, network: input.network },
+              headers: createHeaders(context.reqHeaders),
+              body: { subAccountName: input.subAccountName, network: input.network },
             }),
           );
           return result;
-        },
-      ),
+        }),
 
       nearCreateSubAccount: builder.nearCreateSubAccount
         .use(requireAuth)
@@ -1481,7 +1482,7 @@ export default createPlugin({
             services.auth.api.createSubAccount({
               headers: createHeaders(context.reqHeaders),
               body: {
-                subAccountId: input.subAccountId,
+                subAccountName: input.subAccountName,
                 publicKey: input.publicKey,
                 network: input.network,
               },

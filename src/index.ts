@@ -1475,39 +1475,73 @@ export const siwn = (options: SIWNPluginOptions) => {
 					}
 				},
 			),
-			checkSubAccountAvailability: createAuthEndpoint(
-				"/near/check-sub-account-availability",
-				{
-					method: "POST",
-					body: CheckSubAccountAvailabilityRequest,
-				},
-				async (ctx) => {
-					const { subAccountName, network: providedNetwork } = ctx.body;
+		checkSubAccountAvailability: createAuthEndpoint(
+			"/near/check-sub-account-availability",
+			{
+				method: "POST",
+				body: CheckSubAccountAvailabilityRequest,
+				use: [sessionMiddleware],
+			},
+			async (ctx) => {
+				const { subAccountName, network: providedNetwork } = ctx.body;
+				const session = ctx.context.session;
 
-					const network = (providedNetwork || primaryNetwork) as "mainnet" | "testnet";
-					const subAccountCfg = getSubAccountConfig(network);
-					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
+				if (!session) {
+					throw new APIError("UNAUTHORIZED", {
+						message: "Must be authenticated to check sub-account availability",
+						status: 401,
+					});
+				}
 
-					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+				const nearAccount: NearAccount | null = await ctx.context.adapter.findOne({
+					model: "nearAccount",
+					where: [
+						{ field: "userId", operator: "eq", value: session.user.id },
+						{ field: "isPrimary", operator: "eq", value: true },
+					],
+				});
 
-					if (!subAccountAvailable || !parentAccount) {
-						throw new APIError("SERVICE_UNAVAILABLE", {
-							message: "Sub-account creation requires a named parent account. Configure subAccount.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.",
-							status: 503,
-						});
-					}
+				if (!nearAccount) {
+					throw new APIError("UNAUTHORIZED", {
+						message: "Must have a linked NEAR wallet to check sub-account availability",
+						status: 401,
+					});
+				}
 
-					const accountId = `${subAccountName}.${parentAccount}`;
+				const network = (providedNetwork || nearAccount.network || primaryNetwork) as "mainnet" | "testnet";
+				const subAccountCfg = getSubAccountConfig(network);
+				const parentAccount = subAccountCfg?.parentAccount ?? null;
 
-					const near = getNear(network);
-					const exists = await near.accountExists(accountId);
-
+				if (!parentAccount || isImplicitAccount(parentAccount)) {
 					return ctx.json(CheckSubAccountAvailabilityResponse.parse({
-						available: !exists,
-						accountId,
+						available: false,
+						accountId: "",
+						reason: "not-configured",
 					}));
-				},
-			),
+				}
+
+				const accountId = `${subAccountName}.${parentAccount}`;
+
+				if (accountId.length > 64) {
+					return ctx.json(CheckSubAccountAvailabilityResponse.parse({
+						available: false,
+						accountId,
+						parentAccount,
+						reason: "too-long",
+					}));
+				}
+
+				const near = getNear(network);
+				const exists = await near.accountExists(accountId);
+
+				return ctx.json(CheckSubAccountAvailabilityResponse.parse({
+					available: !exists,
+					accountId,
+					parentAccount,
+					reason: exists ? "taken" : undefined,
+				}));
+			},
+		),
 		},
 	});
 };

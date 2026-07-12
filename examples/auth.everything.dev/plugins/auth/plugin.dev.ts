@@ -38,7 +38,7 @@ export default {
         origin: process.env.PASSKEY_ORIGIN,
       },
       email: {
-        from: process.env.EMAIL_FROM,
+        from: "no-reply@example.com",
       },
       siwn: {
         ...(testnetRecipient

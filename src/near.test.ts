@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { getTestInstance } from "better-auth/test";
 import { siwn } from "./index.js";
+import { SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 import { hex } from "@scure/base";
 
 const MOCK_ACCOUNT_ID = "test.near";
@@ -164,6 +165,7 @@ async function setup(overrides?: {
 	relayer?: any;
 	getProfile?: any;
 	validateLimitedAccessKey?: any;
+	subAccount?: any;
 }) {
 	return getTestInstance(
 		{
@@ -174,6 +176,7 @@ async function setup(overrides?: {
 					relayer: overrides?.relayer,
 					getProfile: overrides?.getProfile,
 					validateLimitedAccessKey: overrides?.validateLimitedAccessKey,
+					subAccount: overrides?.subAccount,
 				}),
 			],
 		},
@@ -636,6 +639,90 @@ describe("siwn plugin", () => {
 			expect(relayerInfo.enabled).toBe(true);
 			expect(relayerInfo.network).toBe("mainnet");
 			expect(relayerInfo.balance).toBe("100");
+		});
+	});
+
+	describe("sub-account availability validation", () => {
+		const validNames = ["mywiki", "my-wiki", "my_wiki", "a1b2c3", "wiki-test_1"];
+		const invalidNames = ["-abc", "abc-", "a--b", "Abc", "my.wiki", "my wiki"];
+
+		for (const name of validNames) {
+			it(`should accept valid sub-account name: ${name}`, () => {
+				expect(SUB_ACCOUNT_LABEL_REGEX.test(name)).toBe(true);
+			});
+		}
+
+		for (const name of invalidNames) {
+			if (name === "") return;
+			it(`should reject invalid sub-account name: ${name}`, () => {
+				expect(SUB_ACCOUNT_LABEL_REGEX.test(name)).toBe(false);
+			});
+		}
+
+		it("should reject unauthenticated availability check", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near" },
+			});
+
+			const res = await customFetchImpl("http://localhost/api/auth/near/check-sub-account-availability", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ subAccountName: "mywiki" }),
+			});
+			expect(res.status).toBe(401);
+		});
+
+		it("should return not-configured when parentAccount is not set", async () => {
+			const { customFetchImpl } = await setup({ recipient: MOCK_RECIPIENT });
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const availRes = await customFetchImpl("http://localhost/api/auth/near/check-sub-account-availability", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", cookie },
+				body: JSON.stringify({ subAccountName: "mywiki" }),
+			});
+			expect(availRes.status).toBe(200);
+			const body = await availRes.json();
+			expect(body.available).toBe(false);
+			expect(body.reason).toBe("not-configured");
+		});
+
+		it("should return too-long when composed accountId exceeds 64 chars", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const longName = "a".repeat(64);
+			const availRes = await customFetchImpl("http://localhost/api/auth/near/check-sub-account-availability", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", cookie },
+				body: JSON.stringify({ subAccountName: longName }),
+			});
+			expect(availRes.status).toBe(200);
+			const body = await availRes.json();
+			expect(body.available).toBe(false);
+			expect(body.reason).toBe("too-long");
+		});
+
+		it("should check availability via RPC when parentAccount is configured", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const availRes = await customFetchImpl("http://localhost/api/auth/near/check-sub-account-availability", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", cookie },
+				body: JSON.stringify({ subAccountName: "mywiki" }),
+			});
+			expect(availRes.status).toBe(200);
+			const body = await availRes.json();
+			expect(body.accountId).toBe("mywiki.wiki.everything.near");
+			expect(body.parentAccount).toBe("wiki.everything.near");
+			expect(body.reason).toBe("taken");
 		});
 	});
 });

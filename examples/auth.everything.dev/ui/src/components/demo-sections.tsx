@@ -57,6 +57,14 @@ type PrivateData = {
   organizationId: string | null;
   apiKeyId: string | null;
 };
+type SubAccountAvailability = {
+  available: boolean;
+  accountId: string;
+  parentAccount?: string;
+  reason?: "taken" | "invalid" | "too-long" | "not-configured";
+};
+
+const SUB_ACCOUNT_LABEL_REGEX = /^([a-z\d]+[-_])*[a-z\d]+$/;
 type CreationState =
   | { phase: "idle" }
   | { phase: "creating" }
@@ -1344,6 +1352,166 @@ export function NetworkToggle() {
   );
 }
 
+function AvailabilityStatus({
+  availability,
+  isLoading,
+  subAccountName,
+}: {
+  availability: SubAccountAvailability | null | undefined;
+  isLoading: boolean;
+  subAccountName: string;
+}) {
+  if (!subAccountName) return null;
+
+  if (isLoading) {
+    return <p className="text-xs text-muted-foreground">Checking availability...</p>;
+  }
+
+  if (!availability) return null;
+
+  if (!availability.available) {
+    return (
+      <p className="text-xs text-destructive">
+        {availability.reason === "too-long" ? (
+          "Account name is too long (max 64 characters including parent)"
+        ) : availability.reason === "not-configured" ? (
+          "Sub-account creation is not configured for this network"
+        ) : availability.reason === "invalid" ? (
+          "Invalid sub-account name"
+        ) : (
+          <>
+            <code className="font-mono">{availability.accountId}</code> is already taken
+          </>
+        )}
+      </p>
+    );
+  }
+
+  return (
+    <p className="text-xs text-green-600 dark:text-green-400">
+      <code className="font-mono">{availability.accountId}</code> is available!
+    </p>
+  );
+}
+
+export function SubAccountAvailabilityCard() {
+  const auth = useAuthClient();
+  const network = auth.useActiveNetwork();
+  const { data: session } = useSessionData();
+  const { data: nearAccountsData = { accounts: [] } } = useNearAccountsData(!!session?.user);
+  const hasLinkedWallet = nearAccountsData.accounts.length > 0;
+  const { data: relayerData } = useRelayerInfo();
+  const parentAccount = relayerData?.parentAccount;
+
+  const [subAccountName, setSubAccountName] = useState("");
+
+  const isValidName = SUB_ACCOUNT_LABEL_REGEX.test(subAccountName) && subAccountName.length >= 2;
+  const debouncedSubAccountName = useDebouncedValue(subAccountName, 300);
+
+  const fullAccountId = subAccountName && parentAccount ? `${subAccountName}.${parentAccount}` : "";
+
+  const { data: availability, isLoading: availabilityLoading } = useQuery({
+    queryKey: ["sub-account-availability", debouncedSubAccountName, network],
+    queryFn: async () => {
+      if (!debouncedSubAccountName || debouncedSubAccountName.length < 2) return null;
+      const res = await auth.near.checkSubAccountAvailability({
+        subAccountName: debouncedSubAccountName,
+        network,
+      });
+      return res.data as SubAccountAvailability | undefined;
+    },
+    enabled:
+      isValidName && debouncedSubAccountName.length >= 2 && !!session?.user && hasLinkedWallet,
+    placeholderData: (prev) => prev,
+  });
+
+  const authMessage = !session?.user
+    ? "Sign in and link a NEAR wallet to check sub-account availability."
+    : !hasLinkedWallet
+      ? "Link a NEAR wallet to check sub-account availability."
+      : null;
+
+  if (authMessage) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Check Sub-account Availability
+          </CardTitle>
+          <CardDescription>
+            Pre-flight check: see if a sub-account name is free before creating it
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{authMessage}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Search className="h-5 w-5" />
+          Check Sub-account Availability
+        </CardTitle>
+        <CardDescription>
+          Pre-flight check: see if a sub-account name is free before creating it
+          {parentAccount && (
+            <>
+              {" "}
+              under <code className="text-xs font-mono bg-muted px-1 rounded">{parentAccount}</code>
+            </>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              value={subAccountName}
+              onChange={(e) =>
+                setSubAccountName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))
+              }
+              placeholder="mysubaccount"
+              className="flex-1"
+              maxLength={64}
+            />
+          </div>
+          {fullAccountId && (
+            <div className="text-xs text-muted-foreground font-mono">{fullAccountId}</div>
+          )}
+          {subAccountName && !isValidName && (
+            <p className="text-xs text-destructive">
+              {subAccountName.length < 2
+                ? "Name must be at least 2 characters"
+                : "Only lowercase letters, numbers, hyphens, and underscores are allowed"}
+            </p>
+          )}
+          <AvailabilityStatus
+            availability={availability}
+            isLoading={availabilityLoading}
+            subAccountName={subAccountName}
+          />
+        </div>
+        <div
+          className={`${NEO_BORDER_DASHED} rounded-lg p-3 text-xs text-muted-foreground space-y-1`}
+        >
+          <p>
+            This is a read-only pre-flight check. No transaction is submitted. The server validates
+            the name against NEAR account rules, checks on-chain availability via RPC, and returns a{" "}
+            <code className="text-xs font-mono bg-muted px-1 rounded">reason</code> field so the UI
+            can show specific feedback.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function SubAccountCreationCard() {
   const auth = useAuthClient();
   const queryClient = useQueryClient();
@@ -1362,21 +1530,21 @@ export function SubAccountCreationCard() {
   const parentSuffix = parentAccount ? `.${parentAccount}` : "";
   const fullAccountId = subAccountName ? `${subAccountName}${parentSuffix}` : "";
 
-  const isValidName = /^[a-z0-9]+$/.test(subAccountName) && subAccountName.length >= 1;
+  const isValidName = SUB_ACCOUNT_LABEL_REGEX.test(subAccountName) && subAccountName.length >= 2;
 
   const debouncedSubAccountName = useDebouncedValue(subAccountName, 300);
 
   const { data: availability, isLoading: availabilityLoading } = useQuery({
     queryKey: ["sub-account-availability", debouncedSubAccountName, network],
     queryFn: async () => {
-      if (!debouncedSubAccountName || debouncedSubAccountName.length < 1) return null;
+      if (!debouncedSubAccountName || debouncedSubAccountName.length < 2) return null;
       const res = await auth.near.checkSubAccountAvailability({
         subAccountName: debouncedSubAccountName,
         network,
       });
-      return res.data;
+      return res.data as SubAccountAvailability | undefined;
     },
-    enabled: isValidName && debouncedSubAccountName.length >= 1,
+    enabled: isValidName && debouncedSubAccountName.length >= 2,
     placeholderData: (prev) => prev,
   });
 
@@ -1584,7 +1752,7 @@ export function SubAccountCreationCard() {
                   type="text"
                   value={subAccountName}
                   onChange={(e) =>
-                    setSubAccountName(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ""))
+                    setSubAccountName(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))
                   }
                   placeholder="mysubaccount"
                   disabled={creationState.phase === "creating"}
@@ -1615,23 +1783,16 @@ export function SubAccountCreationCard() {
               )}
               {subAccountName && !isValidName && (
                 <p className="text-xs text-destructive">
-                  Only lowercase letters and numbers are allowed
+                  {subAccountName.length < 2
+                    ? "Name must be at least 2 characters"
+                    : "Only lowercase letters, numbers, hyphens, and underscores are allowed"}
                 </p>
               )}
-              {availabilityLoading && subAccountName && (
-                <p className="text-xs text-muted-foreground">Checking availability...</p>
-              )}
-              {!availabilityLoading && availability && !availability.available && (
-                <p className="text-xs text-destructive">
-                  Account <code className="font-mono">{availability.accountId}</code> is already
-                  taken
-                </p>
-              )}
-              {!availabilityLoading && availability?.available && subAccountName && (
-                <p className="text-xs text-green-600 dark:text-green-400">
-                  <code className="font-mono">{availability.accountId}</code> is available!
-                </p>
-              )}
+              <AvailabilityStatus
+                availability={availability}
+                isLoading={availabilityLoading}
+                subAccountName={subAccountName}
+              />
             </div>
             <div
               className={`${NEO_BORDER_DASHED} rounded-lg p-3 text-xs text-muted-foreground space-y-1`}

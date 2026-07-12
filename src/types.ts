@@ -203,8 +203,16 @@ export interface SubAccountConfig {
 	relayerFCAK?: SubAccountRelayerFCAKConfig;
 }
 
+export const SUB_ACCOUNT_LABEL_REGEX = /^([a-z\d]+[-_])*[a-z\d]+$/;
+
+export const SubAccountNameSchema = z
+	.string()
+	.min(2, "Sub-account name must be at least 2 characters")
+	.max(64, "Sub-account name must be at most 64 characters")
+	.regex(SUB_ACCOUNT_LABEL_REGEX, "Sub-account name must contain only lowercase alphanumeric characters, hyphens, and underscores (no leading/trailing hyphens or underscores)");
+
 export const CreateSubAccountRequest = z.object({
-	subAccountName: z.string().regex(/^[a-z0-9]+$/, "Must be lowercase alphanumeric characters only"),
+	subAccountName: SubAccountNameSchema,
 	network: z.enum(["mainnet", "testnet"]).optional(),
 	publicKey: z.string(),
 });
@@ -220,7 +228,7 @@ export const CreateSubAccountResponse = z.object({
 export type CreateSubAccountResponseT = z.infer<typeof CreateSubAccountResponse>;
 
 export const CheckSubAccountAvailabilityRequest = z.object({
-	subAccountName: z.string().regex(/^[a-z0-9]+$/),
+	subAccountName: SubAccountNameSchema,
 	network: z.enum(["mainnet", "testnet"]).optional(),
 });
 export type CheckSubAccountAvailabilityRequestT = z.infer<typeof CheckSubAccountAvailabilityRequest>;
@@ -228,5 +236,7 @@ export type CheckSubAccountAvailabilityRequestT = z.infer<typeof CheckSubAccount
 export const CheckSubAccountAvailabilityResponse = z.object({
 	available: z.boolean(),
 	accountId: z.string(),
+	parentAccount: z.string().optional(),
+	reason: z.enum(["taken", "invalid", "too-long", "not-configured"]).optional(),
 });
 export type CheckSubAccountAvailabilityResponseT = z.infer<typeof CheckSubAccountAvailabilityResponse>;

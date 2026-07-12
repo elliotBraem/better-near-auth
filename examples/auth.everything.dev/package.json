@@ -71,7 +71,7 @@
     "build": "node_modules/.bin/bos build",
     "deploy": "node_modules/.bin/bos build --deploy",
     "publish": "node_modules/.bin/bos publish",
-    "typecheck": "bun run types:gen && if [ -d ui ]; then bun run --cwd ui typecheck; fi && if [ -d api ]; then bun run --cwd api typecheck; fi",
+    "typecheck": "bun run types:gen && if [ -d ui ]; then bun run --cwd ui typecheck; fi && if [ -d api ]; then bun run --cwd api typecheck; fi && if [ -d host ]; then bun run --cwd host typecheck; fi && if [ -d plugins ]; then for dir in plugins/*; do if [ -f \"$dir/package.json\" ]; then bun run --cwd \"$dir\" typecheck; fi; done; fi",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
