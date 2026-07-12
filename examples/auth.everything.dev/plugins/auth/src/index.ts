@@ -4,6 +4,7 @@ import { Effect } from "every-plugin/effect";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
 import type { AuthConfig } from "./auth-export";
+import type { DualNetworkConfig } from "better-near-auth";
 import { createAuthInstance } from "./auth-instance";
 import { contract, type InferOutput } from "./contract";
 import { createDatabaseDriver } from "./db/driver";
