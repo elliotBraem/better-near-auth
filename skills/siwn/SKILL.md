@@ -113,6 +113,70 @@ await authClient.near.unlink({ accountId: "alice.near" });
 
 You cannot unlink the last authentication method — link another account first.
 
+### Sub-account creation
+
+Create named sub-accounts (e.g. `myapp.parent.near`) using the relayer to pay gas. Requires the relayer to use a named (non-implicit) parent account — ephemeral relayer auto-generates an implicit hex account which cannot own sub-accounts.
+
+Configure the parent account and optional relayer function-call access key:
+
+```typescript
+siwn({
+  recipient: "myapp.com",
+  relayer: {
+    accountId: "relayer.myapp.near",
+    privateKey: process.env.RELAYER_PRIVATE_KEY,
+  },
+  subAccount: {
+    parentAccount: "myapp.near",           // defaults to relayer accountId
+    minDeposit: "0.1 NEAR",                // NEAR to transfer to new account
+    addRelayerFCAK: true,                  // add a function-call access key for relayer
+    relayerFCAK: {                         // scoped to specific contract/methods
+      receiverId: "myapp.near",
+      methodNames: ["set_value"],
+    },
+  },
+});
+```
+
+If the parent account differs from the relayer account, provide `parentKey` to sign the creation transaction:
+
+```typescript
+siwn({
+  recipient: "myapp.com",
+  relayer: {
+    accountId: "relayer.myapp.near",
+    privateKey: process.env.RELAYER_PRIVATE_KEY,
+  },
+  subAccount: {
+    parentAccount: "user.parent.near",
+    parentKey: process.env.PARENT_KEY, // base64 ed25519:... to sign as parent
+    minDeposit: "0.5 NEAR",
+  },
+});
+```
+
+Client-side flow:
+
+```typescript
+// 1. Check availability first
+const { data } = await authClient.near.checkSubAccountAvailability({
+  subAccountName: "myapp",
+});
+if (!data.available) {
+  console.log("Not available:", data.reason);
+  return;
+}
+
+// 2. Create the sub-account with the user's public key
+const result = await authClient.near.createSubAccount({
+  subAccountName: "myapp",
+  publicKey: "ed25519:...", // user's public key for full access
+});
+console.log(result.data.accountId); // myapp.parent.near
+```
+
+The server builds a transaction that creates the account, adds a full-access key for the user, optionally adds a function-call access key for the relayer, and transfers the minimum deposit.
+
 ## Server Endpoints
 
 | Method | Path | Description |
@@ -124,6 +188,8 @@ You cannot unlink the last authentication method — link another account first.
 | POST | `/near/unlink-account` | Unlink NEAR account |
 | GET | `/near/list-accounts` | List linked NEAR accounts |
 | POST | `/near/set-primary-account` | Set primary linked NEAR account |
+| POST | `/near/create-sub-account` | Create a sub-account under a parent account |
+| POST | `/near/check-sub-account-availability` | Check if a sub-account name is available |
 
 ## Plugin Options
 
@@ -259,3 +325,74 @@ Network is auto-detected from the accountId: `.testnet` → testnet, otherwise �
 Source: src/profile.ts:6-8, src/index.ts:546-552
 
 See also: client/SKILL.md — client siwnClient networkId should match the account's network
+
+### HIGH Not configuring parentAccount for sub-account creation with ephemeral relayer
+
+Wrong:
+
+```typescript
+siwn({
+  recipient: "myapp.com",
+  relayer: {}, // ephemeral mode — implicit hex account
+  subAccount: {}, // no parentAccount set
+});
+// Server throws: "Sub-account creation requires a named parent account"
+```
+
+Correct:
+
+```typescript
+siwn({
+  recipient: "myapp.com",
+  relayer: {
+    accountId: "relayer.myapp.near",
+    privateKey: process.env.RELAYER_PRIVATE_KEY,
+  },
+  subAccount: {
+    parentAccount: "myapp.near",
+  },
+});
+```
+
+Ephemeral mode generates an implicit hex account (e.g. `7a3c4b5c...`) which cannot own sub-accounts — NEAR only allows named accounts to create sub-accounts. Set `subAccount.parentAccount` to a named account, or use an explicit relayer with a named account and omit `parentAccount` (defaults to relayer accountId).
+
+Source: src/index.ts:1386-1393, src/index.ts:284-298
+
+### MEDIUM Forgetting parentKey when parent account differs from relayer
+
+Wrong:
+
+```typescript
+siwn({
+  recipient: "myapp.com",
+  relayer: {
+    accountId: "relayer.myapp.near",
+    privateKey: process.env.RELAYER_PRIVATE_KEY,
+  },
+  subAccount: {
+    parentAccount: "user.parent.near", // different from relayer
+    // no parentKey
+  },
+});
+// Server throws: "Sub-account parent differs from relayer account"
+```
+
+Correct:
+
+```typescript
+siwn({
+  recipient: "myapp.com",
+  relayer: {
+    accountId: "relayer.myapp.near",
+    privateKey: process.env.RELAYER_PRIVATE_KEY,
+  },
+  subAccount: {
+    parentAccount: "user.parent.near",
+    parentKey: process.env.PARENT_KEY, // base64 ed25519:... to sign as parent
+  },
+});
+```
+
+The creation transaction must be signed by the parent account. If `parentAccount` differs from the relayer account, provide `parentKey` so the server can sign the `CreateAccount` action as the parent.
+
+Source: src/index.ts:1395-1400, src/index.ts:1419-1421

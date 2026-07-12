@@ -164,6 +164,33 @@ await authClient.near.disconnect();
 
 When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey`. Use `isWalletConnected()` to check if signing operations are available, and `getAccountId()` for display purposes (works even when disconnected).
 
+### Sub-account creation
+
+Create named sub-accounts under a parent account (e.g. `myapp.parent.near`). The relayer pays gas for the creation transaction.
+
+```typescript
+// 1. Check availability before creating
+const { data: availability } = await authClient.near.checkSubAccountAvailability({
+  subAccountName: "myapp",
+});
+if (!availability.available) {
+  console.log("Not available:", availability.reason);
+  // reason: "taken" | "invalid" | "too-long" | "not-configured"
+  return;
+}
+
+// 2. Create sub-account with the user's public key for full access
+const { data: result } = await authClient.near.createSubAccount({
+  subAccountName: "myapp",
+  publicKey: "ed25519:...",
+});
+console.log(result.accountId); // myapp.parent.near
+```
+
+The client does lightweight validation before calling the server: `checkSubAccountAvailability` returns `{ available: false, reason: "invalid" }` immediately for names failing the regex/length check, skipping the server round-trip.
+
+The server must have `subAccount` configured (see siwn skill) and a named relayer account.
+
 ### Account linking and contract view calls
 
 ```typescript
@@ -408,3 +435,35 @@ const canSign = authClient.near.isWalletConnected();
 When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey` and sets `walletConnected` to false. Use `isWalletConnected()` to check if signing operations are available, and `getAccountId()` for display purposes (works even when disconnected).
 
 Source: src/client.ts:65-66, src/client.ts:102-108
+
+### MEDIUM Creating sub-accounts without checking availability first
+
+Wrong:
+
+```typescript
+await authClient.near.createSubAccount({
+  subAccountName: "myapp",
+  publicKey: "ed25519:...",
+});
+// Server throws 409 "Account already exists" if taken
+```
+
+Correct:
+
+```typescript
+const { data } = await authClient.near.checkSubAccountAvailability({
+  subAccountName: "myapp",
+});
+if (!data.available) {
+  console.log("Sub-account not available:", data.reason);
+  return;
+}
+await authClient.near.createSubAccount({
+  subAccountName: "myapp",
+  publicKey: "ed25519:...",
+});
+```
+
+Always check availability first to avoid unnecessary server round-trips and 409 CONFLICT errors. The availability check is cheap (regex + length check client-side, then RPC account lookup server-side).
+
+Source: src/client.ts:537-548, src/index.ts:1406-1412

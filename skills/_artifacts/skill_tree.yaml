@@ -1,7 +1,7 @@
 # skills/_artifacts/skill_tree.yaml
 library:
   name: 'better-near-auth'
-  version: '1.6.3'
+  version: '1.6.5'
   repository: 'https://github.com/elliotBraem/better-near-auth'
   description: 'Better Auth plugin for NEAR wallet authentication (SIWN/NEP-413) and gasless delegate action relay (NEP-366), with TanStack Router integration'
 generated_from:
@@ -15,7 +15,7 @@ skills:
     type: 'core'
     domain: 'siwn'
     path: 'skills/siwn/SKILL.md'
-    description: 'Set up the SIWN server plugin, configure NEP-413 authentication, handle nonce/verify endpoints, link and unlink NEAR accounts, and look up user profiles'
+    description: 'Set up the SIWN server plugin, configure NEP-413 authentication, handle nonce/verify endpoints, link and unlink NEAR accounts, look up user profiles, and create sub-accounts'
     sources:
       - 'elliotBraem/better-near-auth:src/index.ts'
       - 'elliotBraem/better-near-auth:src/profile.ts'
@@ -64,3 +64,25 @@ skills:
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/router.tsx'
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/router.server.tsx'
       - 'elliotBraem/better-near-auth:examples/browser-2-server/apps/web/src/lib/auth-client.ts'
+  - name: 'Auth plugin (everything.dev)'
+    slug: 'auth-plugin'
+    type: 'composition'
+    domain: 'auth-plugin'
+    path: 'skills/auth-plugin/SKILL.md'
+    description: 'Mount and consume the @everything-dev/auth-plugin in an everything-dev or every-plugin project: bos.config.json registration, UI auth client wiring, route protection, in-process plugin composition, and auth context usage'
+    requires:
+      - 'siwn'
+      - 'client'
+    sources:
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/bos.config.json'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/contract.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/auth-export.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/index.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/README.md'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/plugin.dev.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/lib/auth.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/app.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/routes/_layout/_authenticated.tsx'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/api/src/index.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/api/src/lib/auth.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/api/src/lib/context.ts'
