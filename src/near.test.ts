@@ -46,7 +46,22 @@ vi.mock("near-kit", () => {
 			storageBytes: 100,
 			hasContract: false,
 		})),
-		accountExists: vi.fn(() => Promise.resolve(true)),
+		accountExists: vi.fn((accountId: string) => {
+			const knownAccounts = new Set([
+				"test.near",
+				"test.testnet",
+				"alice.tg",
+				"sub.account.near",
+				"a1b2c3.near",
+				"user-name.near",
+				"user_name.near",
+				"deep.sub.account.near",
+				"user.near",
+				"sub.app.near",
+				"mywiki.wiki.everything.near",
+			]);
+			return Promise.resolve(knownAccounts.has(accountId));
+		}),
 		getAccessKey: vi.fn(() => Promise.resolve({ nonce: 0, permission: "FullAccess" })),
 		getAccessKeys: vi.fn(() => Promise.resolve({ keys: [] })),
 		getTransactionStatus: vi.fn(() => Promise.resolve({
@@ -55,9 +70,18 @@ vi.mock("near-kit", () => {
 			transaction_outcome: { outcome: { gas_burnt: 1000 } },
 		})),
 		transaction: vi.fn(() => ({
-			signedDelegateAction: vi.fn().mockReturnThis(),
+			createAccount: vi.fn().mockReturnThis(),
+			addKey: vi.fn().mockReturnThis(),
+			deleteKey: vi.fn().mockReturnThis(),
+			deleteAccount: vi.fn().mockReturnThis(),
+			deployContract: vi.fn().mockReturnThis(),
+			deployFromPublished: vi.fn().mockReturnThis(),
 			functionCall: vi.fn().mockReturnThis(),
 			transfer: vi.fn().mockReturnThis(),
+			stake: vi.fn().mockReturnThis(),
+			signedDelegateAction: vi.fn().mockReturnThis(),
+			signWith: vi.fn().mockReturnThis(),
+			publishContract: vi.fn().mockReturnThis(),
 			delegate: vi.fn(() => Promise.resolve({ payload: "mock-payload" })),
 			send: vi.fn(() => Promise.resolve({ transaction: { hash: "mock-tx-hash" } })),
 		})),
@@ -166,6 +190,7 @@ async function setup(overrides?: {
 	getProfile?: any;
 	validateLimitedAccessKey?: any;
 	subAccount?: any;
+	secrets?: { parentKey?: string };
 }) {
 	return getTestInstance(
 		{
@@ -176,6 +201,7 @@ async function setup(overrides?: {
 					relayer: overrides?.relayer,
 					getProfile: overrides?.getProfile,
 					validateLimitedAccessKey: overrides?.validateLimitedAccessKey,
+					secrets: overrides?.secrets,
 					subAccount: overrides?.subAccount,
 				}),
 			],
@@ -723,6 +749,205 @@ describe("siwn plugin", () => {
 			expect(body.accountId).toBe("mywiki.wiki.everything.near");
 			expect(body.parentAccount).toBe("wiki.everything.near");
 			expect(body.reason).toBe("taken");
+		});
+	});
+
+	describe("sub-account creation v2", () => {
+		async function createWithCookie(customFetchImpl: any, cookie: string, body: object) {
+			return customFetchImpl("http://localhost/api/auth/near/create-sub-account", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", cookie },
+				body: JSON.stringify(body),
+			});
+		}
+
+		it("should create a sub-account with parentHasFullAccess", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near", parentHasFullAccess: true },
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "testwiki",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.success).toBe(true);
+			expect(body.accountId).toBe("testwiki.wiki.everything.near");
+		});
+
+		it("should create a sub-account with deploy.fromPublished", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: {
+					parentAccount: "wiki.everything.near",
+					deploy: { fromPublished: { accountId: "publisher.near" } },
+				},
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki2",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(200);
+		});
+
+		it("should create a sub-account with init call", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: {
+					parentAccount: "wiki.everything.near",
+					init: { methodName: "init", args: { owner: "test.near" } },
+				},
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki3",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(200);
+		});
+
+		it("should create with extendTx hook", async () => {
+			const extendTx = vi.fn((tx: any) => tx);
+			const { customFetchImpl } = await setup({
+				subAccount: {
+					parentAccount: "wiki.everything.near",
+					extendTx,
+				},
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki4",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(200);
+			expect(extendTx).toHaveBeenCalledTimes(1);
+			const ctx = extendTx.mock.calls[0][1];
+			expect(ctx.newAccountId).toBe("wiki4.wiki.everything.near");
+			expect(ctx.parentAccount).toBe("wiki.everything.near");
+			expect(ctx.userPublicKey).toBe("ed25519:testpublickey");
+			expect(ctx.userAccountId).toBe(MOCK_ACCOUNT_ID);
+		});
+
+		it("should create with onCreated hook and return success", async () => {
+			const onCreated = vi.fn(() => Promise.resolve());
+			const { customFetchImpl } = await setup({
+				subAccount: {
+					parentAccount: "wiki.everything.near",
+					onCreated,
+				},
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki5",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.success).toBe(true);
+			expect(onCreated).toHaveBeenCalledTimes(1);
+		});
+
+		it("should rollback when onCreated throws", async () => {
+			const onCreated = vi.fn(() => Promise.reject(new Error("DB write failed")));
+			const { customFetchImpl } = await setup({
+				subAccount: {
+					parentAccount: "wiki.everything.near",
+					onCreated,
+				},
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki6",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(500);
+			expect(onCreated).toHaveBeenCalledTimes(1);
+		});
+
+		it("should call onRollback when onCreated fails", async () => {
+			const onRollback = vi.fn(() => Promise.resolve());
+			const onCreated = vi.fn(() => Promise.reject(new Error("DB write failed")));
+			const { customFetchImpl } = await setup({
+				subAccount: {
+					parentAccount: "wiki.everything.near",
+					onCreated,
+					onRollback,
+				},
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki7",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(500);
+			expect(onCreated).toHaveBeenCalledTimes(1);
+			expect(onRollback).toHaveBeenCalledTimes(1);
+		});
+
+		it("should reject unauthenticated create-sub-account", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near" },
+				relayer: { accountId: "wiki.everything.near", privateKey: "ed25519:mock" },
+				recipient: MOCK_RECIPIENT,
+			});
+
+			const res = await createWithCookie(customFetchImpl, "", {
+				subAccountName: "wiki8",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(401);
+		});
+
+		it("should work without relayer when secrets.parentKey is provided", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near", parentHasFullAccess: true },
+				secrets: { parentKey: "ed25519:mockparentkey" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki9",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(200);
+			const body = await res.json();
+			expect(body.success).toBe(true);
+		});
+
+		it("should return 503 without relayer and without secrets.parentKey", async () => {
+			const { customFetchImpl } = await setup({
+				subAccount: { parentAccount: "wiki.everything.near" },
+				recipient: MOCK_RECIPIENT,
+			});
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			const res = await createWithCookie(customFetchImpl, cookie, {
+				subAccountName: "wiki10",
+				publicKey: "ed25519:testpublickey",
+			});
+			expect(res.status).toBe(503);
 		});
 	});
 });

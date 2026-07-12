@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { AccountIdSchema, type AccountId } from "near-kit/schemas";
-import type { AccountState } from "near-kit";
+import type { AccountState, Near, TransactionBuilder } from "near-kit";
 
 export type { AccountId };
 
@@ -195,10 +195,33 @@ export interface SubAccountRelayerFCAKConfig {
 	allowance?: string;
 }
 
+export interface SubAccountTxCtx {
+	newAccountId: string;
+	parentAccount: string;
+	userPublicKey: string;
+	userAccountId: string;
+	userId: string;
+	network: "mainnet" | "testnet";
+}
+
+export interface SubAccountLifecycleCtx extends SubAccountTxCtx {
+	near: Near;
+}
+
 export interface SubAccountConfig {
 	parentAccount?: string;
-	parentKey?: string;
 	minDeposit?: string;
+	parentHasFullAccess?: boolean;
+	deploy?:
+		| { wasm: Uint8Array }
+		| { fromPublished: { accountId?: string; codeHash?: string } };
+	init?: {
+		methodName: string;
+		args: object | ((ctx: SubAccountTxCtx) => object);
+	};
+	extendTx?: (tx: TransactionBuilder, ctx: SubAccountTxCtx) => TransactionBuilder;
+	onCreated?: (ctx: SubAccountLifecycleCtx) => Promise<void>;
+	onRollback?: (ctx: SubAccountLifecycleCtx) => Promise<void>;
 	addRelayerFCAK?: boolean;
 	relayerFCAK?: SubAccountRelayerFCAKConfig;
 }

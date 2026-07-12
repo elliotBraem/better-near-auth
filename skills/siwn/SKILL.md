@@ -115,9 +115,9 @@ You cannot unlink the last authentication method — link another account first.
 
 ### Sub-account creation
 
-Create named sub-accounts (e.g. `myapp.parent.near`) using the relayer to pay gas. Requires the relayer to use a named (non-implicit) parent account — ephemeral relayer auto-generates an implicit hex account which cannot own sub-accounts.
+Create named sub-accounts (e.g. `myapp.parent.near`). See the **[subaccount skill](../subaccount/SKILL.md)** for the full reference.
 
-Configure the parent account and optional relayer function-call access key:
+Basic setup:
 
 ```typescript
 siwn({
@@ -127,18 +127,12 @@ siwn({
     privateKey: process.env.RELAYER_PRIVATE_KEY,
   },
   subAccount: {
-    parentAccount: "myapp.near",           // defaults to relayer accountId
-    minDeposit: "0.1 NEAR",                // NEAR to transfer to new account
-    addRelayerFCAK: true,                  // add a function-call access key for relayer
-    relayerFCAK: {                         // scoped to specific contract/methods
-      receiverId: "myapp.near",
-      methodNames: ["set_value"],
-    },
+    parentAccount: "myapp.near",
   },
 });
 ```
 
-If the parent account differs from the relayer account, provide `parentKey` to sign the creation transaction:
+If the parent account differs from the relayer account, provide the parent key via `secrets`:
 
 ```typescript
 siwn({
@@ -147,9 +141,11 @@ siwn({
     accountId: "relayer.myapp.near",
     privateKey: process.env.RELAYER_PRIVATE_KEY,
   },
+  secrets: {
+    parentKey: process.env.PARENT_KEY,  // for signing as a different parent
+  },
   subAccount: {
     parentAccount: "user.parent.near",
-    parentKey: process.env.PARENT_KEY, // base64 ed25519:... to sign as parent
     minDeposit: "0.5 NEAR",
   },
 });
@@ -170,12 +166,12 @@ if (!data.available) {
 // 2. Create the sub-account with the user's public key
 const result = await authClient.near.createSubAccount({
   subAccountName: "myapp",
-  publicKey: "ed25519:...", // user's public key for full access
+  publicKey: "ed25519:...", // user's public key
 });
 console.log(result.data.accountId); // myapp.parent.near
 ```
 
-The server builds a transaction that creates the account, adds a full-access key for the user, optionally adds a function-call access key for the relayer, and transfers the minimum deposit.
+To use parent ownership, contract deployment, init calls, transaction hooks, or lifecycle callbacks with automatic rollback, see the **[subaccount skill](../subaccount/SKILL.md)**.
 
 ## Server Endpoints
 
@@ -356,9 +352,9 @@ siwn({
 
 Ephemeral mode generates an implicit hex account (e.g. `7a3c4b5c...`) which cannot own sub-accounts — NEAR only allows named accounts to create sub-accounts. Set `subAccount.parentAccount` to a named account, or use an explicit relayer with a named account and omit `parentAccount` (defaults to relayer accountId).
 
-Source: src/index.ts:1386-1393, src/index.ts:284-298
+Source: src/index.ts:1395-1405, src/index.ts:290-304
 
-### MEDIUM Forgetting parentKey when parent account differs from relayer
+### MEDIUM Missing secrets.parentKey when parent account differs from relayer
 
 Wrong:
 
@@ -371,7 +367,7 @@ siwn({
   },
   subAccount: {
     parentAccount: "user.parent.near", // different from relayer
-    // no parentKey
+    // no secrets.parentKey
   },
 });
 // Server throws: "Sub-account parent differs from relayer account"
@@ -386,13 +382,18 @@ siwn({
     accountId: "relayer.myapp.near",
     privateKey: process.env.RELAYER_PRIVATE_KEY,
   },
+  secrets: {
+    parentKey: process.env.PARENT_KEY,  // used to sign as parent
+  },
   subAccount: {
     parentAccount: "user.parent.near",
-    parentKey: process.env.PARENT_KEY, // base64 ed25519:... to sign as parent
+    minDeposit: "0.5 NEAR",
   },
 });
 ```
 
-The creation transaction must be signed by the parent account. If `parentAccount` differs from the relayer account, provide `parentKey` so the server can sign the `CreateAccount` action as the parent.
+The creation transaction must be signed by the parent account. If `parentAccount` differs from the relayer account, provide `secrets.parentKey` so the server can sign as the parent.
 
-Source: src/index.ts:1395-1400, src/index.ts:1419-1421
+Source: src/index.ts:1403-1415, src/index.ts:1420-1423
+
+See also: [subaccount skill](../subaccount/SKILL.md)

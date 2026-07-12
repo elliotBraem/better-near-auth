@@ -7,7 +7,8 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 
 | Domain | Description | Skills |
 | ------ | ----------- | ------ |
-| SIWN authentication | Server-side NEAR wallet sign-in: plugin setup, NEP-413 flow, account linking, profile lookup, sub-account creation | siwn |
+| SIWN authentication | Server-side NEAR wallet sign-in: plugin setup, NEP-413 flow, account linking, profile lookup | siwn |
+| Sub-account creation | Named sub-account creation with configurable access keys, contract deployment, init calls, composable transaction hooks, and lifecycle callbacks | subaccount |
 | Gasless relay | Delegate action relay: ephemeral/explicit config, NEP-366 flow, whitelisting, limits | relay |
 | Client integration | Client-side plugin: wallet connection, authClient.near actions, sign-in flow | client |
 | TanStack Router integration | Framework integration: router context singleton, SSR safety, hooks, query options, type inference | tanstack |
@@ -17,7 +18,8 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 
 | Skill | Type | Domain | What it covers | Failure modes |
 | ------ | ---- | ------ | -------------- | ------------- |
-| siwn | core | siwn | Plugin setup, nonce/verify, account linking, profiles, sub-account creation | 6 |
+| siwn | core | siwn | Plugin setup, nonce/verify, account linking, profiles | 4 |
+| subaccount | core | subaccount | Parent ownership, deploy/init, extendTx hook, onCreated/onRollback lifecycle, decoupled mode | 6 |
 | relay | core | relay | Relayer modes, delegate actions, whitelisting, gas limits | 4 |
 | client | core | client | siwnClient config, wallet actions, sign-in, delegate building, SSR behavior | 5 |
 | tanstack | framework | tanstack | Router context singleton, useAuthClient hook, sessionQueryOptions, type inference, SSR wiring | 5 |
@@ -25,16 +27,25 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 
 ## Failure Mode Inventory
 
-### siwn (6 failure modes)
+### siwn (4 failure modes)
 
 | # | Mistake | Priority | Source | Cross-skill? |
 |---|---------|----------|--------|--------------|
 | 1 | Recipient mismatch between server and client | CRITICAL | src/index.ts:225, src/client.ts:108 | client, tanstack |
 | 2 | Sending raw nonce bytes instead of hex-encoded string | HIGH | src/types.ts:53-58, src/client.ts:174-175 | client |
 | 3 | Forgetting to generate DB schema after adding plugin | HIGH | README.md:56-60 | — |
-| 4 | Not configuring parentAccount for sub-account creation with ephemeral relayer | HIGH | src/index.ts:1386-1393, src/index.ts:284-298 | — |
-| 5 | Network detected from wrong account ID format | MEDIUM | src/profile.ts:6-8, src/index.ts:546-552 | client |
-| 6 | Forgetting parentKey when parent account differs from relayer | MEDIUM | src/index.ts:1395-1400, src/index.ts:1419-1421 | — |
+| 4 | Network detected from wrong account ID format | MEDIUM | src/profile.ts:6-8, src/index.ts:546-552 | client |
+
+### subaccount (6 failure modes)
+
+| # | Mistake | Priority | Source | Cross-skill? |
+|---|---------|----------|--------|--------------|
+| 1 | Not setting parentHasFullAccess when parent needs recovery | HIGH | src/index.ts:1436-1439 | — |
+| 2 | Missing secrets.parentKey when parent differs from relayer | HIGH | src/index.ts:1403-1415 | siwn |
+| 3 | Not checking availability before creation | MEDIUM | src/near.test.ts:537-548 | client |
+| 4 | Using relayer ephemeral mode without parentAccount | MEDIUM | src/index.ts:1395-1405 | relay |
+| 5 | Forgetting onRollback cleanup in onCreated | MEDIUM | src/index.ts:1515-1533 | — |
+| 6 | Using secrets.parentKey in subAccount config (old API) | LOW | src/types.ts:200-201 | — |
 
 ### relay (4 failure modes)
 
@@ -105,6 +116,10 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | auth-plugin | tanstack | Auth plugin UI uses router context singleton and session query patterns; tanstack skill documents the pattern |
 | siwn | auth-plugin | SIWN server config must match bos.config.json variables; understanding the plugin wrapper prevents mismatch |
 | client | auth-plugin | Client siwnClient recipient must match runtimeConfig variables; understanding the plugin consumer flow ensures consistency |
+| subaccount | siwn | Sub-account creation requires SIWN plugin for session auth; siwn skill documents SIWN options |
+| subaccount | client | Client-side checkSubAccountAvailability and createSubAccount are documented in client skill |
+| siwn | subaccount | SIWN plugin provides subAccount config; subaccount skill documents the full config surface |
+| client | subaccount | Client subaccount actions reference subaccount skill for server config details |
 
 ## Subsystems & Reference Candidates
 
@@ -118,7 +133,7 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 
 ## Recommended Skill File Structure
 
-- **Core skills:** siwn, relay, client (all framework-agnostic)
+- **Core skills:** siwn, subaccount, relay, client (all framework-agnostic)
 - **Framework skills:** tanstack (TanStack Router integration pattern)
 - **Composition skills:** auth-plugin (everything.dev plugin consumption)
 - **Lifecycle skills:** None — covered within individual skills

@@ -40,6 +40,8 @@ import {
 	CreateSubAccountResponse,
 	CheckSubAccountAvailabilityRequest,
 	CheckSubAccountAvailabilityResponse,
+	type SubAccountTxCtx,
+	type SubAccountLifecycleCtx,
 } from "./types.js";
 export * from "./types.js";
 import {
@@ -287,11 +289,14 @@ function isImplicitAccount(accountId: string): boolean {
 
 function resolveParentAccount(
 	subAccountCfg: SubAccountConfig | undefined,
+	parentKey: string | undefined,
 	rState: RelayerState | null,
 ): { parentAccount: string | null; subAccountAvailable: boolean } {
-	if (!rState) return { parentAccount: null, subAccountAvailable: false };
-	const parent = subAccountCfg?.parentAccount ?? rState.accountId;
+	const parent = subAccountCfg?.parentAccount ?? rState?.accountId;
 	if (!parent || isImplicitAccount(parent)) {
+		return { parentAccount: null, subAccountAvailable: false };
+	}
+	if (!rState && !parentKey) {
 		return { parentAccount: null, subAccountAvailable: false };
 	}
 	return { parentAccount: parent, subAccountAvailable: true };
@@ -311,6 +316,9 @@ export interface SIWNPluginOptions {
 	apiKey?: string;
 	rpcUrl?: string | DualNetworkConfig<string>;
 	relayer?: RelayerConfig | DualNetworkConfig<RelayerConfig>;
+	secrets?: {
+		parentKey?: string | DualNetworkConfig<string>;
+	};
 	subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
 }
 
@@ -352,6 +360,26 @@ export const siwn = (options: SIWNPluginOptions) => {
 			return (options.subAccount as DualNetworkConfig<SubAccountConfig>)[network];
 		}
 		return options.subAccount as SubAccountConfig;
+	};
+
+	const getParentKey = (network: "mainnet" | "testnet"): string | undefined => {
+		if (!options.secrets?.parentKey) return undefined;
+		if (typeof options.secrets.parentKey === "object") {
+			return (options.secrets.parentKey as DualNetworkConfig<string>)[network];
+		}
+		return options.secrets.parentKey as string;
+	};
+
+	const getRawParentKey = (network: "mainnet" | "testnet"): string | undefined => {
+		const fromSecrets = getParentKey(network);
+		if (fromSecrets) return fromSecrets;
+		const relayerCfg = getRelayerConfig(network);
+		const subAccountCfg = getSubAccountConfig(network);
+		const parent = subAccountCfg?.parentAccount ?? relayerCfg?.accountId;
+		if (parent && parent === relayerCfg?.accountId) {
+			return relayerCfg.privateKey ?? relayerCfg.privateKeys?.[0];
+		}
+		return undefined;
 	};
 
 	const primaryNetwork = getSupportedNetworks()[0];
@@ -1232,7 +1260,8 @@ export const siwn = (options: SIWNPluginOptions) => {
 					}
 
 					const subAccountCfg = getSubAccountConfig(targetNetwork);
-					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+					const parentKey = getParentKey(targetNetwork);
+const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, parentKey, rState);
 
 					const near = getNear(rState.network);
 					let account;
@@ -1374,16 +1403,10 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 					const network = (providedNetwork || nearAccount?.network || primaryNetwork) as "mainnet" | "testnet";
 					const subAccountCfg = getSubAccountConfig(network);
+					const userAccountId = nearAccount?.accountId ?? "";
+					const parentKey = getParentKey(network);
 					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, network);
-
-					if (!rState) {
-						throw new APIError("SERVICE_UNAVAILABLE", {
-							message: "Relayer not configured — sub-account creation requires a funded relayer",
-							status: 503,
-						});
-					}
-
-					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, rState);
+					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, parentKey, rState);
 
 					if (!subAccountAvailable || !parentAccount) {
 						throw new APIError("SERVICE_UNAVAILABLE", {
@@ -1392,9 +1415,10 @@ export const siwn = (options: SIWNPluginOptions) => {
 						});
 					}
 
-					if (parentAccount !== rState.accountId && !subAccountCfg?.parentKey) {
+					const effectiveParentKey = getRawParentKey(network);
+					if (parentAccount !== rState?.accountId && !effectiveParentKey) {
 						throw new APIError("SERVICE_UNAVAILABLE", {
-							message: "Sub-account parent differs from relayer account. Configure subAccount.parentKey to enable signing as the parent account.",
+							message: "Sub-account parent differs from relayer account. Provide secrets.parentKey to sign as the parent account.",
 							status: 503,
 						});
 					}
@@ -1411,16 +1435,29 @@ export const siwn = (options: SIWNPluginOptions) => {
 						});
 					}
 
-					let txBuilder = rState.near
+					const txCtx: SubAccountTxCtx = {
+						newAccountId,
+						parentAccount,
+						userPublicKey: publicKey,
+						userAccountId,
+						userId: session.user.id,
+						network,
+					};
+
+					const signingNear = rState?.near ?? near;
+					let txBuilder = signingNear
 						.transaction(parentAccount)
 						.createAccount(newAccountId)
 						.addKey(publicKey, { type: "fullAccess" });
 
-					if (subAccountCfg?.parentKey) {
-						txBuilder = txBuilder.signWith(subAccountCfg.parentKey as PrivateKey);
+					if (subAccountCfg?.parentHasFullAccess) {
+						const parentPublicKey = parentAccount === rState?.accountId
+							? rState.publicKey
+							: parseKey(effectiveParentKey!).publicKey.toString();
+						txBuilder = txBuilder.addKey(parentPublicKey, { type: "fullAccess" });
 					}
 
-					if (subAccountCfg?.addRelayerFCAK !== false && subAccountCfg?.relayerFCAK) {
+					if (subAccountCfg?.addRelayerFCAK !== false && subAccountCfg?.relayerFCAK && rState) {
 						const fcakPermission: { type: "functionCall"; receiverId: string; methodNames?: string[]; allowance?: string } = {
 							type: "functionCall",
 							receiverId: subAccountCfg.relayerFCAK.receiverId,
@@ -1436,9 +1473,57 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 					txBuilder.transfer(newAccountId, minDeposit as `${number} NEAR`);
 
+					if (subAccountCfg?.deploy) {
+						if ("wasm" in subAccountCfg.deploy) {
+							txBuilder = txBuilder.deployContract(newAccountId, subAccountCfg.deploy.wasm);
+						} else if ("fromPublished" in subAccountCfg.deploy) {
+							txBuilder = txBuilder.deployFromPublished(subAccountCfg.deploy.fromPublished as any);
+						}
+					}
+
+					if (subAccountCfg?.init) {
+						const initArgs = typeof subAccountCfg.init.args === "function"
+							? subAccountCfg.init.args(txCtx)
+							: subAccountCfg.init.args;
+						txBuilder = txBuilder.functionCall(newAccountId, subAccountCfg.init.methodName, initArgs);
+					}
+
+					if (subAccountCfg?.extendTx) {
+						txBuilder = subAccountCfg.extendTx(txBuilder, txCtx) as typeof txBuilder;
+					}
+
+					if (effectiveParentKey) {
+						txBuilder = txBuilder.signWith(effectiveParentKey as PrivateKey);
+					}
+
+					const cleanupDb = async () => {
+						try {
+							const existing = await ctx.context.adapter.findOne<{ id: string }>({
+								model: "nearAccount",
+								where: [{ field: "accountId", operator: "eq", value: newAccountId }],
+							});
+							if (existing) {
+								await ctx.context.adapter.delete({ model: "nearAccount", where: [{ field: "id", operator: "eq", value: existing.id }] });
+							}
+						} catch { }
+						try {
+							await ctx.context.internalAdapter.deleteAccount(`${newAccountId}:${network}`);
+						} catch { }
+					};
+
+					const lifecycleCtx: SubAccountLifecycleCtx = { ...txCtx, near: signingNear };
+
 					try {
 						await txBuilder.send({ waitUntil: "EXECUTED" });
+					} catch (error: unknown) {
+						const msg = error instanceof Error ? error.message : "Unknown error";
+						throw new APIError("INTERNAL_SERVER_ERROR", {
+							message: `Failed to create sub-account: ${msg}`,
+							status: 500,
+						});
+					}
 
+					try {
 						await ctx.context.adapter.create({
 							model: "nearAccount",
 							data: {
@@ -1459,20 +1544,40 @@ export const siwn = (options: SIWNPluginOptions) => {
 							updatedAt: new Date(),
 						});
 
-						return ctx.json(CreateSubAccountResponse.parse({
-							success: true,
-							accountId: newAccountId,
-							network,
-							publicKey,
-							message: `Sub-account ${newAccountId} created on ${network}`,
-						}));
+						if (subAccountCfg?.onCreated) {
+							await subAccountCfg.onCreated(lifecycleCtx);
+						}
 					} catch (error: unknown) {
+						await cleanupDb();
+						if (subAccountCfg?.onRollback) {
+							try { await subAccountCfg.onRollback(lifecycleCtx); } catch { }
+						} else {
+							try {
+								const key = getRawParentKey(network);
+								if (key) {
+									const rollbackNear = getNear(network);
+									await rollbackNear
+										.transaction(newAccountId)
+										.deleteAccount({ beneficiary: parentAccount })
+										.signWith(key as PrivateKey)
+										.send({ waitUntil: "EXECUTED" });
+								}
+							} catch { }
+						}
 						const msg = error instanceof Error ? error.message : "Unknown error";
 						throw new APIError("INTERNAL_SERVER_ERROR", {
-							message: `Failed to create sub-account: ${msg}`,
+							message: `Sub-account created but post-creation failed: ${msg}`,
 							status: 500,
 						});
 					}
+
+					return ctx.json(CreateSubAccountResponse.parse({
+						success: true,
+						accountId: newAccountId,
+						network,
+						publicKey,
+						message: `Sub-account ${newAccountId} created on ${network}`,
+					}));
 				},
 			),
 		checkSubAccountAvailability: createAuthEndpoint(

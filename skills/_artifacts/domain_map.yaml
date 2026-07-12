@@ -28,12 +28,15 @@ domains:
   - name: 'Auth plugin (everything.dev)'
     slug: 'auth-plugin'
     description: 'Plugin consumption: bos.config.json registration, UI auth client wiring, route protection, in-process plugin composition, auth context (getContext) usage'
+  - name: 'Sub-account creation'
+    slug: 'subaccount'
+    description: 'Named sub-account creation with configurable access keys, contract deployment, init calls, composable transaction hooks, and lifecycle callbacks with automatic rollback'
 
 skills:
   - name: 'SIWN authentication'
     slug: 'siwn'
     domain: 'siwn'
-    description: 'Set up the SIWN server plugin, configure NEP-413 authentication, handle nonce/verify endpoints, link and unlink NEAR accounts, look up user profiles, and create sub-accounts'
+    description: 'Set up the SIWN server plugin, configure NEP-413 authentication, handle nonce/verify endpoints, link and unlink NEAR accounts, and look up user profiles'
     type: 'core'
     covers:
       - 'siwn() plugin options'
@@ -43,14 +46,10 @@ skills:
       - '/near/unlink-account endpoint'
       - '/near/list-accounts endpoint'
       - '/near/profile endpoint'
-      - '/near/create-sub-account endpoint'
-      - '/near/check-sub-account-availability endpoint'
       - 'nearAccount schema'
       - 'NEP-413 signature verification'
       - 'nonce generation and replay detection'
       - 'email derivation (.near → localpart@near.email)'
-      - 'SubAccountConfig and parent account resolution'
-      - 'Sub-account creation transaction (createAccount + addKey + transfer)'
     tasks:
       - 'Add SIWN plugin to Better Auth server config'
       - 'Generate database schema after adding the plugin'
@@ -58,9 +57,6 @@ skills:
       - 'Link or unlink NEAR accounts to authenticated sessions'
       - 'Look up NEAR user profiles'
       - 'Validate access keys (full access or function-call keys)'
-      - 'Configure subAccount options for delegated account creation'
-      - 'Check sub-account name availability before creating'
-      - 'Create sub-accounts with full-access and function-call access keys'
     failure_modes:
       - mistake: 'Recipient mismatch between server and client'
         mechanism: 'The client sends a signed message with a different recipient than the server expects, causing verification to fail silently at the NEP-413 signature check.'
@@ -137,47 +133,121 @@ skills:
         priority: 'MEDIUM'
         status: 'active'
         skills: ['siwn', 'client']
-      - mistake: 'Not configuring parentAccount for sub-account creation with ephemeral relayer'
+
+  - name: 'Sub-account creation'
+    slug: 'subaccount'
+    domain: 'subaccount'
+    description: 'Configure sub-account creation with configurable access keys, contract deployment, init calls, composable transaction hooks (extendTx), and lifecycle callbacks with automatic rollback (onCreated, onRollback)'
+    type: 'core'
+    requires:
+      - 'siwn'
+    covers:
+      - 'SubAccountConfig options (parentHasFullAccess, deploy, init, extendTx, onCreated, onRollback)'
+      - 'secrets.parentKey for decoupled mode'
+      - 'Transaction building: createAccount + addKey + transfer + deploy + init + extendTx'
+      - 'Contract deployment (raw wasm, global contract by account, global contract by hash)'
+      - 'Init call with static or dynamic args (SubAccountTxCtx function)'
+      - 'Lifecycle hooks: onCreated and onRollback with automatic deleteAccount'
+      - 'Standalone mode (no relayer) with secrets.parentKey'
+      - '/near/create-sub-account endpoint'
+      - '/near/check-sub-account-availability endpoint'
+    tasks:
+      - 'Configure subAccount with parent ownership and contract deployment'
+      - 'Deploy contract to subaccount from global registry (fromPublished)'
+      - 'Call init method after deploy with dynamic args'
+      - 'Add custom actions to the creation transaction via extendTx'
+      - 'Handle post-creation side effects with onCreated'
+      - 'Clean up consumer side effects with onRollback'
+      - 'Use standalone sub-account creation without a relayer'
+    failure_modes:
+      - mistake: 'Not setting parentHasFullAccess when parent needs recovery'
+        mechanism: 'Without parentHasFullAccess: true, the parent account has no access to the subaccount. If the user loses their key, the subaccount is unrecoverable.'
+        wrong_pattern: |
+          siwn({
+            subAccount: { parentAccount: "myapp.near" },
+          });
+        correct_pattern: |
+          siwn({
+            subAccount: { parentAccount: "myapp.near", parentHasFullAccess: true },
+          });
+        source: 'src/index.ts:1436-1439'
+        priority: 'HIGH'
+        status: 'active'
+        skills: ['subaccount']
+      - mistake: 'Missing secrets.parentKey when parent differs from relayer'
+        mechanism: 'The creation transaction must be signed by the parent account. When parentAccount differs from the relayer accountId, secrets.parentKey is required to sign, or the server throws "Sub-account parent differs from relayer account".'
+        wrong_pattern: |
+          siwn({
+            relayer: { accountId: "relayer.near", privateKey: "..." },
+            subAccount: { parentAccount: "user.parent.near" },
+          });
+        correct_pattern: |
+          siwn({
+            relayer: { accountId: "relayer.near", privateKey: "..." },
+            secrets: { parentKey: process.env.PARENT_KEY },
+            subAccount: { parentAccount: "user.parent.near" },
+          });
+        source: 'src/index.ts:1403-1415, src/index.ts:1420-1423'
+        priority: 'HIGH'
+        status: 'active'
+        skills: ['subaccount', 'siwn']
+      - mistake: 'Not checking availability before creation'
+        mechanism: 'Creating a sub-account without checking availability first causes a 409 CONFLICT error if the account already exists.'
+        wrong_pattern: |
+          await authClient.near.createSubAccount({ subAccountName: "myapp", publicKey });
+        correct_pattern: |
+          const { data } = await authClient.near.checkSubAccountAvailability({ subAccountName: "myapp" });
+          if (!data.available) return;
+          await authClient.near.createSubAccount({ subAccountName: "myapp", publicKey });
+        source: 'src/near.test.ts:537-548'
+        priority: 'MEDIUM'
+        status: 'active'
+        skills: ['subaccount', 'client']
+      - mistake: 'Using relayer ephemeral mode without parentAccount'
         mechanism: 'Ephemeral mode generates an implicit hex account that cannot own sub-accounts. Without setting subAccount.parentAccount or using an explicit named relayer, the server throws "Sub-account creation requires a named parent account".'
         wrong_pattern: |
           siwn({
             recipient: "myapp.com",
-            relayer: {}, // ephemeral — implicit hex account
+            relayer: {},
             subAccount: {},
           });
         correct_pattern: |
           siwn({
             recipient: "myapp.com",
-            relayer: {
-              accountId: "relayer.myapp.near",
-              privateKey: process.env.RELAYER_PRIVATE_KEY,
-            },
-            subAccount: {
-              parentAccount: "myapp.near",
-            },
+            relayer: { accountId: "myapp.near", privateKey: process.env.RELAYER_PRIVATE_KEY },
+            subAccount: { parentAccount: "myapp.near" },
           });
-        source: 'src/index.ts:1386-1393, src/index.ts:284-298'
-        priority: 'HIGH'
-        status: 'active'
-        skills: ['siwn']
-      - mistake: 'Forgetting parentKey when parent account differs from relayer'
-        mechanism: 'The creation transaction must be signed by the parent account. When parentAccount differs from the relayer accountId, the server needs parentKey to sign, or it throws "Sub-account parent differs from relayer account".'
-        wrong_pattern: |
-          siwn({
-            recipient: "myapp.com",
-            relayer: { accountId: "relayer.myapp.near", privateKey: "..." },
-            subAccount: { parentAccount: "user.parent.near" },
-          });
-        correct_pattern: |
-          siwn({
-            recipient: "myapp.com",
-            relayer: { accountId: "relayer.myapp.near", privateKey: "..." },
-            subAccount: { parentAccount: "user.parent.near", parentKey: "base64 ed25519:..." },
-          });
-        source: 'src/index.ts:1395-1400, src/index.ts:1419-1421'
+        source: 'src/index.ts:1395-1405'
         priority: 'MEDIUM'
         status: 'active'
-        skills: ['siwn']
+        skills: ['subaccount', 'siwn', 'relay']
+      - mistake: 'Forgetting onRollback cleanup in onCreated'
+        mechanism: 'If onCreated writes to an external database and throws, the plugin automatically deletes the on-chain account and its internal DB records. Without onRollback, external side effects are orphaned.'
+        wrong_pattern: |
+          subAccount: {
+            onCreated: async (ctx) => { await myDb.create({ id: ctx.newAccountId }); },
+            // no onRollback — if onCreated throws, DB record orphaned
+          }
+        correct_pattern: |
+          subAccount: {
+            onCreated: async (ctx) => { await myDb.create({ id: ctx.newAccountId }); },
+            onRollback: async (ctx) => { await myDb.delete({ id: ctx.newAccountId }).catch(() => {}); },
+          }
+        source: 'src/index.ts:1515-1533'
+        priority: 'MEDIUM'
+        status: 'active'
+        skills: ['subaccount']
+      - mistake: 'Using secrets.parentKey in subAccount config (old API)'
+        mechanism: 'parentKey was moved from SubAccountConfig to secrets.parentKey for security. Using the old field has no effect and the server throws if parent differs from relayer without a signing key.'
+        wrong_pattern: |
+          subAccount: { parentKey: "ed25519:..." }
+        correct_pattern: |
+          secrets: { parentKey: "ed25519:..." }
+          subAccount: { parentAccount: "myapp.near" }
+        source: 'src/types.ts:200-201, src/index.ts:1397-1400'
+        priority: 'LOW'
+        status: 'active'
+        skills: ['subaccount']
 
   - name: 'Gasless relay'
     slug: 'relay'
@@ -658,6 +728,10 @@ tensions:
     skills: ['auth-plugin', 'siwn']
     description: 'The SIWN recipient is read from runtimeConfig.auth.variables at runtime. Hardcoding it in the UI instead of reading from runtime config causes mismatch when deploying to different networks.'
     implication: 'Agents may hardcode the recipient in the UI auth client instead of reading from runtimeConfig, causing NEP-413 verification failures on different deployments.'
+  - name: 'Parent ownership vs user autonomy'
+    skills: ['subaccount']
+    description: 'parentHasFullAccess: true gives the parent recovery/rollback capability but means the user does not have exclusive control of their subaccount. False gives the user exclusive full access but leaves no recovery path if keys are lost.'
+    implication: 'Agents should default to parentHasFullAccess: true (recommended) and document the trade-off so the consumer can choose exclusive user ownership when needed.'
 
 cross_references:
   - from: 'siwn'
@@ -696,8 +770,20 @@ cross_references:
   - from: 'client'
     to: 'auth-plugin'
     reason: 'Client siwnClient recipient must match runtimeConfig variables; understanding the plugin consumer flow ensures consistency'
+  - from: 'subaccount'
+    to: 'siwn'
+    reason: 'Sub-account creation requires SIWN plugin for session authentication and relayer setup; siwn skill documents SIWN options and relayer config'
+  - from: 'subaccount'
+    to: 'client'
+    reason: 'Client-side checkSubAccountAvailability and createSubAccount are documented in client skill'
+  - from: 'siwn'
+    to: 'subaccount'
+    reason: 'SIWN plugin provides subAccount config and /near/create-sub-account endpoint; subaccount skill documents the full config surface'
+  - from: 'client'
+    to: 'subaccount'
+    reason: 'Client subaccount actions reference subaccount skill for server config details'
 
 gaps:
-  - 'Testing skill for near.test.ts — 728-line test suite with mock infrastructure has no dedicated skill'
+  - 'Testing skill for near.test.ts — 952-line test suite with mock infrastructure has no dedicated skill'
   - 'Session augmentation after-hook on /auth/session GET may not be explicitly covered in siwn skill'
   - 'Plugin-to-plugin composition (beyond the app API) — no second plugin under plugins/ exists to show direct plugin-to-plugin auth calls'
