@@ -1409,8 +1409,17 @@ const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCf
 					const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCfg, parentKey, rState);
 
 					if (!subAccountAvailable || !parentAccount) {
+						const configuredParent = subAccountCfg?.parentAccount;
+						let msg: string;
+						if (configuredParent && !parentKey) {
+							msg = `Sub-account creation unavailable on ${network}: parent key not configured for ${configuredParent}. Set NEAR_SUB_ACCOUNT_PARENT_KEY_${network.toUpperCase()} in your environment, or use an explicit relayer with a named account.`;
+						} else if (!configuredParent) {
+							msg = `Sub-account creation unavailable on ${network}: no parent account configured. Set subAccount.${network}.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.`;
+						} else {
+							msg = `Sub-account creation unavailable on ${network}: requires a named parent account with a parent key, or an explicit relayer with a named account.`;
+						}
 						throw new APIError("SERVICE_UNAVAILABLE", {
-							message: "Sub-account creation requires a named parent account. Configure subAccount.parentAccount in your SIWN plugin options, or use an explicit relayer with a named account.",
+							message: msg,
 							status: 503,
 						});
 					}

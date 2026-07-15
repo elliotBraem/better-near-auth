@@ -520,7 +520,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					getRelayerInfo: async (params?: GetRelayerInfoRequestT) => {
 						return await $fetch("/near/relayer-info", {
 							method: "POST",
-							body: params ?? {},
+							body: { ...(params ?? {}), network: params?.network ?? activeNetwork.get() },
 						});
 					},
 					relayHistory: async () => {
@@ -531,7 +531,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					createSubAccount: async (params: CreateSubAccountRequestT) => {
 						return await $fetch("/near/create-sub-account", {
 							method: "POST",
-							body: params,
+							body: { ...params, network: params.network ?? activeNetwork.get() },
 						});
 					},
 				checkSubAccountAvailability: async (params: CheckSubAccountAvailabilityRequestT) => {
@@ -543,7 +543,7 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 					}
 					return await $fetch("/near/check-sub-account-availability", {
 						method: "POST",
-						body: params,
+						body: { ...params, network: params.network ?? activeNetwork.get() },
 					});
 				},
 					setNetwork: (network: "mainnet" | "testnet") => {
