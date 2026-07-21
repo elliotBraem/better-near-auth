@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.7.2
+
+### Patch Changes
+
+- [`84d82aa`](https://github.com/elliotBraem/better-near-auth/commit/84d82aaad23ae1ea4be2116843f06e46120e2ee7) Thanks [@elliotBraem](https://github.com/elliotBraem)! - The `getSiwnProfile` endpoint no longer requires `sessionMiddleware` when an explicit `accountId` is provided in the request body. Uses `getSessionFromCtx` internally to conditionally resolve the session only when needed. This allows public profile lookups by account ID without requiring authentication.
+
 ## 1.7.1
 
 ### Patch Changes
