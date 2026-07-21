@@ -18,15 +18,18 @@ export default createPlugin.withPlugins<PluginsClient>()({
 
   contract,
 
-  initialize: (config, plugins) =>
+  initialize: (config, plugins, tools) =>
     Effect.gen(function* () {
-      const db = yield* DatabaseTag;
+      const db = yield* tools.buildService(
+        DatabaseTag,
+        DatabaseLive(config.secrets.API_DATABASE_URL),
+      );
       const { auth, ...restPlugins } = plugins;
       console.log("[API] Services Initialized");
       console.log("[API] Auth client available:", Boolean(auth));
       console.log("[API] Plugins available:", Object.keys(restPlugins).join(", ") || "none");
       return { auth, plugins: restPlugins, db };
-    }).pipe(Effect.provide(DatabaseLive(config.secrets.API_DATABASE_URL))),
+    }),
 
   shutdown: () => Effect.log("[API] Shutdown"),
 
