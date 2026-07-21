@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "rsbuild dev",
-    "dev:ssr": "PORT=3004 BUILD_TARGET=server rsbuild dev",
+    "dev:ssr": "BUILD_TARGET=server rsbuild dev",
     "build": "bun run build:client && bun run build:ssr",
     "deploy": "DEPLOY=true bun run build",
     "build:client": "BUILD_TARGET=client rsbuild build",

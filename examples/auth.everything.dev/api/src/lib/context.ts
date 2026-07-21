@@ -14,6 +14,19 @@ export const ContextSchema = z.custom<AuthContext>();
 
 export type Context = AuthContext;
 
+export function flattenError(error: unknown): string {
+  if (error instanceof Error) {
+    const parts = [error.message];
+    let cause: unknown = error.cause;
+    while (cause instanceof Error) {
+      parts.push(cause.message);
+      cause = cause.cause;
+    }
+    return parts.join(": ");
+  }
+  return String(error);
+}
+
 export async function runEffect<A>(effect: Effect.Effect<A, unknown>) {
   const exit = await Effect.runPromiseExit(effect);
   if (Exit.isFailure(exit)) {
@@ -23,7 +36,7 @@ export async function runEffect<A>(effect: Effect.Effect<A, unknown>) {
     }
 
     throw new ORPCError("INTERNAL_SERVER_ERROR", {
-      message: squashed instanceof Error ? squashed.message : String(squashed),
+      message: flattenError(squashed),
     });
   }
 

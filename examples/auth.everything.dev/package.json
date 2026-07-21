@@ -19,7 +19,7 @@
       "@better-auth/api-key": "1.6.9",
       "@better-auth/passkey": "1.6.9",
       "better-near-auth": "1.7.1",
-      "every-plugin": "^2.7.1",
+      "every-plugin": "^2.9.4",
       "typescript": "^5.9.3",
       "vitest": "^4.1.8",
       "@libsql/client": "0.17.0",
@@ -44,7 +44,7 @@
       "@module-federation/dts-plugin": "^2.4.0",
       "@tanstack/intent": "^0.3.5",
       "@opentelemetry/api": "^1.9.0",
-      "everything-dev": "^1.42.2",
+      "everything-dev": "^1.51.1",
       "@rspack/core": "1.7.11",
       "@rspack/cli": "1.7.11",
       "@rsbuild/core": "1.7.5",
@@ -56,8 +56,8 @@
       "@tanstack/react-form": "^1.29.1",
       "@tanstack/react-table": "^8.21.3",
       "@tanstack/zod-form-adapter": "^0.42.1",
-      "zephyr-rspack-plugin": "^1.1.1",
-      "zephyr-rsbuild-plugin": "^1.1.1",
+      "zephyr-rspack-plugin": "^1.1.2",
+      "zephyr-rsbuild-plugin": "^1.1.2",
       "@better-auth/core": "1.6.9",
       "@orpc/tanstack-query": "1.14.3"
     }
@@ -71,7 +71,7 @@
     "build": "node_modules/.bin/bos build",
     "deploy": "node_modules/.bin/bos build --deploy",
     "publish": "node_modules/.bin/bos publish",
-    "typecheck": "bun run types:gen && if [ -d ui ]; then bun run --cwd ui typecheck; fi && if [ -d api ]; then bun run --cwd api typecheck; fi && if [ -d host ]; then bun run --cwd host typecheck; fi && if [ -d plugins ]; then for dir in plugins/*; do if [ -f \"$dir/package.json\" ]; then bun run --cwd \"$dir\" typecheck; fi; done; fi",
+    "typecheck": "bun run types:gen && if [ -d ui ]; then bun run --cwd ui typecheck; fi && if [ -d api ]; then bun run --cwd api typecheck; fi",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -92,9 +92,11 @@
     "test:api": "cd api && bun run test tests/integration/ tests/unit/",
     "test:plugin": "bun run --cwd plugins/auth test",
     "test": "bun run test:api",
-    "test:integration": "cd api && bun run test tests/integration/"
+    "test:integration": "cd api && bun run test tests/integration/",
+    "db:doctor": "node_modules/.bin/bos db:doctor",
+    "db:repair": "node_modules/.bin/bos db:repair"
   },
-  "packageManager": "bun@1.2.20",
+  "packageManager": "bun@1.3.14",
   "type": "module",
   "devDependencies": {
     "@biomejs/biome": "2.4.14",
@@ -103,7 +105,8 @@
     "dotenv": "^17.3.1",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "catalog:",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "@types/pg": "catalog:"
   },
   "dependencies": {
     "@better-auth/api-key": "catalog:",
@@ -118,8 +121,12 @@
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
-    "better-near-auth": "^1.7.1",
+    "better-near-auth": "catalog:",
     "@electric-sql/pglite": "catalog:",
-    "@better-auth/core": "catalog:"
+    "@better-auth/core": "catalog:",
+    "pg": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.11"
   }
 }

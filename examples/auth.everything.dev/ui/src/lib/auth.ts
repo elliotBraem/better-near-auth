@@ -134,9 +134,17 @@ function getSiwnClientConfig(options: CreateAuthClientOptions): SiwnClientConfig
   const networkId =
     runtimeConfig?.networkId ?? (mainnetRecipient.endsWith(".testnet") ? "testnet" : "mainnet");
   const testnetRecipient = siwn.recipients?.testnet;
+
+  if (testnetRecipient) {
+    return {
+      recipients: { mainnet: mainnetRecipient, testnet: testnetRecipient },
+      networkId,
+      cspNonce: options.cspNonce,
+    };
+  }
+
   const recipient =
     networkId === "testnet" && testnetRecipient ? testnetRecipient : mainnetRecipient;
-
   return { recipient, networkId, cspNonce: options.cspNonce };
 }
 

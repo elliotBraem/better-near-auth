@@ -5,6 +5,11 @@ on:
     branches:
       - staging
   workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Show full build output instead of clean summary'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
-      ZE_SERVER_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
-      ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
+      # Zephyr CI token — see https://docs.zephyr-cloud.io/migrations/ci-token-migration#create-a-ci-token
+      ZE_CI_TOKEN: ${{ secrets.ZEPHYR_CI_TOKEN }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
       TARGET_SHA: ${{ github.sha }}
       TARGET_BRANCH: ${{ github.ref_name }}
@@ -37,7 +42,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "1.2.20"
+          bun-version: "1.3.14"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
@@ -51,8 +56,18 @@ jobs:
       - name: Verify NEAR CLI
         run: near --version
 
+      - name: Configure Zephyr auth fallback
+        if: ${{ env.ZE_CI_TOKEN == '' }}
+        env:
+          ZEPHYR_AUTH_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
+          ZEPHYR_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
+        run: |
+          echo "ZE_SERVER_TOKEN=$ZEPHYR_AUTH_TOKEN" >> "$GITHUB_ENV"
+          echo "ZE_USER_EMAIL=$ZEPHYR_USER_EMAIL" >> "$GITHUB_ENV"
+
       - name: Publish with deploy
-        run: bun run bos publish --deploy --env staging
+        timeout-minutes: 20
+        run: bun run bos publish --deploy --env staging${{ inputs.verbose == true && ' --verbose' || '' }}
 
       - name: Install Railway CLI
         run: npm i -g @railway/cli
@@ -65,5 +80,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bos.config.json
-          git diff --cached --quiet || git commit -m "chore: update staging deployment URLs [skip ci]"
-          git push origin HEAD:"$TARGET_BRANCH"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update staging deployment URLs [skip ci]"
+            for i in 1 2 3; do
+              git pull --rebase origin "$TARGET_BRANCH" && git push origin HEAD:"$TARGET_BRANCH" && exit 0
+              sleep 3
+            done
+            exit 1
+          fi

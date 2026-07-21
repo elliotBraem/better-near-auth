@@ -303,6 +303,7 @@ fabric.properties
 .turbo
 .bos
 !.bos/sync-snapshot.json
+!.bos/infra-state.json
 
 # AI tool config (local only, not committed)
 .opencode/

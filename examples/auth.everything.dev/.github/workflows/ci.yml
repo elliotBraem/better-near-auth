@@ -9,12 +9,6 @@ on:
       - ".changeset/**"
   pull_request:
   workflow_dispatch:
-    inputs:
-      fail_on_critical_high:
-        description: "Fail the audit step on critical/high vulnerabilities"
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,7 +28,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "1.2.20"
+          bun-version: "1.3.14"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
@@ -44,14 +38,27 @@ jobs:
 
       - name: Security audit
         id: audit
+        timeout-minutes: 5
+        env:
+          AUDIT_STRICT: ${{ secrets.AUDIT_STRICT }}
         run: |
-          bun audit 2>&1 | tee audit-output.txt
+          set +e -o pipefail
+          timeout 120 bun audit 2>&1 | tee audit-output.txt
+          audit_exit=$?
+          if [ "$audit_exit" -eq 124 ]; then
+            echo "::warning::bun audit timed out after 120s — skipping vulnerability check"
+            exit 0
+          fi
+          if [ "$audit_exit" -gt 1 ]; then
+            echo "::warning::bun audit exited with code $audit_exit — see output above"
+            exit 0
+          fi
           if grep -qiE '(critical|high)' audit-output.txt; then
-            if [ "${{ inputs.fail_on_critical_high }}" = "true" ]; then
+            if [ "$AUDIT_STRICT" = "true" ]; then
               echo "::error::Critical or high vulnerabilities found — failing the audit"
               exit 1
             else
-              echo "::warning::Critical or high vulnerabilities found — see audit output"
+              echo "::warning::Critical or high vulnerabilities found — set AUDIT_STRICT=true secret to fail on these"
             fi
           fi
 

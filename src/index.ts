@@ -1,4 +1,4 @@
-import { APIError, createAuthEndpoint, createAuthMiddleware, sessionMiddleware } from "better-auth/api";
+import { APIError, createAuthEndpoint, createAuthMiddleware, getSessionFromCtx, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { Account, User, DBAdapter } from "better-auth/types";
 // Explicit type imports for declaration emit
@@ -793,14 +793,14 @@ export const siwn = (options: SIWNPluginOptions) => {
 				{
 					method: "POST",
 					body: ProfileRequest,
-					use: [sessionMiddleware],
 				},
 				async (ctx) => {
 					const { accountId } = ctx.body;
 					let targetAccountId = accountId;
 
 					if (!targetAccountId) {
-						const session = ctx.context.session;
+						const result = await getSessionFromCtx(ctx);
+						const session = result?.session;
 						if (!session) {
 							throw new APIError("UNAUTHORIZED", {
 								message: "Session required when no accountId provided",

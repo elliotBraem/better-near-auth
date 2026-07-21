@@ -2,8 +2,7 @@ import { createPlugin } from "every-plugin";
 import { Effect } from "every-plugin/effect";
 import { z } from "every-plugin/zod";
 import { contract } from "./contract";
-import { createDatabase } from "./db";
-import { migrate } from "./db/migrator";
+import { DatabaseLive, DatabaseTag } from "./db/layer";
 import { createAuthMiddleware } from "./lib/auth";
 import { ContextSchema } from "./lib/context";
 import type { PluginsClient } from "./lib/plugins-types.gen";
@@ -21,21 +20,13 @@ export default createPlugin.withPlugins<PluginsClient>()({
 
   initialize: (config, plugins) =>
     Effect.gen(function* () {
-      const driver = yield* Effect.acquireRelease(
-        Effect.promise(() => createDatabase(config.secrets.API_DATABASE_URL)),
-        (driver) => Effect.promise(() => driver.close()),
-      );
-
-      const migrations = yield* Effect.promise(() => import("virtual:drizzle-migrations.sql"));
-      yield* Effect.promise(() => migrate(driver.db, migrations.default));
-      console.log("[API] Migrations applied");
-
+      const db = yield* DatabaseTag;
       const { auth, ...restPlugins } = plugins;
       console.log("[API] Services Initialized");
       console.log("[API] Auth client available:", Boolean(auth));
       console.log("[API] Plugins available:", Object.keys(restPlugins).join(", ") || "none");
-      return { auth, plugins: restPlugins, db: driver.db, driver };
-    }),
+      return { auth, plugins: restPlugins, db };
+    }).pipe(Effect.provide(DatabaseLive(config.secrets.API_DATABASE_URL))),
 
   shutdown: () => Effect.log("[API] Shutdown"),
 
