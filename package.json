@@ -55,7 +55,7 @@
     "pnpm": "10.30.3"
   },
   "peerDependencies": {
-    "better-auth": "^1.5.4",
+    "better-auth": "^1.6.9",
     "typescript": "^5.9.3"
   },
   "dependencies": {
@@ -71,9 +71,9 @@
     "@tanstack/intent": "^0.0.40",
     "@types/bun": "latest",
     "@types/node": "^25.0.9",
-    "@better-auth/core": "^1.6.9",
-    "better-call": "^1.3.5",
-    "better-auth": "^1.6.9",
+    "@better-auth/core": "^1.6.25",
+    "better-call": "^1.3.7",
+    "better-auth": "^1.6.25",
     "tsdown": "^0.22.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
