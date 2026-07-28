@@ -12,8 +12,15 @@ import "./styles.css";
 declare global {
   interface Window {
     __EVERYTHING_DEV_HYDRATE_PROMISE__?: Promise<void>;
-    $_TSR?: unknown;
+    __EVERYTHING_DEV_SSR__?: boolean;
   }
+}
+
+function isServerRendered(): boolean {
+  if (window.__EVERYTHING_DEV_SSR__ !== undefined) {
+    return window.__EVERYTHING_DEV_SSR__;
+  }
+  return (window as any).$_TSR !== undefined;
 }
 
 export async function hydrate() {
@@ -21,7 +28,7 @@ export async function hydrate() {
     return window.__EVERYTHING_DEV_HYDRATE_PROMISE__;
   }
 
-  window.__EVERYTHING_DEV_HYDRATE_PROMISE__ = (async () => {
+  const hydratePromise = (async () => {
     console.log("[Hydrate] Starting...");
 
     const runtimeConfig = getRuntimeConfig();
@@ -57,7 +64,7 @@ export async function hydrate() {
       },
     });
 
-    if (window.$_TSR) {
+    if (isServerRendered()) {
       const { hydrateRoot } = await import("react-dom/client");
       const { RouterClient } = await import("@tanstack/react-router/ssr/client");
 
@@ -81,9 +88,14 @@ export async function hydrate() {
     }
 
     console.log("[Hydrate] Complete!");
-  })();
+  })().catch((error) => {
+    console.error("[Hydrate] Failed:", error);
+    window.__EVERYTHING_DEV_HYDRATE_PROMISE__ = undefined;
+    throw error;
+  });
 
-  return window.__EVERYTHING_DEV_HYDRATE_PROMISE__;
+  window.__EVERYTHING_DEV_HYDRATE_PROMISE__ = hydratePromise;
+  return hydratePromise;
 }
 
 export default hydrate;

@@ -24,20 +24,19 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
-      # Zephyr CI token — see https://docs.zephyr-cloud.io/migrations/ci-token-migration#create-a-ci-token
-      ZE_CI_TOKEN: ${{ secrets.ZEPHYR_CI_TOKEN }}
+      # Zephyr server-token auth. Zephyr directly advised us to retain this flow for
+      # our workflow even though server tokens are being deprecated in favor of CI
+      # ZE_SECRET_TOKEN is used directly as the bearer token — no API exchange needed.
+      # We fall back to ZE_CI_TOKEN (below) only if ZEPHYR_AUTH_TOKEN is unset.
+      ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
+      ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_STAGING_TOKEN }}
-      TARGET_SHA: ${{ github.sha }}
       TARGET_BRANCH: ${{ github.ref_name }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (Node 24)
         with:
           ref: ${{ env.TARGET_BRANCH }}
-          fetch-depth: 0
-
-      - name: Sync to triggering commit
-        run: git reset --hard "$TARGET_SHA"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -56,14 +55,12 @@ jobs:
       - name: Verify NEAR CLI
         run: near --version
 
-      - name: Configure Zephyr auth fallback
-        if: ${{ env.ZE_CI_TOKEN == '' }}
+      - name: Configure Zephyr CI token fallback
+        if: ${{ env.ZE_SECRET_TOKEN == '' }}
         env:
-          ZEPHYR_AUTH_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
-          ZEPHYR_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
+          ZEPHYR_CI_TOKEN: ${{ secrets.ZEPHYR_CI_TOKEN }}
         run: |
-          echo "ZE_SERVER_TOKEN=$ZEPHYR_AUTH_TOKEN" >> "$GITHUB_ENV"
-          echo "ZE_USER_EMAIL=$ZEPHYR_USER_EMAIL" >> "$GITHUB_ENV"
+          echo "ZE_CI_TOKEN=$ZEPHYR_CI_TOKEN" >> "$GITHUB_ENV"
 
       - name: Publish with deploy
         timeout-minutes: 20
@@ -82,9 +79,5 @@ jobs:
           git add bos.config.json
           if ! git diff --cached --quiet; then
             git commit -m "chore: update staging deployment URLs [skip ci]"
-            for i in 1 2 3; do
-              git pull --rebase origin "$TARGET_BRANCH" && git push origin HEAD:"$TARGET_BRANCH" && exit 0
-              sleep 3
-            done
-            exit 1
+            git push origin "$TARGET_BRANCH"
           fi

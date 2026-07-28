@@ -1,15 +1,18 @@
 name: Deploy Example App
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'examples/auth.everything.dev/**'
-      - '!examples/auth.everything.dev/bun.lock'
+  repository_dispatch:
+    types: [ci-main-success]
   workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Show full build output instead of clean summary'
+        type: boolean
+        default: false
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -19,39 +22,30 @@ jobs:
     name: Deploy auth.everything.dev
     runs-on: ubuntu-latest
     env:
-      ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
-      ZE_SERVER_TOKEN: ${{ secrets.ZEPHYR_SERVER_AUTH_TOKEN }}
-      ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
-      BOS_INSTALL_NEAR_CLI: "true"
       NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}
+      ZE_SECRET_TOKEN: ${{ secrets.ZEPHYR_AUTH_TOKEN }}
+      ZE_USER_EMAIL: ${{ secrets.ZEPHYR_USER_EMAIL }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      TARGET_BRANCH: ${{ github.event.client_payload.ref || github.ref_name || 'main' }}
+      EXAMPLE_DIR: examples/auth.everything.dev
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (Node 24)
         with:
           ref: main
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "1.2.20"
+          bun-version: "1.3.14"
 
       - name: Install dependencies
-        working-directory: examples/auth.everything.dev
-        run: bun install
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Generate route tree
-        working-directory: examples/auth.everything.dev/ui
-        run: bun run generate-routes
-
-      - name: Lint and typecheck
-        working-directory: examples/auth.everything.dev
-        run: |
-          bun lint
-          bun typecheck
-
-      - name: Test
-        working-directory: examples/auth.everything.dev
-        run: bun run test
+      - name: Run postinstall
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        run: bun run postinstall
 
       - name: Install NEAR CLI
         run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/near/near-cli-rs/releases/download/v0.23.5/near-cli-rs-installer.sh | sh
@@ -59,16 +53,35 @@ jobs:
       - name: Verify NEAR CLI
         run: near --version
 
-      - name: Build and deploy
-        working-directory: examples/auth.everything.dev
-        run: bun run deploy
+      - name: Configure Zephyr CI token fallback
+        if: ${{ env.ZE_SECRET_TOKEN == '' }}
+        env:
+          ZEPHYR_CI_TOKEN: ${{ secrets.ZEPHYR_CI_TOKEN }}
+        run: |
+          echo "ZE_CI_TOKEN=$ZEPHYR_CI_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Publish with deploy
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        timeout-minutes: 20
+        run: bun run bos publish --deploy${{ inputs.verbose == true && ' --verbose' || '' }}
+
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+
+      - name: Redeploy Railway
+        run: railway redeploy --service app --yes
 
       - name: Publish config to FastKV
-        working-directory: examples/auth.everything.dev
+        working-directory: ${{ env.EXAMPLE_DIR }}
         run: bun run publish
 
-      - name: Commit updated lockfile
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore(deploy-example): update lockfile after release deploy"
-          file_pattern: examples/auth.everything.dev/bun.lock
+      - name: Commit and push bos.config.json updates
+        working-directory: ${{ env.EXAMPLE_DIR }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bos.config.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update deployment URLs [skip ci]"
+            git push origin "$TARGET_BRANCH"
+          fi

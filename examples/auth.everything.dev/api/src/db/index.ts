@@ -42,8 +42,8 @@ export async function createDatabaseDriver(url: string): Promise<DatabaseDriver>
     const { drizzle } = await import("drizzle-orm/pglite");
     const { PGlite } = await import("@electric-sql/pglite");
     const rawDir = url === ":memory:" ? ":memory:" : url.replace("pglite:", "");
-    const dataDir = rawDir.endsWith("/:memory:") || rawDir === ":memory:" ? ":memory:" : rawDir;
-    if (dataDir !== ":memory:") {
+    const dataDir = rawDir.endsWith("/:memory:") || rawDir === ":memory:" ? "memory://" : rawDir;
+    if (dataDir !== "memory://") {
       mkdirSync(dirname(dataDir), { recursive: true });
     }
     const pglite = new PGlite(dataDir);
