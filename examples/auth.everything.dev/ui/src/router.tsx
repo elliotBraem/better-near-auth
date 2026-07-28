@@ -18,6 +18,40 @@ export type {
   RouterModule,
 } from "./app";
 
+function defaultErrorComponent({ error }: { error: Error }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-foreground mb-4">Oops!</h1>
+        <p className="text-muted-foreground mb-4">Something went wrong</p>
+        <details className="text-sm text-muted-foreground bg-muted p-4 rounded mb-8">
+          <summary className="cursor-pointer">Error Details</summary>
+          <pre className="mt-2 whitespace-pre-wrap text-left">{error.message}</pre>
+        </details>
+      </div>
+    </div>
+  );
+}
+
+function defaultNotFoundComponent() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
+      <div className="text-center">
+        <h1 className="text-3xl font-semibold text-foreground">Not Found</h1>
+        <p className="mt-2 text-muted-foreground">The requested page could not be found.</p>
+      </div>
+    </div>
+  );
+}
+
+function defaultPendingComponent() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-6">
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
+  );
+}
+
 export function createRouter(opts: CreateRouterOptions) {
   const queryClient = opts.context.queryClient;
   const history = opts.history ?? createBrowserHistory();
@@ -46,6 +80,9 @@ export function createRouter(opts: CreateRouterOptions) {
     defaultStructuralSharing: true,
     defaultPreloadStaleTime: 0,
     defaultPendingMinMs: 0,
+    defaultErrorComponent,
+    defaultNotFoundComponent,
+    defaultPendingComponent,
     dehydrate: () => {
       if (typeof window === "undefined") {
         return { queryClientState: dehydrate(queryClient) };

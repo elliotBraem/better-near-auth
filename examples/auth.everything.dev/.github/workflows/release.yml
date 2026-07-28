@@ -1,10 +1,9 @@
 name: Release
 
 on:
+  repository_dispatch:
+    types: [ci-main-success]
   workflow_dispatch:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -16,19 +15,11 @@ jobs:
   release:
     name: Version Packages
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
     env:
-      TARGET_REF: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      TARGET_REF: ${{ github.event.client_payload.sha || github.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (Node 24)
         with:
           fetch-depth: 0
           ref: ${{ env.TARGET_REF }}

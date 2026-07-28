@@ -120,6 +120,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         ...(siteUrl ? [{ rel: "canonical", href: siteUrl }] : []),
       ],
       scripts: [
+        ...(typeof window === "undefined"
+          ? [{ children: "window.__EVERYTHING_DEV_SSR__=true" }]
+          : []),
         ...getRemoteScripts({
           runtimeConfig: runtimeConfig ?? undefined,
           containerName: "ui",

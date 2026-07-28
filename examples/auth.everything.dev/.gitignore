@@ -122,6 +122,7 @@ build/Release
 node_modules/
 jspm_packages/
 host/test-results/
+test-results/
 api/types/
 
 # Snowpack dependency directory (https://snowpack.dev/)

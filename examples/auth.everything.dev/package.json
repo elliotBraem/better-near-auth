@@ -15,11 +15,11 @@
       "@scure/base": "^2.2.0",
       "drizzle-orm": "^0.45.1",
       "drizzle-kit": "^0.31.8",
-      "better-auth": "1.6.9",
-      "@better-auth/api-key": "1.6.9",
-      "@better-auth/passkey": "1.6.9",
+      "better-auth": "1.6.25",
+      "@better-auth/api-key": "1.6.25",
+      "@better-auth/passkey": "1.6.25",
       "better-near-auth": "1.7.2",
-      "every-plugin": "^2.9.4",
+      "every-plugin": "^2.10.0",
       "typescript": "^5.9.3",
       "vitest": "^4.1.8",
       "@libsql/client": "0.17.0",
@@ -44,7 +44,7 @@
       "@module-federation/dts-plugin": "^2.4.0",
       "@tanstack/intent": "^0.3.5",
       "@opentelemetry/api": "^1.9.0",
-      "everything-dev": "^1.51.1",
+      "everything-dev": "^1.51.7",
       "@rspack/core": "1.7.11",
       "@rspack/cli": "1.7.11",
       "@rsbuild/core": "1.7.5",
@@ -58,8 +58,10 @@
       "@tanstack/zod-form-adapter": "^0.42.1",
       "zephyr-rspack-plugin": "^1.1.2",
       "zephyr-rsbuild-plugin": "^1.1.2",
-      "@better-auth/core": "1.6.9",
-      "@orpc/tanstack-query": "1.14.3"
+      "@better-auth/core": "1.6.25",
+      "@orpc/tanstack-query": "1.14.3",
+      "@orpc/experimental-publisher": "1.14.2",
+      "@modelcontextprotocol/server": "2.0.0-beta.5"
     }
   },
   "scripts": {
@@ -94,19 +96,30 @@
     "test": "bun run test:api",
     "test:integration": "cd api && bun run test tests/integration/",
     "db:doctor": "node_modules/.bin/bos db:doctor",
-    "db:repair": "node_modules/.bin/bos db:repair"
+    "db:repair": "node_modules/.bin/bos db:repair",
+    "regression:start:dev": "BOS_NO_PERSIST_PORTS=1 bun packages/everything-dev/src/cli.ts dev --no-interactive --port 4100 --api-port 4101 --auth-port 4102 --ui-port 4103 --plugin-port-start 4110",
+    "regression:start:prod": "BOS_NO_PERSIST_PORTS=1 PORT=4100 bun ./node_modules/everything-dev/dist/cli.mjs start --no-interactive",
+    "test:regression:http:dev": "REGRESSION_MODE=dev sh -lc 'cd tests/regression/http && go test ./... -count=1 -v -timeout 10m'",
+    "test:regression:http:prod": "REGRESSION_MODE=prod sh -lc 'cd tests/regression/http && go test ./... -count=1 -v -timeout 10m'",
+    "test:regression:browser:install": "bunx playwright install --with-deps chromium",
+    "test:regression:browser:dev": "REGRESSION_MODE=dev bunx playwright test -c tests/regression/browser/playwright.config.mjs --project=dev",
+    "test:regression:browser:prod": "REGRESSION_MODE=prod bunx playwright test -c tests/regression/browser/playwright.config.mjs --project=prod",
+    "test:regression:dev": "bun run test:regression:http:dev && bun run test:regression:browser:dev",
+    "test:regression:prod": "bun run test:regression:http:prod && bun run test:regression:browser:prod",
+    "test:regression": "bun run test:regression:dev"
   },
   "packageManager": "bun@1.3.14",
   "type": "module",
   "devDependencies": {
-    "@biomejs/biome": "2.4.14",
+    "@biomejs/biome": "2.4.15",
     "@changesets/cli": "^2.29.8",
     "@types/bun": "latest",
     "dotenv": "^17.3.1",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "catalog:",
     "tsx": "^4.21.0",
-    "@types/pg": "catalog:"
+    "@types/pg": "catalog:",
+    "@playwright/test": "^1.58.1"
   },
   "dependencies": {
     "@better-auth/api-key": "catalog:",
