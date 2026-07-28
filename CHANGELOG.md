@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.7.3
+
+### Patch Changes
+
+- [#57](https://github.com/elliotBraem/better-near-auth/pull/57) [`554e248`](https://github.com/elliotBraem/better-near-auth/commit/554e248500282c645d332b06aa44d3ed5aa702df) Thanks [@elliotBraem](https://github.com/elliotBraem)! - upgrade better-auth peer dep to ^1.6.9 and dev deps to 1.6.25
+
 ## 1.7.2
 
 ### Patch Changes
