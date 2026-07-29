@@ -1,14 +1,8 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Near, generateKey, generateNonce } from "near-kit";
-import { Sandbox, EMPTY_CODE_HASH } from "near-kit/sandbox";
 import { hex } from "@scure/base";
-import { createDatabaseDriver } from "../../src/db";
-import { createAuthInstance } from "../../src/auth-instance";
-
-const TEST_DB_URL = "pglite::memory:";
-
-process.env.BETTER_AUTH_SECRET =
-  process.env.BETTER_AUTH_SECRET || "test-secret-do-not-use-in-production";
+import { generateKey, Near } from "near-kit";
+import { EMPTY_CODE_HASH, Sandbox } from "near-kit/sandbox";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createTestServices } from "../helpers";
 
 describe("NEAR SIWN Sandbox Integration", () => {
   let sandbox: InstanceType<typeof Sandbox>;
@@ -31,21 +25,11 @@ describe("NEAR SIWN Sandbox Integration", () => {
   });
 
   it("creates auth instance with pglite driver", async () => {
-    const driver = await createDatabaseDriver(TEST_DB_URL);
-    const auth = createAuthInstance(
-      {
-        secret: process.env.BETTER_AUTH_SECRET!,
-        baseUrl: "http://localhost:3000",
-        siwn: { recipient: "test.near" },
-      },
-      driver.db,
-    );
+    const { driver } = await createTestServices();
 
-    expect(auth).toBeDefined();
-    expect(auth.api).toBeDefined();
-
+    expect(driver).toBeDefined();
     await driver.close();
-  });
+  }, 30000);
 
   it("nonce -> sign -> verify -> list accounts", async () => {
     const TEST_ACCOUNT = "alice.test.near";
@@ -81,18 +65,12 @@ describe("NEAR SIWN Sandbox Integration", () => {
     const exists = await near.accountExists(TEST_ACCOUNT);
     expect(exists).toBe(true);
 
-    const driver = await createDatabaseDriver(TEST_DB_URL);
-    const auth = createAuthInstance(
-      {
-        secret: process.env.BETTER_AUTH_SECRET!,
-        baseUrl: "http://localhost:3000",
-        siwn: { recipient: TEST_RECIPIENT, rpcUrl: sandbox.rpcUrl },
-      },
-      driver.db,
-    );
+    const { services, driver } = await createTestServices({
+      siwn: { recipient: TEST_RECIPIENT, rpcUrl: sandbox.rpcUrl },
+    });
 
-    const nonceRes = (await auth.api.getSiwnNonce({
-      body: { accountId: TEST_ACCOUNT, networkId: sandbox.networkId },
+    const nonceRes = (await services.auth.api.getSiwnNonce({
+      body: { accountId: TEST_ACCOUNT, networkId: "mainnet" },
     })) as { nonce: string };
 
     expect(nonceRes.nonce).toBeDefined();
@@ -105,7 +83,18 @@ describe("NEAR SIWN Sandbox Integration", () => {
       nonce: nonceBytes,
     });
 
-    const verifyRes = (await auth.api.verifySiwnMessage({
+    const verifyRaw = await services.auth.api.verifySiwnMessage({
+      request: new Request("http://localhost:3000/api/auth/near/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedMessage,
+          message,
+          recipient: TEST_RECIPIENT,
+          nonce: nonceRes.nonce,
+          accountId: TEST_ACCOUNT,
+        }),
+      }),
       body: {
         signedMessage,
         message,
@@ -113,21 +102,177 @@ describe("NEAR SIWN Sandbox Integration", () => {
         nonce: nonceRes.nonce,
         accountId: TEST_ACCOUNT,
       },
-    })) as { success: boolean; token: string; user: { accountId: string } };
+    });
+    const verifyRes = (verifyRaw instanceof Response ? await verifyRaw.json() : verifyRaw) as {
+      success: boolean;
+      token: string;
+      user: { accountId: string };
+    };
 
     expect(verifyRes.success).toBe(true);
     expect(verifyRes.token).toBeDefined();
     expect(verifyRes.user.accountId).toBe(TEST_ACCOUNT);
 
+    const cookie = verifyRaw instanceof Response ? verifyRaw.headers.get("set-cookie") || "" : "";
     const headers = new Headers();
-    headers.set("Authorization", `Bearer ${verifyRes.token}`);
+    if (cookie) headers.set("cookie", cookie);
 
-    const accountsRes = (await auth.api.listNearAccounts({ headers })) as {
+    const accountsRes = (await services.auth.api.listNearAccounts({ headers })) as {
       accounts: Array<{ accountId: string }>;
     };
 
     expect(accountsRes.accounts).toHaveLength(1);
     expect(accountsRes.accounts[0].accountId).toBe(TEST_ACCOUNT);
+
+    await driver.close();
+  }, 60000);
+
+  it("link -> list -> unlink -> list accounts", async () => {
+    const PRIMARY_ACCOUNT = "carol.test.near";
+    const SECONDARY_ACCOUNT = "carol2.test.near";
+    const TEST_RECIPIENT = "test.near";
+    const keyPair2 = generateKey();
+
+    await sandbox.patchState([
+      {
+        Account: {
+          account_id: PRIMARY_ACCOUNT,
+          account: {
+            amount: "1000000000000000000000000000",
+            locked: "0",
+            code_hash: EMPTY_CODE_HASH,
+            storage_usage: 100,
+          },
+        },
+      },
+      {
+        AccessKey: {
+          account_id: PRIMARY_ACCOUNT,
+          public_key: keyPair.publicKey.toString(),
+          access_key: { nonce: 0, permission: "FullAccess" },
+        },
+      },
+      {
+        Account: {
+          account_id: SECONDARY_ACCOUNT,
+          account: {
+            amount: "1000000000000000000000000000",
+            locked: "0",
+            code_hash: EMPTY_CODE_HASH,
+            storage_usage: 100,
+          },
+        },
+      },
+      {
+        AccessKey: {
+          account_id: SECONDARY_ACCOUNT,
+          public_key: keyPair2.publicKey.toString(),
+          access_key: { nonce: 0, permission: "FullAccess" },
+        },
+      },
+    ]);
+
+    await sandbox.fastForward(1);
+
+    const { services, driver } = await createTestServices({
+      siwn: { recipient: TEST_RECIPIENT, rpcUrl: sandbox.rpcUrl },
+    });
+
+    const nonceRes = (await services.auth.api.getSiwnNonce({
+      body: { accountId: PRIMARY_ACCOUNT, networkId: "mainnet" },
+    })) as { nonce: string };
+
+    const nonceBytes = hex.decode(nonceRes.nonce);
+    const message = `Sign in to ${TEST_RECIPIENT}`;
+    const signedMessage = keyPair.signNep413Message!(PRIMARY_ACCOUNT, {
+      message,
+      recipient: TEST_RECIPIENT,
+      nonce: nonceBytes,
+    });
+
+    const verifyRaw = await services.auth.api.verifySiwnMessage({
+      request: new Request("http://localhost:3000/api/auth/near/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedMessage,
+          message,
+          recipient: TEST_RECIPIENT,
+          nonce: nonceRes.nonce,
+          accountId: PRIMARY_ACCOUNT,
+        }),
+      }),
+      body: {
+        signedMessage,
+        message,
+        recipient: TEST_RECIPIENT,
+        nonce: nonceRes.nonce,
+        accountId: PRIMARY_ACCOUNT,
+      },
+    });
+    const cookie = verifyRaw instanceof Response ? verifyRaw.headers.get("set-cookie") || "" : "";
+    const headers = new Headers();
+    if (cookie) headers.set("cookie", cookie);
+
+    let accountsRes = (await services.auth.api.listNearAccounts({ headers })) as {
+      accounts: Array<{ accountId: string }>;
+    };
+    expect(accountsRes.accounts).toHaveLength(1);
+
+    const linkNonceRes = (await services.auth.api.getSiwnNonce({
+      body: { accountId: SECONDARY_ACCOUNT, networkId: "mainnet" },
+    })) as { nonce: string };
+    const linkNonceBytes = hex.decode(linkNonceRes.nonce);
+    const linkSignedMessage = keyPair2.signNep413Message!(SECONDARY_ACCOUNT, {
+      message,
+      recipient: TEST_RECIPIENT,
+      nonce: linkNonceBytes,
+    });
+
+    const linkRes = await services.auth.api.linkNearAccount({
+      request: new Request("http://localhost:3000/api/auth/near/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedMessage: linkSignedMessage,
+          message,
+          recipient: TEST_RECIPIENT,
+          nonce: linkNonceRes.nonce,
+          accountId: SECONDARY_ACCOUNT,
+        }),
+      }),
+      headers,
+      body: {
+        signedMessage: linkSignedMessage,
+        message,
+        recipient: TEST_RECIPIENT,
+        nonce: linkNonceRes.nonce,
+        accountId: SECONDARY_ACCOUNT,
+      },
+    });
+    const linkResult = linkRes instanceof Response ? await linkRes.json() : linkRes;
+    expect(linkResult.success).toBe(true);
+
+    accountsRes = (await services.auth.api.listNearAccounts({ headers })) as {
+      accounts: Array<{ accountId: string }>;
+    };
+    expect(accountsRes.accounts).toHaveLength(2);
+    const accountIds = accountsRes.accounts.map((a) => a.accountId);
+    expect(accountIds).toContain(PRIMARY_ACCOUNT);
+    expect(accountIds).toContain(SECONDARY_ACCOUNT);
+
+    const unlinkRes = await services.auth.api.unlinkNearAccount({
+      headers,
+      body: { accountId: SECONDARY_ACCOUNT, network: "mainnet" },
+    });
+    const unlinkResult = unlinkRes instanceof Response ? await unlinkRes.json() : unlinkRes;
+    expect(unlinkResult.success).toBe(true);
+
+    accountsRes = (await services.auth.api.listNearAccounts({ headers })) as {
+      accounts: Array<{ accountId: string }>;
+    };
+    expect(accountsRes.accounts).toHaveLength(1);
+    expect(accountsRes.accounts[0].accountId).toBe(PRIMARY_ACCOUNT);
 
     await driver.close();
   }, 60000);

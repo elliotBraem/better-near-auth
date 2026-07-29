@@ -97,4 +97,5 @@ export interface AuthServices {
   auth: Auth;
   db: AuthDatabase;
   handler: (req: Request) => Promise<Response>;
+  apiKeyHeaders: string[];
 }
