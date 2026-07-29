@@ -1,7 +1,7 @@
 import type { Auth as BetterAuthResult } from "better-auth";
 import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
-import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { InferInput, InferOutput } from "./contract";
+import type { Database as AuthDatabase } from "./db";
 
 export type Auth = BetterAuthResult;
 export type { Auth as BaseAuth } from "better-auth";
@@ -89,18 +89,12 @@ export interface AuthConfig {
   };
 }
 
-export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
-
-export interface DatabaseDriver {
-  readonly db: AuthDatabase;
-  close(): Promise<void>;
-}
+export type { AuthDatabase };
 
 export type createAuthInstance = (config: AuthConfig, db: AuthDatabase) => Auth;
 
 export interface AuthServices {
   auth: Auth;
   db: AuthDatabase;
-  driver: DatabaseDriver;
   handler: (req: Request) => Promise<Response>;
 }

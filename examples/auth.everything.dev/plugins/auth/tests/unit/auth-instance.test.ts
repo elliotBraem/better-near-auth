@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePasskeyRelyingPartyOptions } from "./auth-instance";
+import { resolvePasskeyRelyingPartyOptions } from "../../src/auth-instance";
 
 describe("resolvePasskeyRelyingPartyOptions", () => {
   it("derives localhost relying party options from baseUrl", () => {

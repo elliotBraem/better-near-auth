@@ -12,10 +12,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 // Dynamically import plugin modules so tests can be skipped if deps are missing
 let pluginModules: {
-  createDatabaseDriver: typeof import("../src/db/driver").createDatabaseDriver;
-  createAuthInstance: typeof import("../src/auth-instance").createAuthInstance;
-  migrate: typeof import("../src/db/migrator").migrate;
-  schema: typeof import("../src/db/schema");
+  createDatabaseDriver: typeof import("../../src/db").createDatabaseDriver;
+  createAuthInstance: typeof import("../../src/auth-instance").createAuthInstance;
+  schema: typeof import("../../src/db/schema");
 } | null = null;
 
 let sandboxModules: {
@@ -38,15 +37,13 @@ process.env.BETTER_AUTH_SECRET =
 
 // Try to load dependencies
 try {
-  const driverMod = await import("../src/db/driver");
-  const authMod = await import("../src/auth-instance");
-  const migratorMod = await import("../src/db/migrator");
-  const schemaMod = await import("../src/db/schema");
+  const driverMod = await import("../../src/db");
+  const authMod = await import("../../src/auth-instance");
+  const schemaMod = await import("../../src/db/schema");
 
   pluginModules = {
     createDatabaseDriver: driverMod.createDatabaseDriver,
     createAuthInstance: authMod.createAuthInstance,
-    migrate: migratorMod.migrate,
     schema: schemaMod,
   };
 
@@ -121,12 +118,6 @@ describe("NEAR SIWN Sandbox Integration", () => {
         if (!pluginModules) return;
 
         const driver = await pluginModules.createDatabaseDriver(TEST_DB_URL);
-
-        // Run migrations
-        const migrations = await import("virtual:drizzle-migrations.sql").catch(() => ({
-          default: [],
-        }));
-        await pluginModules.migrate(driver.db, migrations.default || []);
 
         const auth = pluginModules.createAuthInstance(
           {
@@ -203,11 +194,6 @@ describe("NEAR SIWN Sandbox Integration", () => {
 
         // Create auth instance
         const driver = await pluginModules.createDatabaseDriver(TEST_DB_URL);
-
-        const migrations = await import("virtual:drizzle-migrations.sql").catch(() => ({
-          default: [],
-        }));
-        await pluginModules.migrate(driver.db, migrations.default || []);
 
         const auth = pluginModules.createAuthInstance(
           {

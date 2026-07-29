@@ -35,7 +35,7 @@ const orgRoles = {
 };
 
 import type { AuthConfig } from "./auth-export";
-import type { AuthDatabase } from "./db/driver";
+import type { Database as AuthDatabase } from "./db";
 import * as schema from "./db/schema";
 
 function isRecipientsConfig(config: SIWNPluginOptions): config is SIWNPluginOptions & {

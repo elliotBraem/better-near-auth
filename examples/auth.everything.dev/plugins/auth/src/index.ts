@@ -7,9 +7,9 @@ import { z } from "every-plugin/zod";
 import type { AuthConfig } from "./auth-export";
 import { createAuthInstance } from "./auth-instance";
 import { contract, type InferOutput } from "./contract";
-import { createDatabaseDriver } from "./db/driver";
-import { migrate } from "./db/migrator";
+import { DatabaseLive, DatabaseTag } from "./db/layer";
 import * as schema from "./db/schema";
+import type { PluginsClient } from "./lib/plugins-types.gen";
 
 const API_KEY_CONFIG_IDS = ["user-keys", "org-keys"] as const;
 
@@ -356,7 +356,7 @@ function normalizeAuthConfig(
 
 export type { AuthServices } from "./auth-export";
 
-export default createPlugin({
+export default createPlugin.withPlugins<PluginsClient>()({
   variables: authVariablesSchema,
 
   secrets: authSecretsSchema,
@@ -367,20 +367,16 @@ export default createPlugin({
 
   contract,
 
-  initialize: (config) =>
+  initialize: (config, _plugins, tools) =>
     Effect.gen(function* () {
-      const driver = yield* Effect.acquireRelease(
-        Effect.promise(() => createDatabaseDriver(config.secrets.AUTH_DATABASE_URL)),
-        (driver) => Effect.promise(() => driver.close()),
+      const db = yield* tools.buildService(
+        DatabaseTag,
+        DatabaseLive(config.secrets.AUTH_DATABASE_URL),
       );
-
-      const migrations = yield* Effect.promise(() => import("virtual:drizzle-migrations.sql"));
-      yield* Effect.promise(() => migrate(driver.db, migrations.default));
-      console.log("[Auth] Migrations applied");
 
       const { authConfig, apiKeyHeaders } = normalizeAuthConfig(config.variables, config.secrets);
 
-      const auth = createAuthInstance(authConfig, driver.db, {
+      const auth = createAuthInstance(authConfig, db, {
         email: { resend: config.secrets.RESEND_API_KEY },
       });
 
@@ -388,8 +384,7 @@ export default createPlugin({
 
       return {
         auth,
-        db: driver.db,
-        driver,
+        db,
         handler: (req: Request) => auth.handler(req),
         apiKeyHeaders,
       };
