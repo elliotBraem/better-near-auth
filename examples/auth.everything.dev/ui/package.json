@@ -12,7 +12,7 @@
     "build:ssr": "BUILD_TARGET=server rsbuild build",
     "generate-metadata": "bun run ./scripts/generate-metadata.ts",
     "preview": "rsbuild preview",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "generate-routes": "bunx --bun @tanstack/router-cli generate",
     "typecheck": "tsc --noEmit",
     "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist/types"

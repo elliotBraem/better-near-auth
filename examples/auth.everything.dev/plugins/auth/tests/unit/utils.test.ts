@@ -1,5 +1,5 @@
 import { ORPCError } from "every-plugin/orpc";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   createHeaders,
   getActiveOrganizationId,
