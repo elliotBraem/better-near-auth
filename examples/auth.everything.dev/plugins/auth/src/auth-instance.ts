@@ -34,7 +34,7 @@ const orgRoles = {
   }),
 };
 
-import type { AuthConfig } from "./auth-export";
+import type { AuthConfig } from "./auth-config";
 import type { Database as AuthDatabase } from "./db";
 import * as schema from "./db/schema";
 
@@ -401,4 +401,4 @@ export function createAuthInstance(
 
 export type Auth = ReturnType<typeof createAuthInstance>;
 export type AuthSession = Auth["$Infer"]["Session"];
-export type { AuthConfig } from "./auth-export";
+export type { AuthConfig } from "./auth-config";

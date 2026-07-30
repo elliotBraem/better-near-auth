@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AuthConfig } from "../../src/auth-export";
+import type { AuthConfig } from "../../src/auth-config";
 import {
   buildSiwnOptions,
   isRecipientsConfig,

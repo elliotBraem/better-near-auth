@@ -1,5 +1,5 @@
 import type { DualNetworkConfig } from "better-near-auth";
-import type { AuthConfig } from "./auth-export";
+import type { AuthConfig } from "./auth-config";
 import type { AuthPluginSecrets, AuthPluginVariables } from "./config-schemas";
 import { localDevTrustedOrigins } from "./utils";
 
