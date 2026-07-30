@@ -84,11 +84,11 @@ export function buildSubAccountConfig(
 }
 
 export function buildSecrets(secrets: AuthPluginSecrets): AuthConfig["siwn"]["secrets"] {
-  const parentKey: DualNetworkConfig<string> = {
+  const parentKey = {
     mainnet: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
     testnet: secrets.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
-  };
-  return { parentKey };
+  } as DualNetworkConfig<string>;
+  return { parentKey } as AuthConfig["siwn"]["secrets"];
 }
 
 export function normalizeAuthConfig(
