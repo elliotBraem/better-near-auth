@@ -2,9 +2,8 @@ import { Near, fromNearConnect, generateNonce, TransactionBuilder } from "near-k
 import type { Near as NearType, SignedMessage } from "near-kit";
 import type { EventMap } from "@hot-labs/near-connect";
 import { hex } from "@scure/base";
-import type { BetterAuthClientPlugin, BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
+import type { BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
-import type { siwn } from "./index.js";
 import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT, SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 
 export interface AuthCallbacks {
@@ -59,20 +58,9 @@ export interface SIWNClientActions {
 	};
 }
 
-export interface SIWNClientPlugin extends BetterAuthClientPlugin {
-	id: "siwn";
-	$InferServerPlugin: ReturnType<typeof siwn>;
-	getAtoms: ($fetch: BetterFetch) => {
-		nearState: ReturnType<typeof atom<NearState>>;
-		walletConnected: ReturnType<typeof atom<boolean>>;
-		activeNetwork: ReturnType<typeof atom<"mainnet" | "testnet">>;
-	};
-	getActions: ($fetch: BetterFetch, $store: ClientStore, options: BetterAuthClientOptions | undefined) => SIWNClientActions;
-}
-
 type NearState = { accountId: string | null; publicKey: string | null; networkId: string } | null;
 
-export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
+export const siwnClient = (config: SIWNClientConfig) => {
 	const nearState = atom<NearState>(null);
 	const walletConnected = atom<boolean>(false);
 	const activeNetwork = atom<"mainnet" | "testnet">(config.networkId || "mainnet");
@@ -361,11 +349,11 @@ export const siwnClient = (config: SIWNClientConfig): SIWNClientPlugin => {
 		return payload;
 	};
 
-	const plugin: SIWNClientPlugin = {
+	const plugin = {
 		id: "siwn",
-		$InferServerPlugin: {} as ReturnType<typeof siwn>,
+		$InferServerPlugin: {},
 
-		getAtoms: (_$fetch) => ({
+		getAtoms: (_$fetch: BetterFetch) => ({
 			nearState,
 			walletConnected,
 			activeNetwork,

@@ -1,18 +1,18 @@
+import type { Auth as BetterAuthResult } from "better-auth";
+import type { Auth as ConfiguredAuth } from "./auth-instance";
 import type { InferInput, InferOutput } from "./contract";
 import type { Database as AuthDatabase } from "./db";
-import { type Auth } from "./auth-instance";
 
-export type { Auth };
-export type { AuthConfig } from "./auth-config";
+export type Auth = BetterAuthResult;
+export type { Auth as BaseAuth } from "better-auth";
 export type {
+  AuthConfig,
   AuthPasskeyConfig,
   AuthSiwnBaseConfig,
   AuthSiwnConfig,
   AuthSiwnRecipientConfig,
   AuthSiwnRecipientsConfig,
 } from "./auth-config";
-
-export type { Auth as BaseAuth } from "better-auth";
 
 export type AuthSession = Auth["$Infer"]["Session"];
 export type AuthSessionData = InferOutput<"getSession">;
@@ -38,7 +38,7 @@ export type { createAuthInstance } from "./auth-instance";
 export type { AuthDatabase };
 
 export interface AuthServices {
-  auth: Auth;
+  auth: ConfiguredAuth;
   db: AuthDatabase;
   handler: (req: Request) => Promise<Response>;
   apiKeyHeaders: string[];

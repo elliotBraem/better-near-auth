@@ -1,4 +1,3 @@
-import type { DualNetworkConfig } from "better-near-auth";
 import { z } from "every-plugin/zod";
 
 export const API_KEY_CONFIG_IDS = ["user-keys", "org-keys"] as const;
