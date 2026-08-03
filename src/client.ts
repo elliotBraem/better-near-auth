@@ -350,7 +350,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 	};
 
 	const plugin = {
-		id: "siwn",
+		id: "siwn" as const,
 		$InferServerPlugin: {},
 
 		getAtoms: (_$fetch: BetterFetch) => ({
