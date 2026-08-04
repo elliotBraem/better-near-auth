@@ -34,11 +34,11 @@ const orgRoles = {
   }),
 };
 
-import type { AuthConfig } from "./auth-export";
-import type { AuthDatabase } from "./db/driver";
+import type { AuthConfig } from "./auth-config";
+import type { Database as AuthDatabase } from "./db";
 import * as schema from "./db/schema";
 
-function isRecipientsConfig(config: SIWNPluginOptions): config is SIWNPluginOptions & {
+export function isRecipientsConfig(config: SIWNPluginOptions): config is SIWNPluginOptions & {
   recipients: { mainnet: string; testnet: string };
 } {
   return "recipients" in config && config.recipients !== undefined;
@@ -90,7 +90,7 @@ export function resolvePasskeyRelyingPartyOptions(
   return { rpID, rpName, origin };
 }
 
-function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
+export function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
   if (isRecipientsConfig(config.siwn)) {
     return {
       recipients: {
@@ -401,4 +401,4 @@ export function createAuthInstance(
 
 export type Auth = ReturnType<typeof createAuthInstance>;
 export type AuthSession = Auth["$Infer"]["Session"];
-export type { AuthConfig } from "./auth-export";
+export type { AuthConfig } from "./auth-config";
