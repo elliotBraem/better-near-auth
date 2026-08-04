@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { ORPCError } from "every-plugin/orpc";
 import { z } from "every-plugin/zod";
-import type { AuthServices } from "../auth-export";
+import type { PluginServices } from "../service-types";
 import * as schema from "../db/schema";
 import { createHeaders, safeAuthApi, tryJsonParse } from "../utils";
 
-export function createInvitationHandlers(services: AuthServices, builder: any, requireAuth: any) {
+export function createInvitationHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
     inviteMember: builder.inviteMember
       .use(requireAuth)

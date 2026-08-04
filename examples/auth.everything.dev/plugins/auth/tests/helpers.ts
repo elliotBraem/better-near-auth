@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { Effect } from "every-plugin/effect";
-import type { AuthServices } from "../src/auth-export";
+import type { PluginServices } from "../src/service-types";
 import { type AuthConfig, createAuthInstance } from "../src/auth-instance";
 import { createDatabaseDriver } from "../src/db";
 import { loadMigrations, migrate } from "../src/db/migrate";
@@ -34,7 +34,7 @@ export async function createTestServices(configOverrides?: Partial<AuthConfig>) 
     driver.db,
   );
 
-  const services: AuthServices = {
+  const services: PluginServices = {
     auth,
     db: driver.db,
     handler: (req: Request) => auth.handler(req),
@@ -57,7 +57,7 @@ export interface TestUser {
 }
 
 export async function createTestUser(
-  services: AuthServices,
+  services: PluginServices,
   options?: { email?: string; name?: string },
 ): Promise<TestUser> {
   const email = options?.email ?? `test-${crypto.randomUUID().slice(0, 8)}@example.com`;
@@ -117,7 +117,7 @@ export async function createTestUser(
 }
 
 export async function createTestOrg(
-  services: AuthServices,
+  services: PluginServices,
   ownerUserId: string,
   options?: { name?: string; slug?: string; metadata?: Record<string, unknown> },
 ): Promise<{ id: string; name: string; slug: string; memberId: string }> {
@@ -146,7 +146,7 @@ export async function createTestOrg(
 }
 
 export async function addTestMember(
-  services: AuthServices,
+  services: PluginServices,
   orgId: string,
   userId: string,
   role: string = "member",
@@ -163,7 +163,7 @@ export async function addTestMember(
 }
 
 export async function createTestApiKey(
-  services: AuthServices,
+  services: PluginServices,
   options: { userId: string; configId?: string; name?: string; organizationId?: string },
 ): Promise<{ key: string; id: string }> {
   const configId = options.configId ?? (options.organizationId ? "org-keys" : "user-keys");
@@ -224,7 +224,7 @@ function createMockBuilder(): MockBuilder {
   });
 }
 
-export function createTestHandlers(services: AuthServices) {
+export function createTestHandlers(services: PluginServices) {
   const builder = createMockBuilder();
   const requireAuth = createRequireAuth(builder, services);
 

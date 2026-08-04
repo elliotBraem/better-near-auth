@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
-import type { AuthServices } from "../auth-export";
+import type { PluginServices } from "../service-types";
 import { API_KEY_CONFIG_IDS } from "../config-schemas";
 import * as schema from "../db/schema";
 import { createHeaders, getActiveOrganizationId, tryJsonParse } from "../utils";
 
-export function createSessionHandlers(services: AuthServices, builder: any) {
+export function createSessionHandlers(services: PluginServices, builder: any) {
   return {
     health: builder.health.handler(async () => ({
       status: "ok" as const,

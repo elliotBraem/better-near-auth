@@ -30,7 +30,7 @@
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-7043-everything-dev-auth-plugin-bett-e8599d822-ze.zephyrcloud.app",
+      "production": "https://elliot-braem-7045-everything-dev-auth-plugin-bett-0986d2904-ze.zephyrcloud.app",
       "integrity": "sha384-5RUjYJbH+Dx4a4wN1f3o04NrF1TvvmDdShhyhJylg5l9yhCuu/ZHZeroKIyI5p3L",
       "variables": {
         "socialProviders": {

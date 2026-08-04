@@ -1,7 +1,7 @@
-import type { AuthServices } from "../auth-export";
+import type { PluginServices } from "../service-types";
 import { createHeaders, safeAuthApi } from "../utils";
 
-export function createNearHandlers(services: AuthServices, builder: any, requireAuth: any) {
+export function createNearHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
     nearNonce: builder.nearNonce.handler(async ({ input }: { input: any }) => {
       return safeAuthApi(() =>

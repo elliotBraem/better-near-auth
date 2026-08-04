@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { ORPCError } from "every-plugin/orpc";
-import type { AuthServices } from "../auth-export";
+import type { PluginServices } from "../service-types";
 import * as schema from "../db/schema";
 import { createHeaders, safeAuthApi } from "../utils";
 
-export function createMemberHandlers(services: AuthServices, builder: any, requireAuth: any) {
+export function createMemberHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
     getActiveMember: builder.getActiveMember
       .use(requireAuth)

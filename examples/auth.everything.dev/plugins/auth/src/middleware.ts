@@ -1,8 +1,8 @@
 import { ORPCError } from "every-plugin/orpc";
-import type { AuthServices } from "./auth-export";
+import type { PluginServices } from "./service-types";
 import { createHeaders } from "./utils";
 
-export function createRequireAuth(builder: any, services: AuthServices) {
+export function createRequireAuth(builder: any, services: PluginServices) {
   return builder.middleware(async ({ context, next }: { context: any; next: any }) => {
     const headers = createHeaders(context.reqHeaders);
     const session = await services.auth.api.getSession({ headers });

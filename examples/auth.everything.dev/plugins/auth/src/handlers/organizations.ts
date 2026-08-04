@@ -1,10 +1,10 @@
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { ORPCError } from "every-plugin/orpc";
-import type { AuthServices } from "../auth-export";
+import type { PluginServices } from "../service-types";
 import * as schema from "../db/schema";
 import { createHeaders, safeAuthApi, tryJsonParse } from "../utils";
 
-export function createOrganizationHandlers(services: AuthServices, builder: any, requireAuth: any) {
+export function createOrganizationHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
     listOrganizations: builder.listOrganizations
       .use(requireAuth)
