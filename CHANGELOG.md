@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.7.4
+
+### Patch Changes
+
+- [#60](https://github.com/elliotBraem/better-near-auth/pull/60) [`6de84c5`](https://github.com/elliotBraem/better-near-auth/commit/6de84c5d23a9ef1caaf53d18ae2249dd9013371d) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Upgrade better-auth peer dependency to ^1.6.25 and simplify client plugin types by removing the internal SIWNClientPlugin interface
+
 ## 1.7.3
 
 ### Patch Changes
