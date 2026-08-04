@@ -1,13 +1,13 @@
 # skills/_artifacts/skill_tree.yaml
 library:
   name: 'better-near-auth'
-  version: '1.6.5'
+  version: '1.7.3'
   repository: 'https://github.com/elliotBraem/better-near-auth'
   description: 'Better Auth plugin for NEAR wallet authentication (SIWN/NEP-413) and gasless delegate action relay (NEP-366), with TanStack Router integration'
 generated_from:
   domain_map: 'skills/_artifacts/domain_map.yaml'
   skill_spec: 'skills/_artifacts/skill_spec.md'
-generated_at: '2026-06-11'
+generated_at: '2026-07-11'
 
 skills:
   - name: 'SIWN authentication'

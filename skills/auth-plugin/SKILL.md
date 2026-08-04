@@ -17,7 +17,7 @@ requires:
 metadata:
   type: composition
   library: better-near-auth
-  library_version: "1.6.5"
+  library_version: "1.7.3"
 sources:
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/bos.config.json"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/contract.ts"

@@ -1,5 +1,5 @@
 # Better-Near-Auth — Skill Spec
-# Generated: 2026-07-11 | Library version: 1.6.5
+# Generated: 2026-07-11 | Library version: 1.7.3
 
 Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) and a built-in NEP-366 delegate action relayer. It provides wallet-based authentication for web applications and enables gasless on-chain transactions on behalf of authenticated users.
 

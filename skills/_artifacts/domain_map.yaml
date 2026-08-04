@@ -7,7 +7,7 @@
 
 library:
   name: 'better-near-auth'
-  version: '1.6.5'
+  version: '1.7.3'
   repository: 'https://github.com/elliotBraem/better-near-auth'
   description: 'Better Auth plugin for NEAR wallet authentication (SIWN/NEP-413) and gasless delegate action relay (NEP-366)'
   primary_framework: 'framework-agnostic'
