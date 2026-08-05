@@ -360,7 +360,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 			activeNetwork,
 		}),
 
-		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: unknown): SIWNClientActions => {
+		getActions: ($fetch: BetterFetch, $store: ClientStore, _options: unknown): SIWNClientActions => {
 			void initClient($fetch);
 
 			return {
@@ -483,6 +483,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 							}
 
 							callbacks?.onSuccess?.();
+							$store.notify("$sessionSignal");
 						} catch (error) {
 							const err = error instanceof Error ? error : new Error(String(error));
 							callbacks?.onError?.(err);
@@ -616,6 +617,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 							}
 
 							callbacks?.onSuccess?.();
+							$store.notify("$sessionSignal");
 						} catch (error) {
 							const err = error instanceof Error ? error : new Error(String(error));
 							callbacks?.onError?.(err);
