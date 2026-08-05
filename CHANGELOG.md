@@ -1,5 +1,18 @@
 # better-near-auth
 
+## 1.8.0
+
+### Minor Changes
+
+- [`52062ad`](https://github.com/elliotBraem/better-near-auth/commit/52062adab888330136c551ccb57f6c86973b2973) Thanks [@elliotBraem](https://github.com/elliotBraem)! - feat: add detectNearAccount() for silent wallet detection
+
+  Add `detectNearAccount()` method to the client SIWN actions that silently
+  probes for a previously authorized NEAR wallet across all supported networks
+  without prompting the user. Returns the account info or null.
+
+  Also adds a wallet detection prompt to the example login page and documents
+  the method in the client skill.
+
 ## 1.7.4
 
 ### Patch Changes
