@@ -9,7 +9,7 @@ description: >
 metadata:
   type: core
   library: better-near-auth
-  library_version: "1.7.4"
+  library_version: "1.8.0"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
   - "elliotBraem/better-near-auth:src/types.ts"
