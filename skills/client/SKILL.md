@@ -30,7 +30,7 @@ Client-side plugin for NEAR wallet authentication and gasless relay. Connects to
 - `isWalletConnected()` returns `false`
 - `detectNearAccount()` returns `null` (no browser wallet to probe)
 - `buildSignedDelegateAction`, `signWithWallet`, `ensureConnected` throw "Wallet not initialized — this operation requires a browser environment"
-- `near.client` getter throws on access
+- `getNearClient()` throws if no wallet is initialized
 - HTTP-only methods (`nonce`, `verify`, `view`, `relayTransaction`, etc.) work normally via `$fetch`
 
 ## Setup
@@ -129,7 +129,7 @@ The `buildSignedDelegateAction` callback receives a `TransactionBuilder` from ne
 ```typescript
 // Must ensure wallet is connected before .send()
 await authClient.near.ensureConnected();
-return authClient.near.client
+return authClient.near.getNearClient()
   .transaction(accountId)
   .functionCall(contractId, "method", args, {
     gas: Gas.Tgas(30),
@@ -255,7 +255,7 @@ const result = await authClient.near.view({
 | `getNetwork()` | `"mainnet" \| "testnet"` | Get currently active network |
 | `getSupportedNetworks()` | `("mainnet" \| "testnet")[]` | List supported networks |
 | `getRecipient(network?)` | `string` | Get configured recipient for a network |
-| `client` | `Near` | Access near-kit Near instance (throws on server) |
+| `getNearClient()` | `Near` | Access near-kit Near instance (throws on server). Returns the `Near` client for direct transactions. |
 
 ### authClient.signIn
 
@@ -337,12 +337,12 @@ Source: src/client.ts:108, src/index.ts:225
 
 See also: siwn/SKILL.md — server plugin recipient configuration
 
-### HIGH Using near.client.send() without ensuring wallet connection
+### HIGH Using getNearClient().send() without ensuring wallet connection
 
 Wrong:
 
 ```typescript
-authClient.near.client.transaction(accountId)
+authClient.near.getNearClient().transaction(accountId)
   .functionCall(contract, "method", args, opts)
   .send(); // fails if wallet disconnected after sign-in
 ```
@@ -351,7 +351,7 @@ Correct:
 
 ```typescript
 await authClient.near.ensureConnected(); // reconnects wallet if needed
-authClient.near.client.transaction(accountId)
+authClient.near.getNearClient().transaction(accountId)
   .functionCall(contract, "method", args, opts)
   .send();
 ```
