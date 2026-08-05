@@ -34,6 +34,7 @@ export interface SIWNClientActions {
 		getAccountId: () => string | null;
 		getState: () => { accountId: string | null; publicKey: string | null; networkId: string } | null;
 		isWalletConnected: () => boolean;
+		detectNearAccount: () => Promise<{ accountId: string; publicKey: string | null; networkId: string } | null>;
 		ensureConnected: () => Promise<boolean>;
 		disconnect: () => Promise<void>;
 		link: (callbacks?: AuthCallbacks) => Promise<void>;
@@ -398,6 +399,34 @@ export const siwnClient = (config: SIWNClientConfig) => {
 					},
 					getState: () => nearState.get(),
 					isWalletConnected: () => walletConnected.get(),
+					detectNearAccount: async () => {
+						const state = nearState.get();
+						if (state?.accountId && walletConnected.get()) {
+							return {
+								accountId: state.accountId,
+								publicKey: state.publicKey ?? null,
+								networkId: state.networkId,
+							};
+						}
+						for (const network of getSupportedNetworks()) {
+							const initialized = await initClientForNetwork(network);
+							if (!initialized) continue;
+							const conn = connectors.get(network);
+							if (!conn) continue;
+							try {
+								const { accounts } = await conn.getConnectedWallet();
+								if (accounts?.length) {
+									const account = accounts[0]!;
+									return {
+										accountId: account.accountId,
+										publicKey: account.publicKey ?? null,
+										networkId: network,
+									};
+								}
+							} catch {}
+						}
+						return null;
+					},
 					ensureConnected: async () => {
 						const net = activeNetwork.get();
 						if (!initializedNetworks.has(net)) {

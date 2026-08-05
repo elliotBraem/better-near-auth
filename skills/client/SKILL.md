@@ -28,6 +28,7 @@ Client-side plugin for NEAR wallet authentication and gasless relay. Connects to
 - `getAccountId()` returns `null` (no session restore yet)
 - `getState()` returns `null`
 - `isWalletConnected()` returns `false`
+- `detectNearAccount()` returns `null` (no browser wallet to probe)
 - `buildSignedDelegateAction`, `signWithWallet`, `ensureConnected` throw "Wallet not initialized — this operation requires a browser environment"
 - `near.client` getter throws on access
 - HTTP-only methods (`nonce`, `verify`, `view`, `relayTransaction`, etc.) work normally via `$fetch`
@@ -160,7 +161,16 @@ const aliceProfile = await authClient.near.getProfile("alice.near");
 
 // Disconnect wallet
 await authClient.near.disconnect();
+
+// Silently detect if user has a previously authorized wallet (login page auto-detection)
+const detected = await authClient.near.detectNearAccount();
+if (detected) {
+  // Show "Continue as bob.near" prompt
+  console.log("Wallet found:", detected.accountId, "on", detected.networkId);
+}
 ```
+
+`detectNearAccount()` silently probes `@hot-labs/near-connect`'s `getConnectedWallet()` across all supported networks — it reads localStorage for previously authorized wallet IDs and queries the wallet extension without showing any UI. Returns `null` if no wallet is found. Use it on login pages to offer a one-click "Continue with NEAR" option.
 
 When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey`. Use `isWalletConnected()` to check if signing operations are available, and `getAccountId()` for display purposes (works even when disconnected).
 
@@ -227,6 +237,7 @@ const result = await authClient.near.view({
 | `getAccountId()` | `string \| null` | Currently connected account ID (persists across disconnects) |
 | `getState()` | `{ accountId, publicKey, networkId } \| null` | Wallet state |
 | `isWalletConnected()` | `boolean` | Whether wallet is actively connected |
+| `detectNearAccount()` | `Promise<{ accountId, publicKey, networkId } \| null>` | Silently probe for a previously authorized wallet without prompting |
 | `ensureConnected()` | `Promise<boolean>` | Reconnect wallet if disconnected |
 | `disconnect()` | `Promise<void>` | Disconnect wallet |
 | `link(callbacks?)` | `Promise<void>` | Link NEAR account to session |

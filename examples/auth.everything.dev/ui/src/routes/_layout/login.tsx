@@ -68,6 +68,12 @@ function LoginPage() {
   const { data: session } = useQuery(sessionQueryOptions(auth));
   const { redirect } = Route.useSearch();
   const [authMethod, setAuthMethod] = useState<AuthMethod>("anonymous");
+  const [detectedAccount, setDetectedAccount] = useState<{
+    accountId: string;
+    publicKey: string | null;
+    networkId: string;
+  } | null>(null);
+  const [checkingWallet, setCheckingWallet] = useState(true);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -80,6 +86,19 @@ function LoginPage() {
   const [isPending, setIsPending] = useState(false);
   const queryClient = useQueryClient();
   const passkeySupportError = authMethod === "passkey" ? getPasskeySupportError() : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    auth.near.detectNearAccount().then((result) => {
+      if (!cancelled) {
+        setDetectedAccount(result);
+        setCheckingWallet(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setCheckingWallet(false);
+    });
+    return () => { cancelled = true; };
+  }, [auth]);
 
   const handleSuccess = useCallback(
     async (message: string) => {
@@ -576,6 +595,22 @@ function LoginPage() {
   return (
     <div className="min-h-[70vh] w-full flex items-start justify-center px-6 pt-[15vh] animate-fade-in">
       <div className="w-full max-w-sm space-y-8">
+        {!checkingWallet && detectedAccount && (
+          <div className="rounded-lg border border-green-600 bg-green-600/10 p-4 space-y-3">
+            <p className="text-xs text-muted-foreground text-center">
+              Connected wallet detected
+            </p>
+            <p className="text-base font-mono text-center text-green-600">
+              {detectedAccount.accountId}
+            </p>
+            <Button onClick={handleNear} disabled={isPending} className="w-full bg-green-600 hover:bg-green-700 text-white">
+              {isPending ? "connecting..." : "Continue with NEAR"}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              or choose another method below
+            </p>
+          </div>
+        )}
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {(["anonymous", "near", "github", "passkey", "email", "phone"] as AuthMethod[]).map(
             (method) => (
