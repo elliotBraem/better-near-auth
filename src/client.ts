@@ -2,7 +2,7 @@ import { Near, fromNearConnect, generateNonce, TransactionBuilder } from "near-k
 import type { Near as NearType, SignedMessage } from "near-kit";
 import type { EventMap } from "@hot-labs/near-connect";
 import { hex } from "@scure/base";
-import type { BetterAuthClientOptions, BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
+import type { BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
 import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT, SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 
@@ -52,7 +52,7 @@ export interface SIWNClientActions {
 		getNetwork: () => "mainnet" | "testnet";
 		getSupportedNetworks: () => ("mainnet" | "testnet")[];
 		getRecipient: (network?: "mainnet" | "testnet") => string;
-		client: NearType;
+		getNearClient: () => NearType;
 	};
 	signIn: {
 		near: (callbacks?: AuthCallbacks) => Promise<void>;
@@ -360,7 +360,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 			activeNetwork,
 		}),
 
-		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: BetterAuthClientOptions | undefined): SIWNClientActions => {
+		getActions: ($fetch: BetterFetch, _$store: ClientStore, _options: unknown): SIWNClientActions => {
 			void initClient($fetch);
 
 			return {
@@ -579,7 +579,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 					getNetwork: () => activeNetwork.get(),
 					getSupportedNetworks: () => getSupportedNetworks(),
 					getRecipient: (network?: "mainnet" | "testnet") => getRecipient(network),
-					get client(): NearType {
+					getNearClient: (): NearType => {
 						const net = activeNetwork.get();
 						const client = nearClients.get(net);
 						if (!client) throw new Error(`Wallet not initialized for ${net} — this operation requires a browser environment`);
