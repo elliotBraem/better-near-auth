@@ -18,7 +18,7 @@
       "better-auth": "1.6.25",
       "@better-auth/api-key": "1.6.25",
       "@better-auth/passkey": "1.6.25",
-      "better-near-auth": "^1.8.1",
+      "better-near-auth": "1.8.1",
       "every-plugin": "^2.10.0",
       "typescript": "^5.9.3",
       "vitest": "^4.1.8",
