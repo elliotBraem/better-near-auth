@@ -15,6 +15,7 @@ import { createMemberHandlers } from "./handlers/members";
 import { createNearHandlers } from "./handlers/near";
 import { createOrganizationHandlers } from "./handlers/organizations";
 import { createSessionHandlers } from "./handlers/session";
+import { createTeamHandlers } from "./handlers/teams";
 import type { PluginsClient } from "./lib/plugins-types.gen";
 import { createRequireAuth } from "./middleware";
 import { toError } from "./utils";
@@ -67,6 +68,7 @@ export default createPlugin.withPlugins<PluginsClient>()({
       ...createMemberHandlers(services, builder, requireAuth),
       ...createInvitationHandlers(services, builder, requireAuth),
       ...createApiKeyHandlers(services, builder, requireAuth),
+      ...createTeamHandlers(services, builder, requireAuth),
       ...createNearHandlers(services, builder, requireAuth),
     };
   },

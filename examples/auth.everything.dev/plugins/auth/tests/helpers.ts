@@ -10,6 +10,7 @@ import { createInvitationHandlers } from "../src/handlers/invitations";
 import { createMemberHandlers } from "../src/handlers/members";
 import { createNearHandlers } from "../src/handlers/near";
 import { createOrganizationHandlers } from "../src/handlers/organizations";
+import { createTeamHandlers } from "../src/handlers/teams";
 import { createSessionHandlers } from "../src/handlers/session";
 import { createRequireAuth } from "../src/middleware";
 
@@ -121,28 +122,26 @@ export async function createTestOrg(
   ownerUserId: string,
   options?: { name?: string; slug?: string; metadata?: Record<string, unknown> },
 ): Promise<{ id: string; name: string; slug: string; memberId: string }> {
-  const orgId = crypto.randomUUID();
-  const slug = options?.slug ?? `org-${orgId.slice(0, 8)}`;
+  const slug = options?.slug ?? `org-${crypto.randomUUID().slice(0, 8)}`;
   const name = options?.name ?? "Test Org";
 
-  await services.db.insert(schema.organization).values({
-    id: orgId,
-    name,
-    slug,
-    metadata: options?.metadata ? JSON.stringify(options.metadata) : null,
-    createdAt: new Date(),
-  });
+  const result = (await services.auth.api.createOrganization({
+    body: {
+      name,
+      slug,
+      userId: ownerUserId,
+      metadata: options?.metadata,
+    },
+  })) as {
+    id: string;
+    name: string;
+    slug: string;
+    members: Array<{ id: string } | undefined>;
+  };
 
-  const memberId = crypto.randomUUID();
-  await services.db.insert(schema.member).values({
-    id: memberId,
-    userId: ownerUserId,
-    organizationId: orgId,
-    role: "owner",
-    createdAt: new Date(),
-  });
+  const memberId = result.members[0]?.id ?? "";
 
-  return { id: orgId, name, slug, memberId };
+  return { id: result.id, name: result.name, slug: result.slug, memberId };
 }
 
 export async function addTestMember(
@@ -151,15 +150,14 @@ export async function addTestMember(
   userId: string,
   role: string = "member",
 ): Promise<string> {
-  const memberId = crypto.randomUUID();
-  await services.db.insert(schema.member).values({
-    id: memberId,
-    userId,
-    organizationId: orgId,
-    role,
-    createdAt: new Date(),
-  });
-  return memberId;
+  const result = (await services.auth.api.addMember({
+    body: {
+      userId,
+      role,
+      organizationId: orgId,
+    },
+  })) as { id: string };
+  return result.id;
 }
 
 export async function createTestApiKey(
@@ -234,6 +232,7 @@ export function createTestHandlers(services: PluginServices) {
     members: createMemberHandlers(services, builder, requireAuth),
     invitations: createInvitationHandlers(services, builder, requireAuth),
     apiKeys: createApiKeyHandlers(services, builder, requireAuth),
+    teams: createTeamHandlers(services, builder, requireAuth),
     near: createNearHandlers(services, builder, requireAuth),
   };
 }

@@ -184,6 +184,26 @@ const invitationSchema = z.object({
   inviterId: z.string(),
 });
 
+const teamSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  organizationId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+const teamMemberSchema = z.object({
+  id: z.string(),
+  teamId: z.string(),
+  userId: z.string(),
+  createdAt: z.date(),
+});
+
+const daoOutputSchema = z.object({
+  daoAccountId: z.string().nullable(),
+  daoNetwork: z.enum(["mainnet", "testnet"]).nullable(),
+});
+
 // ── NEAR SIWN Schemas ────────────────────────────────────────────────
 
 const signedMessageSchema = z.object({
@@ -288,27 +308,41 @@ export const contract = oc.router({
     .route({ method: "GET", path: "/v1/auth/organizations" })
     .output(
       z.array(
-        organizationInfoSchema.extend({
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          slug: z.string(),
+          logo: z.string().nullable().optional(),
+          metadata: z.unknown().nullable(),
           createdAt: z.date(),
-          role: z.string(),
         }),
       ),
     )
     .errors(Errors),
 
-  listAllOrganizations: oc
-    .route({ method: "GET", path: "/v1/auth/organizations/all" })
+  getFullOrganization: oc
+    .route({ method: "GET", path: "/v1/auth/organizations/get-full" })
+    .input(
+      z.object({
+        organizationId: z.string().optional(),
+        organizationSlug: z.string().optional(),
+        membersLimit: z.number().optional(),
+      }),
+    )
     .output(
-      z.array(
-        z.object({
+      z
+        .object({
           id: z.string(),
           name: z.string(),
           slug: z.string(),
-          logo: z.string().nullable(),
+          logo: z.string().nullable().optional(),
+          metadata: z.unknown().nullable(),
           createdAt: z.date(),
-          metadata: z.record(z.string(), z.unknown()).nullable(),
-        }),
-      ),
+          members: z.array(memberSchema),
+          invitations: z.array(invitationSchema),
+          teams: z.array(teamSchema).optional(),
+        })
+        .nullable(),
     )
     .errors(Errors),
 
@@ -331,79 +365,131 @@ export const contract = oc.router({
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
-  leaveOrganization: oc
-    .route({ method: "POST", path: "/v1/auth/organizations/{id}/leave" })
-    .input(z.object({ id: z.string() }))
-    .output(z.object({ success: z.boolean() }))
-    .errors(Errors),
-
-  getOrganization: oc
-    .route({ method: "GET", path: "/v1/auth/organizations/{id}" })
-    .input(z.object({ id: z.string() }))
-    .output(
-      z
-        .object({
-          id: z.string(),
-          name: z.string(),
-          slug: z.string(),
-          logo: z.string().nullable().optional(),
-          metadata: z.unknown().nullable(),
-          createdAt: z.date(),
-        })
-        .nullable(),
-    )
-    .errors(Errors),
-
   updateOrganization: oc
-    .route({ method: "PATCH", path: "/v1/auth/organizations/{id}" })
+    .route({ method: "POST", path: "/v1/auth/organizations/update" })
     .input(
       z.object({
-        id: z.string(),
-        name: z.string().optional(),
-        slug: z.string().optional(),
-        logo: z.string().nullable().optional(),
-        metadata: z.unknown().optional(),
+        data: z.object({
+          name: z.string().optional(),
+          slug: z.string().optional(),
+          logo: z.string().nullable().optional(),
+          metadata: z.record(z.string(), z.unknown()).optional(),
+        }),
+        organizationId: z.string().optional(),
       }),
     )
     .output(organizationInfoSchema)
     .errors(Errors),
 
-  deleteOrganization: oc
-    .route({ method: "DELETE", path: "/v1/auth/organizations/{id}" })
-    .input(z.object({ id: z.string() }))
+  leaveOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/leave" })
+    .input(z.object({ organizationId: z.string() }))
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
+  deleteOrganization: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/delete" })
+    .input(z.object({ organizationId: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  checkSlug: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/check-slug" })
+    .input(z.object({ slug: z.string() }))
+    .output(z.object({ status: z.boolean() }))
+    .errors(Errors),
+
+  hasPermission: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/has-permission" })
+    .input(
+      z.object({
+        organizationId: z.string().optional(),
+        permissions: z.record(z.string(), z.array(z.string())).optional(),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  // ── DAO ──────────────────────────────────────────────────────────────
+
+  linkDao: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/dao/link" })
+    .input(
+      z.object({
+        organizationId: z.string(),
+        daoAccountId: z.string(),
+        daoNetwork: z.enum(["mainnet", "testnet"]).optional(),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  unlinkDao: oc
+    .route({ method: "POST", path: "/v1/auth/organizations/dao/unlink" })
+    .input(z.object({ organizationId: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  getDao: oc
+    .route({ method: "GET", path: "/v1/auth/organizations/dao" })
+    .input(z.object({ organizationId: z.string() }))
+    .output(daoOutputSchema)
+    .errors(Errors),
+
   // ── Members ──────────────────────────────────────────────────────────
+
+  getActiveMemberRole: oc
+    .route({ method: "GET", path: "/v1/auth/members/active-role" })
+    .input(
+      z.object({
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(z.object({ role: z.string().nullable() }))
+    .errors(Errors),
 
   listMembers: oc
     .route({ method: "GET", path: "/v1/auth/members" })
     .input(
       z.object({
-        organizationId: z.string(),
+        organizationId: z.string().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
       }),
     )
-    .output(z.array(memberWithUserSchema))
+    .output(z.object({ members: z.array(memberWithUserSchema), total: z.number() }))
+    .errors(Errors),
+
+  addMember: oc
+    .route({ method: "POST", path: "/v1/auth/members" })
+    .input(
+      z.object({
+        userId: z.string(),
+        role: z.enum(["owner", "admin", "member"]),
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(memberSchema)
     .errors(Errors),
 
   removeMember: oc
-    .route({ method: "DELETE", path: "/v1/auth/members/{id}" })
+    .route({ method: "POST", path: "/v1/auth/members/remove" })
     .input(
       z.object({
-        id: z.string(),
-        organizationId: z.string(),
+        memberIdOrEmail: z.string(),
+        organizationId: z.string().optional(),
       }),
     )
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
   updateMemberRole: oc
-    .route({ method: "PATCH", path: "/v1/auth/members/{id}/role" })
+    .route({ method: "POST", path: "/v1/auth/members/update-role" })
     .input(
       z.object({
-        id: z.string(),
-        organizationId: z.string(),
         role: z.enum(["owner", "admin", "member"]),
+        memberId: z.string(),
+        organizationId: z.string().optional(),
       }),
     )
     .output(memberWithUserSchema)
@@ -425,14 +511,21 @@ export const contract = oc.router({
     .errors(Errors),
 
   getInvitation: oc
-    .route({ method: "GET", path: "/v1/auth/invitations/{id}" })
+    .route({ method: "GET", path: "/v1/auth/invitations/get" })
     .input(z.object({ id: z.string() }))
     .output(
-      invitationSchema
-        .extend({
-          organization: organizationInfoSchema.nullable(),
-        })
-        .nullable(),
+      z.object({
+        id: z.string(),
+        organizationId: z.string(),
+        email: z.string(),
+        role: z.string().nullable(),
+        status: z.string(),
+        expiresAt: z.date(),
+        inviterId: z.string(),
+        organizationName: z.string(),
+        organizationSlug: z.string(),
+        inviterEmail: z.string(),
+      }).nullable(),
     )
     .errors(Errors),
 
@@ -440,41 +533,109 @@ export const contract = oc.router({
     .route({ method: "GET", path: "/v1/auth/invitations" })
     .input(
       z.object({
-        organizationId: z.string(),
+        organizationId: z.string().optional(),
       }),
     )
     .output(z.array(invitationSchema))
     .errors(Errors),
 
+  listUserInvitations: oc
+    .route({ method: "GET", path: "/v1/auth/invitations/user" })
+    .output(z.array(invitationSchema))
+    .errors(Errors),
+
   cancelInvitation: oc
-    .route({ method: "DELETE", path: "/v1/auth/invitations/{id}" })
-    .input(
-      z.object({
-        id: z.string(),
-      }),
-    )
+    .route({ method: "POST", path: "/v1/auth/invitations/cancel" })
+    .input(z.object({ invitationId: z.string() }))
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
-  resendInvitation: oc
-    .route({ method: "POST", path: "/v1/auth/invitations/{id}/resend" })
-    .input(
-      z.object({
-        id: z.string(),
-      }),
-    )
-    .output(z.object({ sent: z.boolean() }))
-    .errors(Errors),
-
   acceptInvitation: oc
-    .route({ method: "POST", path: "/v1/auth/invitations/{id}/accept" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "POST", path: "/v1/auth/invitations/accept" })
+    .input(z.object({ invitationId: z.string() }))
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
   rejectInvitation: oc
-    .route({ method: "POST", path: "/v1/auth/invitations/{id}/reject" })
-    .input(z.object({ id: z.string() }))
+    .route({ method: "POST", path: "/v1/auth/invitations/reject" })
+    .input(z.object({ invitationId: z.string() }))
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  // ── Teams ────────────────────────────────────────────────────────────
+
+  createTeam: oc
+    .route({ method: "POST", path: "/v1/auth/teams" })
+    .input(
+      z.object({
+        name: z.string(),
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(teamSchema)
+    .errors(Errors),
+
+  updateTeam: oc
+    .route({ method: "POST", path: "/v1/auth/teams/update" })
+    .input(
+      z.object({
+        teamId: z.string(),
+        data: z.object({
+          name: z.string().optional(),
+        }),
+      }),
+    )
+    .output(teamSchema)
+    .errors(Errors),
+
+  deleteTeam: oc
+    .route({ method: "POST", path: "/v1/auth/teams/delete" })
+    .input(
+      z.object({
+        teamId: z.string(),
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(z.object({ success: z.boolean() }))
+    .errors(Errors),
+
+  listTeams: oc
+    .route({ method: "GET", path: "/v1/auth/teams" })
+    .input(
+      z.object({
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(z.array(teamSchema))
+    .errors(Errors),
+
+  listTeamMembers: oc
+    .route({ method: "GET", path: "/v1/auth/teams/members" })
+    .input(z.object({ teamId: z.string() }))
+    .output(z.array(teamMemberSchema))
+    .errors(Errors),
+
+  addTeamMember: oc
+    .route({ method: "POST", path: "/v1/auth/teams/members" })
+    .input(
+      z.object({
+        teamId: z.string(),
+        userId: z.string(),
+        organizationId: z.string().optional(),
+      }),
+    )
+    .output(teamMemberSchema)
+    .errors(Errors),
+
+  removeTeamMember: oc
+    .route({ method: "POST", path: "/v1/auth/teams/members/remove" })
+    .input(
+      z.object({
+        teamId: z.string(),
+        userId: z.string(),
+        organizationId: z.string().optional(),
+      }),
+    )
     .output(z.object({ success: z.boolean() }))
     .errors(Errors),
 
