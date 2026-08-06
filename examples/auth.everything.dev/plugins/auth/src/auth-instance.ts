@@ -293,6 +293,9 @@ export function createAuthInstance(
       organization({
         ac: orgAc,
         roles: orgRoles,
+        teams: {
+          enabled: true,
+        },
         async sendInvitationEmail(data) {
           const inviteLink = `${config.baseUrl}/accept-invitation/${data.id}`;
           await sendEmail(

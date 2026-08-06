@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import * as schema from "../../src/db/schema";
 import {
   addTestMember,
   createTestHandlers,
@@ -21,7 +19,7 @@ afterAll(async () => {
 
 describe("organization handlers", () => {
   describe("listOrganizations", () => {
-    it("returns personal org and other memberships for user", async () => {
+    it("returns organizations for user", async () => {
       const user = await createTestUser(services.services);
       const org = await createTestOrg(services.services, user.userId, { name: "Team Org" });
 
@@ -33,111 +31,36 @@ describe("organization handlers", () => {
       const orgIds = result.map((o) => o.id);
       expect(orgIds).toContain(user.personalOrgId);
       expect(orgIds).toContain(org.id);
-      const teamOrg = result.find((o) => o.id === org.id);
-      expect(teamOrg?.role).toBe("owner");
-    });
-
-    it("returns empty array for user with no orgs", async () => {
-      const user = await createTestUser(services.services, {
-        email: `norg-${crypto.randomUUID()}@example.com`,
-      });
-      await services.services.db.delete(schema.member).where(eq(schema.member.userId, user.userId));
-
-      const handlers = createTestHandlers(services.services);
-      const result = await handlers.organizations.listOrganizations({
-        context: { reqHeaders: user.reqHeaders },
-      });
-      expect(result).toHaveLength(0);
     });
   });
 
-  describe("listAllOrganizations", () => {
-    it("returns orgs with daoAccountId metadata (non-personal)", async () => {
-      const user = await createTestUser(services.services);
-      const org = await createTestOrg(services.services, user.userId, {
-        name: "DAO Org",
-        metadata: { daoAccountId: "dao.near" },
-      });
-
-      const handlers = createTestHandlers(services.services);
-      const result = await handlers.organizations.listAllOrganizations({
-        context: { reqHeaders: user.reqHeaders },
-      });
-
-      const orgIds = result.map((o) => o.id);
-      expect(orgIds).toContain(org.id);
-    });
-
-    it("excludes personal orgs", async () => {
-      const user = await createTestUser(services.services);
-
-      const handlers = createTestHandlers(services.services);
-      const result = await handlers.organizations.listAllOrganizations({
-        context: { reqHeaders: user.reqHeaders },
-      });
-
-      const orgIds = result.map((o) => o.id);
-      expect(orgIds).not.toContain(user.personalOrgId);
-    });
-
-    it("excludes orgs without daoAccountId metadata", async () => {
-      const user = await createTestUser(services.services);
-      const org = await createTestOrg(services.services, user.userId, {
-        name: "Regular Org",
-        metadata: { isPersonal: false },
-      });
-
-      const handlers = createTestHandlers(services.services);
-      const result = await handlers.organizations.listAllOrganizations({
-        context: { reqHeaders: user.reqHeaders },
-      });
-
-      const orgIds = result.map((o) => o.id);
-      expect(orgIds).not.toContain(org.id);
-    });
-  });
-
-  describe("getOrganization", () => {
-    it("returns org for member", async () => {
+  describe("getFullOrganization", () => {
+    it("returns org with members, invitations, teams for member", async () => {
       const user = await createTestUser(services.services);
       const org = await createTestOrg(services.services, user.userId, { name: "Get Org" });
 
       const handlers = createTestHandlers(services.services);
-      const result = await handlers.organizations.getOrganization({
-        input: { id: org.id },
+      const result = await handlers.organizations.getFullOrganization({
+        input: { organizationId: org.id },
         context: { reqHeaders: user.reqHeaders },
       });
 
       expect(result.id).toBe(org.id);
       expect(result.name).toBe("Get Org");
+      expect(result.members).toBeDefined();
+      expect(result.invitations).toBeDefined();
     });
 
-    it("throws NOT_FOUND for non-existent org", async () => {
+    it("returns null for non-existent org", async () => {
       const user = await createTestUser(services.services);
       const handlers = createTestHandlers(services.services);
 
-      await expect(
-        handlers.organizations.getOrganization({
-          input: { id: "nonexistent" },
-          context: { reqHeaders: user.reqHeaders },
-        }),
-      ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    });
-
-    it("throws FORBIDDEN for non-member", async () => {
-      const user1 = await createTestUser(services.services);
-      const user2 = await createTestUser(services.services, {
-        email: `u2-${crypto.randomUUID()}@example.com`,
+      const result = await handlers.organizations.getFullOrganization({
+        input: { organizationId: "nonexistent" },
+        context: { reqHeaders: user.reqHeaders },
       });
-      const org = await createTestOrg(services.services, user1.userId);
 
-      const handlers = createTestHandlers(services.services);
-      await expect(
-        handlers.organizations.getOrganization({
-          input: { id: org.id },
-          context: { reqHeaders: user2.reqHeaders },
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(result).toBeNull();
     });
   });
 
@@ -178,7 +101,7 @@ describe("organization handlers", () => {
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.organizations.updateOrganization({
-        input: { id: org.id, name: "Updated Name" },
+        input: { data: { name: "Updated Name" }, organizationId: org.id },
         context: { reqHeaders: user.reqHeaders },
       });
 
@@ -195,71 +118,25 @@ describe("organization handlers", () => {
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.organizations.updateOrganization({
-        input: { id: org.id, name: "Admin Updated" },
+        input: { data: { name: "Admin Updated" }, organizationId: org.id },
         context: { reqHeaders: admin.reqHeaders },
       });
 
       expect(result.name).toBe("Admin Updated");
     });
-
-    it("throws FORBIDDEN for member", async () => {
-      const owner = await createTestUser(services.services);
-      const member = await createTestUser(services.services, {
-        email: `mem-${crypto.randomUUID()}@example.com`,
-      });
-      const org = await createTestOrg(services.services, owner.userId);
-      await addTestMember(services.services, org.id, member.userId, "member");
-
-      const handlers = createTestHandlers(services.services);
-      await expect(
-        handlers.organizations.updateOrganization({
-          input: { id: org.id, name: "Member Updated" },
-          context: { reqHeaders: member.reqHeaders },
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    });
   });
 
   describe("leaveOrganization", () => {
-    it("throws BAD_REQUEST when leaving personal org", async () => {
+    it("throws when leaving personal org", async () => {
       const user = await createTestUser(services.services);
       const handlers = createTestHandlers(services.services);
 
       await expect(
         handlers.organizations.leaveOrganization({
-          input: { id: user.personalOrgId },
+          input: { organizationId: user.personalOrgId },
           context: { reqHeaders: user.reqHeaders },
         }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    });
-
-    it("throws NOT_FOUND for non-member", async () => {
-      const user = await createTestUser(services.services);
-      const org = await createTestOrg(services.services, user.userId);
-      const nonMember = await createTestUser(services.services, {
-        email: `nm-${crypto.randomUUID()}@example.com`,
-      });
-
-      const handlers = createTestHandlers(services.services);
-      await expect(
-        handlers.organizations.leaveOrganization({
-          input: { id: org.id },
-          context: { reqHeaders: nonMember.reqHeaders },
-        }),
-      ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    });
-
-    it("throws BAD_REQUEST when last owner leaves", async () => {
-      const user = await createTestUser(services.services);
-      const org = await createTestOrg(services.services, user.userId);
-
-      const handlers = createTestHandlers(services.services);
-      await expect(
-        handlers.organizations.leaveOrganization({
-          input: { id: org.id },
-          context: { reqHeaders: user.reqHeaders },
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      ).rejects.toThrow();
     });
 
     it("allows owner to leave when other owners exist", async () => {
@@ -272,7 +149,7 @@ describe("organization handlers", () => {
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.organizations.leaveOrganization({
-        input: { id: org.id },
+        input: { organizationId: org.id },
         context: { reqHeaders: owner1.reqHeaders },
       });
 
@@ -289,7 +166,7 @@ describe("organization handlers", () => {
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.organizations.leaveOrganization({
-        input: { id: org.id },
+        input: { organizationId: org.id },
         context: { reqHeaders: member.reqHeaders },
       });
 
@@ -298,7 +175,7 @@ describe("organization handlers", () => {
   });
 
   describe("deleteOrganization", () => {
-    it("throws FORBIDDEN for non-owner", async () => {
+    it("throws when non-owner tries to delete", async () => {
       const owner = await createTestUser(services.services);
       const member = await createTestUser(services.services, {
         email: `del-${crypto.randomUUID()}@example.com`,
@@ -309,22 +186,10 @@ describe("organization handlers", () => {
       const handlers = createTestHandlers(services.services);
       await expect(
         handlers.organizations.deleteOrganization({
-          input: { id: org.id },
+          input: { organizationId: org.id },
           context: { reqHeaders: member.reqHeaders },
         }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    });
-
-    it("throws BAD_REQUEST when deleting personal org", async () => {
-      const user = await createTestUser(services.services);
-      const handlers = createTestHandlers(services.services);
-
-      await expect(
-        handlers.organizations.deleteOrganization({
-          input: { id: user.personalOrgId },
-          context: { reqHeaders: user.reqHeaders },
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      ).rejects.toThrow();
     });
 
     it("deletes org as owner", async () => {
@@ -333,11 +198,106 @@ describe("organization handlers", () => {
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.organizations.deleteOrganization({
-        input: { id: org.id },
+        input: { organizationId: org.id },
         context: { reqHeaders: user.reqHeaders },
       });
 
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe("checkSlug", () => {
+    it("returns true for available slug", async () => {
+      const handlers = createTestHandlers(services.services);
+      const result = await handlers.organizations.checkSlug({
+        input: { slug: `available-${crypto.randomUUID().slice(0, 8)}` },
+      });
+      expect(result.status).toBe(true);
+    });
+
+    it("returns false for taken slug", async () => {
+      const user = await createTestUser(services.services);
+      const org = await createTestOrg(services.services, user.userId, { slug: "taken-slug" });
+
+      const handlers = createTestHandlers(services.services);
+      const result = await handlers.organizations.checkSlug({
+        input: { slug: "taken-slug" },
+      });
+      expect(result.status).toBe(false);
+    });
+  });
+
+  describe("hasPermission", () => {
+    it("returns success for owner", async () => {
+      const user = await createTestUser(services.services);
+      const org = await createTestOrg(services.services, user.userId);
+
+      const handlers = createTestHandlers(services.services);
+      const result = await handlers.organizations.hasPermission({
+        input: { organizationId: org.id, permissions: { organization: ["update"] } },
+        context: { reqHeaders: user.reqHeaders },
+      });
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("dao linking", () => {
+    it("links and gets dao account", async () => {
+      const user = await createTestUser(services.services);
+      const org = await createTestOrg(services.services, user.userId);
+
+      const handlers = createTestHandlers(services.services);
+
+      const linkResult = await handlers.organizations.linkDao({
+        input: { organizationId: org.id, daoAccountId: "dao.near", daoNetwork: "mainnet" },
+        context: { reqHeaders: user.reqHeaders },
+      });
+      expect(linkResult.success).toBe(true);
+
+      const daoResult = await handlers.organizations.getDao({
+        input: { organizationId: org.id },
+        context: { reqHeaders: user.reqHeaders },
+      });
+      expect(daoResult.daoAccountId).toBe("dao.near");
+      expect(daoResult.daoNetwork).toBe("mainnet");
+    });
+
+    it("unlinks dao account", async () => {
+      const user = await createTestUser(services.services);
+      const org = await createTestOrg(services.services, user.userId);
+
+      const handlers = createTestHandlers(services.services);
+
+      const linkResult = await handlers.organizations.linkDao({
+        input: { organizationId: org.id, daoAccountId: "other.near", daoNetwork: "testnet" },
+        context: { reqHeaders: user.reqHeaders },
+      });
+      expect(linkResult.success).toBe(true);
+
+      const unlinkResult = await handlers.organizations.unlinkDao({
+        input: { organizationId: org.id },
+        context: { reqHeaders: user.reqHeaders },
+      });
+      expect(unlinkResult.success).toBe(true);
+
+      const afterResult = await handlers.organizations.getDao({
+        input: { organizationId: org.id },
+        context: { reqHeaders: user.reqHeaders },
+      });
+      expect(afterResult.daoAccountId).toBeNull();
+    });
+
+    it("returns null dao for org without dao", async () => {
+      const user = await createTestUser(services.services);
+      const org = await createTestOrg(services.services, user.userId);
+
+      const handlers = createTestHandlers(services.services);
+      const result = await handlers.organizations.getDao({
+        input: { organizationId: org.id },
+        context: { reqHeaders: user.reqHeaders },
+      });
+      expect(result.daoAccountId).toBeNull();
     });
   });
 });

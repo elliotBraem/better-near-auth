@@ -199,7 +199,7 @@ function OrganizationDetail() {
     },
   });
 
-  const resendInvitationMutation = useMutation({
+  const resendInviteMutation = useMutation({
     mutationFn: async (invitation: InvitationItem) => {
       const { error } = await auth.organization.inviteMember({
         organizationId: orgId,
@@ -579,11 +579,11 @@ function OrganizationDetail() {
                     }
                     onResend={
                       canManageMembers
-                        ? () => resendInvitationMutation.mutate(invitation)
+                        ? () => resendInviteMutation.mutate(invitation)
                         : undefined
                     }
                     isCancelling={cancelInvitationMutation.isPending}
-                    isResending={resendInvitationMutation.isPending}
+                    isResending={resendInviteMutation.isPending}
                   />
                 ))}
               </div>
