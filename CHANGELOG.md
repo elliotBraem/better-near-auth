@@ -1,5 +1,11 @@
 # better-near-auth
 
+## 1.8.2
+
+### Patch Changes
+
+- [#66](https://github.com/elliotBraem/better-near-auth/pull/66) [`a75857a`](https://github.com/elliotBraem/better-near-auth/commit/a75857ab38360357772c851a77646a6e385cbfa9) Thanks [@elliotBraem](https://github.com/elliotBraem)! - fix: notify session signal after signIn.near and near.link to trigger automatic session refetch
+
 ## 1.8.1
 
 ### Patch Changes
