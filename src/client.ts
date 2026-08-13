@@ -363,6 +363,21 @@ export const siwnClient = (config: SIWNClientConfig) => {
 		getActions: ($fetch: BetterFetch, $store: ClientStore, _options: unknown): SIWNClientActions => {
 			void initClient($fetch);
 
+			const sessionAtom = $store.atoms?.session;
+			if (sessionAtom) {
+				sessionAtom.subscribe(() => {
+					const sessionData = sessionAtom.get()?.data ?? null;
+					if (sessionData === null) {
+						for (const [_net, conn] of connectors) {
+							void conn?.disconnect().catch(() => {});
+						}
+						walletConnected.set(false);
+						nearState.set(null);
+						sessionRestored = false;
+					}
+				});
+			}
+
 			return {
 				near: {
 					nonce: async (params: NonceRequestT, fetchOptions?: BetterFetchOption) => {
@@ -453,6 +468,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 						}
 						walletConnected.set(false);
 						nearState.set(null);
+						sessionRestored = false;
 					},
 					link: async (callbacks?: AuthCallbacks) => {
 						const net = activeNetwork.get();
