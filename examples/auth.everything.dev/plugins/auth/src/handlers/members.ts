@@ -1,8 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { ORPCError } from "every-plugin/orpc";
-import type { PluginServices } from "../service-types";
-import * as schema from "../db/schema";
 import { createHeaders, safeAuthApi } from "../utils";
+import type { PluginServices } from "../service-types";
 
 export function createMemberHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
@@ -28,133 +25,117 @@ export function createMemberHandlers(services: PluginServices, builder: any, req
         };
       }),
 
-    listMembers: builder.listMembers.use(requireAuth).handler(async ({ input }: { input: any }) => {
-      const members = await services.db.query.member.findMany({
-        where: eq(schema.member.organizationId, input.organizationId),
-        with: { user: true },
-      });
-      return members.map((m) => ({
-        id: m.id,
-        userId: m.userId,
-        organizationId: m.organizationId,
-        role: m.role,
-        createdAt: m.createdAt,
-        user: m.user
-          ? {
-              id: m.user.id,
-              name: m.user.name,
-              email: m.user.email,
-              image: m.user.image,
-            }
-          : null,
-      }));
-    }),
+    getActiveMemberRole: builder.getActiveMemberRole
+      .use(requireAuth)
+      .handler(async ({ input, context }: { input: any; context: any }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.getActiveMemberRole({
+            headers: createHeaders(context.reqHeaders),
+            query: input?.organizationId ? { organizationId: input.organizationId } : undefined,
+          }),
+        );
+        const role = typeof result === "string" ? result : (result as any)?.role ?? null;
+        return { role };
+      }),
+
+    listMembers: builder.listMembers
+      .use(requireAuth)
+      .handler(async ({ input, context }: { input: any; context: any }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.listMembers({
+            headers: createHeaders(context.reqHeaders),
+            query: {
+              organizationId: input.organizationId,
+              limit: input.limit,
+              offset: input.offset,
+            },
+          }),
+        );
+        return {
+          members: (result.members ?? []).map((m: any) => ({
+            id: m.id,
+            userId: m.userId,
+            organizationId: m.organizationId,
+            role: m.role,
+            createdAt:
+              m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
+            user: m.user
+              ? {
+                  id: m.user.id,
+                  name: m.user.name,
+                  email: m.user.email,
+                  image: m.user.image,
+                }
+              : null,
+          })),
+          total: result.total,
+        };
+      }),
+
+    addMember: builder.addMember
+      .use(requireAuth)
+      .handler(async ({ input, context }: { input: any; context: any }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.addMember({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              userId: input.userId,
+              role: input.role,
+              organizationId: input.organizationId,
+            },
+          }),
+        );
+        return {
+          id: result.id,
+          userId: result.userId,
+          organizationId: result.organizationId,
+          role: result.role,
+          createdAt:
+            result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
+        };
+      }),
 
     removeMember: builder.removeMember
       .use(requireAuth)
       .handler(async ({ input, context }: { input: any; context: any }) => {
-        const myMembership = await services.db.query.member.findFirst({
-          where: and(
-            eq(schema.member.userId, context.userId),
-            eq(schema.member.organizationId, input.organizationId),
-          ),
-        });
-        if (!myMembership || (myMembership.role !== "owner" && myMembership.role !== "admin")) {
-          throw new ORPCError("FORBIDDEN", { message: "Insufficient permissions" });
-        }
-
-        const targetMember = await services.db.query.member.findFirst({
-          where: and(
-            eq(schema.member.id, input.id),
-            eq(schema.member.organizationId, input.organizationId),
-          ),
-        });
-        if (!targetMember) {
-          throw new ORPCError("NOT_FOUND", { message: "Member not found" });
-        }
-
-        if (targetMember.userId === context.userId && targetMember.role === "owner") {
-          const otherOwners = await services.db.query.member.findMany({
-            where: and(
-              eq(schema.member.organizationId, input.organizationId),
-              eq(schema.member.role, "owner"),
-            ),
-          });
-          if (otherOwners.length <= 1) {
-            throw new ORPCError("BAD_REQUEST", { message: "Cannot remove the last owner" });
-          }
-        }
-
-        if (targetMember.role !== "member" && myMembership.role !== "owner") {
-          throw new ORPCError("FORBIDDEN", { message: "Only owners can remove admins" });
-        }
-
-        await services.db.delete(schema.member).where(eq(schema.member.id, input.id));
+        await safeAuthApi(() =>
+          services.auth.api.removeMember({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              memberIdOrEmail: input.memberIdOrEmail,
+              organizationId: input.organizationId,
+            },
+          }),
+        );
         return { success: true };
       }),
 
     updateMemberRole: builder.updateMemberRole
       .use(requireAuth)
       .handler(async ({ input, context }: { input: any; context: any }) => {
-        const myMembership = await services.db.query.member.findFirst({
-          where: and(
-            eq(schema.member.userId, context.userId),
-            eq(schema.member.organizationId, input.organizationId),
-          ),
-        });
-        if (!myMembership || (myMembership.role !== "owner" && myMembership.role !== "admin")) {
-          throw new ORPCError("FORBIDDEN", { message: "Insufficient permissions" });
-        }
-
-        const targetMember = await services.db.query.member.findFirst({
-          where: and(
-            eq(schema.member.id, input.id),
-            eq(schema.member.organizationId, input.organizationId),
-          ),
-          with: { user: true },
-        });
-        if (!targetMember) {
-          throw new ORPCError("NOT_FOUND", { message: "Member not found" });
-        }
-
-        if (input.role === "owner" && myMembership.role !== "owner") {
-          throw new ORPCError("FORBIDDEN", { message: "Only owners can assign owner role" });
-        }
-
-        if (targetMember.role === "owner" && input.role !== "owner") {
-          const otherOwners = await services.db.query.member.findMany({
-            where: and(
-              eq(schema.member.organizationId, input.organizationId),
-              eq(schema.member.role, "owner"),
-            ),
-          });
-          if (otherOwners.length <= 1) {
-            throw new ORPCError("BAD_REQUEST", { message: "Cannot demote the last owner" });
-          }
-        }
-
-        await services.db
-          .update(schema.member)
-          .set({ role: input.role })
-          .where(eq(schema.member.id, input.id));
-
-        const updated = await services.db.query.member.findFirst({
-          where: eq(schema.member.id, input.id),
-          with: { user: true },
-        });
-
+        const result = await safeAuthApi(() =>
+          services.auth.api.updateMemberRole({
+            headers: createHeaders(context.reqHeaders),
+            body: {
+              role: input.role,
+              memberId: input.memberId,
+              organizationId: input.organizationId,
+            },
+          }),
+        );
         return {
-          id: updated!.id,
-          userId: updated!.userId,
-          organizationId: updated!.organizationId,
-          role: updated!.role,
-          createdAt: updated!.createdAt,
-          user: updated!.user
+          id: result.id,
+          userId: result.userId,
+          organizationId: result.organizationId,
+          role: result.role,
+          createdAt:
+            result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
+          user: result.user
             ? {
-                id: updated!.user.id,
-                name: updated!.user.name,
-                email: updated!.user.email,
-                image: updated!.user.image,
+                id: result.user.id,
+                name: result.user.name,
+                email: result.user.email,
+                image: result.user.image,
               }
             : null,
         };

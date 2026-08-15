@@ -1,9 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { ORPCError } from "every-plugin/orpc";
-import { z } from "every-plugin/zod";
+import { createHeaders, safeAuthApi } from "../utils";
 import type { PluginServices } from "../service-types";
-import * as schema from "../db/schema";
-import { createHeaders, safeAuthApi, tryJsonParse } from "../utils";
 
 export function createInvitationHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
@@ -27,50 +23,76 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
           email: result.email,
           role: result.role,
           status: result.status,
-          expiresAt: result.expiresAt,
+          expiresAt:
+            result.expiresAt instanceof Date ? result.expiresAt : new Date(result.expiresAt),
           inviterId: result.inviterId,
         };
       }),
 
-    getInvitation: builder.getInvitation.handler(async ({ input }: { input: any }) => {
-      const invitation = await services.db.query.invitation.findFirst({
-        where: eq(schema.invitation.id, input.id),
-        with: { organization: true },
-      });
-      if (!invitation) return null;
+    getInvitation: builder.getInvitation.handler(async ({ input, context }: { input: any; context: any }) => {
+      try {
+        const invitation = await services.auth.api.getInvitation({
+          headers: createHeaders(context.reqHeaders ?? {}),
+          query: { id: input.id },
+        });
+        if (!invitation) return null;
       return {
         id: invitation.id,
         organizationId: invitation.organizationId,
         email: invitation.email,
         role: invitation.role,
         status: invitation.status,
-        expiresAt: invitation.expiresAt,
+        expiresAt:
+          invitation.expiresAt instanceof Date ? invitation.expiresAt : new Date(invitation.expiresAt),
         inviterId: invitation.inviterId,
-        organization: invitation.organization
-          ? {
-              id: invitation.organization.id,
-              name: invitation.organization.name,
-              slug: invitation.organization.slug,
-              logo: invitation.organization.logo,
-              metadata: tryJsonParse<Record<string, unknown>>(invitation.organization.metadata),
-            }
-          : null,
+        organizationName: invitation.organizationName,
+        organizationSlug: invitation.organizationSlug,
+        inviterEmail: invitation.inviterEmail,
       };
+      } catch {
+        return null;
+      }
     }),
 
     listInvitations: builder.listInvitations
       .use(requireAuth)
-      .handler(async ({ input }: { input: any }) => {
-        const invitations = await services.db.query.invitation.findMany({
-          where: eq(schema.invitation.organizationId, input.organizationId),
-        });
-        return invitations.map((inv) => ({
+      .handler(async ({ input, context }: { input: any; context: any }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.listInvitations({
+            headers: createHeaders(context.reqHeaders),
+            query: {
+              organizationId: input.organizationId,
+            },
+          }),
+        );
+        return (result ?? []).map((inv: any) => ({
           id: inv.id,
           organizationId: inv.organizationId,
           email: inv.email,
           role: inv.role,
           status: inv.status,
-          expiresAt: inv.expiresAt,
+          expiresAt:
+            inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
+          inviterId: inv.inviterId,
+        }));
+      }),
+
+    listUserInvitations: builder.listUserInvitations
+      .use(requireAuth)
+      .handler(async ({ context }: { context: any }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.listUserInvitations({
+            headers: createHeaders(context.reqHeaders),
+          }),
+        );
+        return (result ?? []).map((inv: any) => ({
+          id: inv.id,
+          organizationId: inv.organizationId,
+          email: inv.email,
+          role: inv.role,
+          status: inv.status,
+          expiresAt:
+            inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
           inviterId: inv.inviterId,
         }));
       }),
@@ -78,62 +100,13 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
     cancelInvitation: builder.cancelInvitation
       .use(requireAuth)
       .handler(async ({ input, context }: { input: any; context: any }) => {
-        const invitation = await services.db.query.invitation.findFirst({
-          where: eq(schema.invitation.id, input.id),
-        });
-
-        if (!invitation) {
-          throw new ORPCError("NOT_FOUND", { message: "Invitation not found" });
-        }
-
-        const membership = await services.db.query.member.findFirst({
-          where: and(
-            eq(schema.member.userId, context.userId),
-            eq(schema.member.organizationId, invitation.organizationId),
-          ),
-        });
-
-        if (!membership) {
-          throw new ORPCError("FORBIDDEN", { message: "Not a member of this organization" });
-        }
-
-        await services.db.delete(schema.invitation).where(eq(schema.invitation.id, input.id));
-        return { success: true };
-      }),
-
-    resendInvitation: builder.resendInvitation
-      .use(requireAuth)
-      .handler(async ({ input, context }: { input: any; context: any }) => {
-        const invitation = await services.db.query.invitation.findFirst({
-          where: eq(schema.invitation.id, input.id),
-        });
-
-        if (!invitation) {
-          throw new ORPCError("NOT_FOUND", { message: "Invitation not found" });
-        }
-
-        const headers = createHeaders(context.reqHeaders);
-
-        const roleParse = z
-          .enum(["member", "owner", "admin"])
-          .safeParse(invitation.role ?? "member");
-        if (!roleParse.success) {
-          throw new ORPCError("BAD_REQUEST", { message: "Invalid invitation role" });
-        }
-
         await safeAuthApi(() =>
-          services.auth.api.createInvitation({
-            headers,
-            body: {
-              email: invitation.email,
-              role: roleParse.data,
-              organizationId: invitation.organizationId,
-              resend: true,
-            },
+          services.auth.api.cancelInvitation({
+            headers: createHeaders(context.reqHeaders),
+            body: { invitationId: input.invitationId },
           }),
         );
-
-        return { sent: true };
+        return { success: true };
       }),
 
     acceptInvitation: builder.acceptInvitation
@@ -142,7 +115,7 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
         await safeAuthApi(() =>
           services.auth.api.acceptInvitation({
             headers: createHeaders(context.reqHeaders),
-            body: { invitationId: input.id },
+            body: { invitationId: input.invitationId },
           }),
         );
         return { success: true };
@@ -154,7 +127,7 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
         await safeAuthApi(() =>
           services.auth.api.rejectInvitation({
             headers: createHeaders(context.reqHeaders),
-            body: { invitationId: input.id },
+            body: { invitationId: input.invitationId },
           }),
         );
         return { success: true };

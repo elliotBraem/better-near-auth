@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 
 type OrgMembersResult = Awaited<ReturnType<ApiClient["auth"]["listMembers"]>>;
-type MemberItem = OrgMembersResult[number];
+type MemberItem = OrgMembersResult["members"][number];
 
 interface MemberCardProps {
   member: MemberItem;
