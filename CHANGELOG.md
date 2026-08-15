@@ -1,5 +1,13 @@
 # better-near-auth
 
+## 1.8.3
+
+### Patch Changes
+
+- [#69](https://github.com/elliotBraem/better-near-auth/pull/69) [`c40b475`](https://github.com/elliotBraem/better-near-auth/commit/c40b475abae935f8de693a3b2d3120021f701ae5) Thanks [@elliotBraem](https://github.com/elliotBraem)! - fix: clear NEAR wallet state when session ends and reset session restore flag on disconnect
+
+- [#68](https://github.com/elliotBraem/better-near-auth/pull/68) [`4357bf6`](https://github.com/elliotBraem/better-near-auth/commit/4357bf62bc859cc1f44aeaa69df4839fed62a9bb) Thanks [@elliotBraem](https://github.com/elliotBraem)! - feat: teams API with CRUD operations and integration tests; refactor org/member/invitation handlers to use auth API instead of direct DB access
+
 ## 1.8.2
 
 ### Patch Changes
