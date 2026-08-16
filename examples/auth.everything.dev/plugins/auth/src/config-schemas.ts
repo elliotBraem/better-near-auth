@@ -35,6 +35,7 @@ export const subAccountNetworkSchema = z.object({
 export const relayerEphemeralSchema = z.object({
   accountId: z.never().optional(),
   privateKey: z.never().optional(),
+  ephemeral: z.literal(true).optional(),
   whitelistedContracts: z.array(z.string()).optional(),
   maxGasPerTransaction: z.string().optional(),
   maxDepositPerTransaction: z.string().optional(),

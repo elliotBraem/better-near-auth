@@ -9,6 +9,7 @@ export interface AuthPasskeyConfig {
 export interface AuthRelayerEphemeralConfig {
   accountId?: never;
   privateKey?: never;
+  ephemeral?: true;
   whitelistedContracts?: string[];
   maxGasPerTransaction?: string;
   maxDepositPerTransaction?: string;

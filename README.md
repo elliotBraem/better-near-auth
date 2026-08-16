@@ -54,11 +54,12 @@ npm install better-near-auth
     **Relayer Configuration Options:**
 
     ```ts
-    // Ephemeral mode (default) - auto-generated keypair
+    // Ephemeral mode (simplest) - auto-generated keypair
     relayer: true
 
-    // Ephemeral with custom settings
+    // Ephemeral mode (explicit) - same as above with custom settings
     relayer: {
+      ephemeral: true,
       whitelistedContracts: ["myapp.near"],
       maxGasPerTransaction: "300000000000000",
       maxDepositPerTransaction: "0",

@@ -108,6 +108,7 @@ function buildListAccountsResponse(nearAccounts: NearAccount[]): ListAccountsRes
 interface RelayerEphemeralConfig {
 	accountId?: never;
 	privateKey?: never;
+	ephemeral?: true;
 	whitelistedContracts?: string[];
 	maxGasPerTransaction?: string;
 	maxDepositPerTransaction?: string;
