@@ -13,7 +13,7 @@ requires:
 metadata:
   type: framework
   library: better-near-auth
-  library_version: "1.8.3"
+  library_version: "1.9.0"
 sources:
   - "elliotBraem/better-near-auth:src/client.ts"
   - "elliotBraem/better-near-auth:examples/auth.everything.dev/ui/src/lib/auth.ts"

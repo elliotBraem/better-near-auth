@@ -1,5 +1,18 @@
 # better-near-auth
 
+## 1.9.0
+
+### Minor Changes
+
+- [`8f08d21`](https://github.com/elliotBraem/better-near-auth/commit/8f08d216a7b80a54c4a9af0f432621bd0943f460) Thanks [@elliotBraem](https://github.com/elliotBraem)! - feat: redesign relayer configuration with true shorthand and per-network support
+
+  - Add `relayer: true` shorthand for ephemeral mode (simplest API)
+  - Support per-network relayer configs (`{ mainnet, testnet }`)
+  - Strengthen Zod schema validation for relayer configs
+  - Fix bug in buildRelayerConfig() that prevented ephemeral mode from initializing
+  - Add startup warnings for relayer initialization failures
+  - Update documentation with new configuration examples
+
 ## 1.8.3
 
 ### Patch Changes
