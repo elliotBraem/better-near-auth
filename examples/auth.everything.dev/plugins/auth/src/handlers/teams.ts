@@ -1,5 +1,5 @@
-import { createHeaders, safeAuthApi } from "../utils";
 import type { PluginServices } from "../service-types";
+import { createHeaders, safeAuthApi } from "../utils";
 
 export function createTeamHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
@@ -22,7 +22,11 @@ export function createTeamHandlers(services: PluginServices, builder: any, requi
           createdAt:
             result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt as any),
           updatedAt:
-            result.updatedAt instanceof Date ? result.updatedAt : (result.updatedAt ? new Date(result.updatedAt as any) : new Date()),
+            result.updatedAt instanceof Date
+              ? result.updatedAt
+              : result.updatedAt
+                ? new Date(result.updatedAt as any)
+                : new Date(),
         };
       }),
 
@@ -50,7 +54,11 @@ export function createTeamHandlers(services: PluginServices, builder: any, requi
           createdAt:
             result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt as any),
           updatedAt:
-            result.updatedAt instanceof Date ? result.updatedAt : (result.updatedAt ? new Date(result.updatedAt as any) : new Date()),
+            result.updatedAt instanceof Date
+              ? result.updatedAt
+              : result.updatedAt
+                ? new Date(result.updatedAt as any)
+                : new Date(),
         };
       }),
 
@@ -84,10 +92,8 @@ export function createTeamHandlers(services: PluginServices, builder: any, requi
           id: t.id,
           name: t.name,
           organizationId: t.organizationId,
-          createdAt:
-            t.createdAt instanceof Date ? t.createdAt : new Date(t.createdAt),
-          updatedAt:
-            t.updatedAt instanceof Date ? t.updatedAt : new Date(t.updatedAt),
+          createdAt: t.createdAt instanceof Date ? t.createdAt : new Date(t.createdAt),
+          updatedAt: t.updatedAt instanceof Date ? t.updatedAt : new Date(t.updatedAt),
         }));
       }),
 
@@ -106,8 +112,7 @@ export function createTeamHandlers(services: PluginServices, builder: any, requi
           id: tm.id,
           teamId: tm.teamId,
           userId: tm.userId,
-          createdAt:
-            tm.createdAt instanceof Date ? tm.createdAt : new Date(tm.createdAt),
+          createdAt: tm.createdAt instanceof Date ? tm.createdAt : new Date(tm.createdAt),
         }));
       }),
 

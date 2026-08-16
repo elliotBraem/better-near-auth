@@ -89,15 +89,20 @@ function LoginPage() {
 
   useEffect(() => {
     let cancelled = false;
-    auth.near.detectNearAccount().then((result) => {
-      if (!cancelled) {
-        setDetectedAccount(result);
-        setCheckingWallet(false);
-      }
-    }).catch(() => {
-      if (!cancelled) setCheckingWallet(false);
-    });
-    return () => { cancelled = true; };
+    auth.near
+      .detectNearAccount()
+      .then((result) => {
+        if (!cancelled) {
+          setDetectedAccount(result);
+          setCheckingWallet(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCheckingWallet(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [auth]);
 
   const handleSuccess = useCallback(
@@ -597,13 +602,15 @@ function LoginPage() {
       <div className="w-full max-w-sm space-y-8">
         {!checkingWallet && detectedAccount && (
           <div className="rounded-lg border border-green-600 bg-green-600/10 p-4 space-y-3">
-            <p className="text-xs text-muted-foreground text-center">
-              Connected wallet detected
-            </p>
+            <p className="text-xs text-muted-foreground text-center">Connected wallet detected</p>
             <p className="text-base font-mono text-center text-green-600">
               {detectedAccount.accountId}
             </p>
-            <Button onClick={handleNear} disabled={isPending} className="w-full bg-green-600 hover:bg-green-700 text-white">
+            <Button
+              onClick={handleNear}
+              disabled={isPending}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
               {isPending ? "connecting..." : "Continue with NEAR"}
             </Button>
             <p className="text-xs text-muted-foreground text-center">

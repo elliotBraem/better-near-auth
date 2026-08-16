@@ -1,5 +1,5 @@
-import { createHeaders, safeAuthApi } from "../utils";
 import type { PluginServices } from "../service-types";
+import { createHeaders, safeAuthApi } from "../utils";
 
 export function createInvitationHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
@@ -29,30 +29,34 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
         };
       }),
 
-    getInvitation: builder.getInvitation.handler(async ({ input, context }: { input: any; context: any }) => {
-      try {
-        const invitation = await services.auth.api.getInvitation({
-          headers: createHeaders(context.reqHeaders ?? {}),
-          query: { id: input.id },
-        });
-        if (!invitation) return null;
-      return {
-        id: invitation.id,
-        organizationId: invitation.organizationId,
-        email: invitation.email,
-        role: invitation.role,
-        status: invitation.status,
-        expiresAt:
-          invitation.expiresAt instanceof Date ? invitation.expiresAt : new Date(invitation.expiresAt),
-        inviterId: invitation.inviterId,
-        organizationName: invitation.organizationName,
-        organizationSlug: invitation.organizationSlug,
-        inviterEmail: invitation.inviterEmail,
-      };
-      } catch {
-        return null;
-      }
-    }),
+    getInvitation: builder.getInvitation.handler(
+      async ({ input, context }: { input: any; context: any }) => {
+        try {
+          const invitation = await services.auth.api.getInvitation({
+            headers: createHeaders(context.reqHeaders ?? {}),
+            query: { id: input.id },
+          });
+          if (!invitation) return null;
+          return {
+            id: invitation.id,
+            organizationId: invitation.organizationId,
+            email: invitation.email,
+            role: invitation.role,
+            status: invitation.status,
+            expiresAt:
+              invitation.expiresAt instanceof Date
+                ? invitation.expiresAt
+                : new Date(invitation.expiresAt),
+            inviterId: invitation.inviterId,
+            organizationName: invitation.organizationName,
+            organizationSlug: invitation.organizationSlug,
+            inviterEmail: invitation.inviterEmail,
+          };
+        } catch {
+          return null;
+        }
+      },
+    ),
 
     listInvitations: builder.listInvitations
       .use(requireAuth)
@@ -71,8 +75,7 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
           email: inv.email,
           role: inv.role,
           status: inv.status,
-          expiresAt:
-            inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
+          expiresAt: inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
           inviterId: inv.inviterId,
         }));
       }),
@@ -91,8 +94,7 @@ export function createInvitationHandlers(services: PluginServices, builder: any,
           email: inv.email,
           role: inv.role,
           status: inv.status,
-          expiresAt:
-            inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
+          expiresAt: inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
           inviterId: inv.inviterId,
         }));
       }),

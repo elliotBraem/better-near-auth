@@ -111,7 +111,12 @@ describe("member handlers", () => {
       });
       const org = await createTestOrg(services.services, owner.userId);
       await addTestMember(services.services, org.id, admin.userId, "admin");
-      const memberMemberId = await addTestMember(services.services, org.id, member.userId, "member");
+      const memberMemberId = await addTestMember(
+        services.services,
+        org.id,
+        member.userId,
+        "member",
+      );
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.members.removeMember({
@@ -130,7 +135,12 @@ describe("member handlers", () => {
         email: `up-${crypto.randomUUID()}@example.com`,
       });
       const org = await createTestOrg(services.services, owner.userId);
-      const memberMemberId = await addTestMember(services.services, org.id, member.userId, "member");
+      const memberMemberId = await addTestMember(
+        services.services,
+        org.id,
+        member.userId,
+        "member",
+      );
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.members.updateMemberRole({
@@ -151,7 +161,12 @@ describe("member handlers", () => {
       });
       const org = await createTestOrg(services.services, owner.userId);
       await addTestMember(services.services, org.id, admin.userId, "admin");
-      const memberMemberId = await addTestMember(services.services, org.id, member.userId, "member");
+      const memberMemberId = await addTestMember(
+        services.services,
+        org.id,
+        member.userId,
+        "member",
+      );
 
       const handlers = createTestHandlers(services.services);
       await expect(

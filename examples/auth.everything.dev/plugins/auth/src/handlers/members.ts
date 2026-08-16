@@ -1,5 +1,5 @@
-import { createHeaders, safeAuthApi } from "../utils";
 import type { PluginServices } from "../service-types";
+import { createHeaders, safeAuthApi } from "../utils";
 
 export function createMemberHandlers(services: PluginServices, builder: any, requireAuth: any) {
   return {
@@ -34,7 +34,7 @@ export function createMemberHandlers(services: PluginServices, builder: any, req
             query: input?.organizationId ? { organizationId: input.organizationId } : undefined,
           }),
         );
-        const role = typeof result === "string" ? result : (result as any)?.role ?? null;
+        const role = typeof result === "string" ? result : ((result as any)?.role ?? null);
         return { role };
       }),
 
@@ -57,8 +57,7 @@ export function createMemberHandlers(services: PluginServices, builder: any, req
             userId: m.userId,
             organizationId: m.organizationId,
             role: m.role,
-            createdAt:
-              m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
+            createdAt: m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
             user: m.user
               ? {
                   id: m.user.id,

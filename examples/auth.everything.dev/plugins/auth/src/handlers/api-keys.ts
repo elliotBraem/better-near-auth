@@ -1,6 +1,6 @@
 import { ORPCError } from "every-plugin/orpc";
-import type { PluginServices } from "../service-types";
 import { API_KEY_CONFIG_IDS } from "../config-schemas";
+import type { PluginServices } from "../service-types";
 import { createHeaders, safeAuthApi } from "../utils";
 
 export function createApiKeyHandlers(services: PluginServices, builder: any, requireAuth: any) {

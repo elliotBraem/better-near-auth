@@ -1,10 +1,14 @@
 import { eq } from "drizzle-orm";
 import { ORPCError } from "every-plugin/orpc";
-import type { PluginServices } from "../service-types";
 import * as schema from "../db/schema";
+import type { PluginServices } from "../service-types";
 import { createHeaders, safeAuthApi, tryJsonParse } from "../utils";
 
-export function createOrganizationHandlers(services: PluginServices, builder: any, requireAuth: any) {
+export function createOrganizationHandlers(
+  services: PluginServices,
+  builder: any,
+  requireAuth: any,
+) {
   return {
     listOrganizations: builder.listOrganizations
       .use(requireAuth)
@@ -22,9 +26,8 @@ export function createOrganizationHandlers(services: PluginServices, builder: an
           metadata:
             typeof org.metadata === "string"
               ? tryJsonParse<Record<string, unknown>>(org.metadata)
-              : (org.metadata as Record<string, unknown> | null | undefined) ?? null,
-          createdAt:
-            org.createdAt instanceof Date ? org.createdAt : new Date(org.createdAt),
+              : ((org.metadata as Record<string, unknown> | null | undefined) ?? null),
+          createdAt: org.createdAt instanceof Date ? org.createdAt : new Date(org.createdAt),
         }));
       }),
 
@@ -41,51 +44,47 @@ export function createOrganizationHandlers(services: PluginServices, builder: an
             },
           });
           if (!result) return null;
-        return {
-          id: result.id,
-          name: result.name,
-          slug: result.slug,
-          logo: result.logo ?? null,
-          metadata:
-            typeof result.metadata === "string"
-              ? tryJsonParse<Record<string, unknown>>(result.metadata)
-              : (result.metadata as Record<string, unknown> | null | undefined) ?? null,
-          createdAt:
-            result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
-          members: (result.members ?? []).map((m: any) => ({
-            id: m.id,
-            userId: m.userId,
-            organizationId: m.organizationId,
-            role: m.role,
+          return {
+            id: result.id,
+            name: result.name,
+            slug: result.slug,
+            logo: result.logo ?? null,
+            metadata:
+              typeof result.metadata === "string"
+                ? tryJsonParse<Record<string, unknown>>(result.metadata)
+                : ((result.metadata as Record<string, unknown> | null | undefined) ?? null),
             createdAt:
-              m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
-          })),
-          invitations: (result.invitations ?? []).map((inv: any) => ({
-            id: inv.id,
-            organizationId: inv.organizationId,
-            email: inv.email,
-            role: inv.role,
-            status: inv.status,
-            expiresAt:
-              inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
-            inviterId: inv.inviterId,
-          })),
-          teams: result.teams
-            ? result.teams.map((t: any) => ({
-                id: t.id,
-                name: t.name,
-                organizationId: t.organizationId,
-                createdAt:
-                  t.createdAt instanceof Date ? t.createdAt : new Date(t.createdAt),
-                updatedAt:
-                  t.updatedAt instanceof Date ? t.updatedAt : new Date(t.updatedAt),
-              }))
-            : undefined,
-        };
-      } catch {
-        return null;
-      }
-    }),
+              result.createdAt instanceof Date ? result.createdAt : new Date(result.createdAt),
+            members: (result.members ?? []).map((m: any) => ({
+              id: m.id,
+              userId: m.userId,
+              organizationId: m.organizationId,
+              role: m.role,
+              createdAt: m.createdAt instanceof Date ? m.createdAt : new Date(m.createdAt),
+            })),
+            invitations: (result.invitations ?? []).map((inv: any) => ({
+              id: inv.id,
+              organizationId: inv.organizationId,
+              email: inv.email,
+              role: inv.role,
+              status: inv.status,
+              expiresAt: inv.expiresAt instanceof Date ? inv.expiresAt : new Date(inv.expiresAt),
+              inviterId: inv.inviterId,
+            })),
+            teams: result.teams
+              ? result.teams.map((t: any) => ({
+                  id: t.id,
+                  name: t.name,
+                  organizationId: t.organizationId,
+                  createdAt: t.createdAt instanceof Date ? t.createdAt : new Date(t.createdAt),
+                  updatedAt: t.updatedAt instanceof Date ? t.updatedAt : new Date(t.updatedAt),
+                }))
+              : undefined,
+          };
+        } catch {
+          return null;
+        }
+      }),
 
     createOrganization: builder.createOrganization
       .use(requireAuth)
@@ -209,28 +208,30 @@ export function createOrganizationHandlers(services: PluginServices, builder: an
         return { success: result.success };
       }),
 
-    linkDao: builder.linkDao.use(requireAuth).handler(async ({ input, context }: { input: any; context: any }) => {
-      const headers = createHeaders(context.reqHeaders);
-      const org = await services.db.query.organization.findFirst({
-        where: eq(schema.organization.id, input.organizationId),
-      });
-      if (!org) throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
+    linkDao: builder.linkDao
+      .use(requireAuth)
+      .handler(async ({ input, context }: { input: any; context: any }) => {
+        const headers = createHeaders(context.reqHeaders);
+        const org = await services.db.query.organization.findFirst({
+          where: eq(schema.organization.id, input.organizationId),
+        });
+        if (!org) throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
 
-      const existingMetadata = tryJsonParse<Record<string, unknown>>(org.metadata) ?? {};
-      existingMetadata.daoAccountId = input.daoAccountId;
-      existingMetadata.daoNetwork = input.daoNetwork ?? "mainnet";
+        const existingMetadata = tryJsonParse<Record<string, unknown>>(org.metadata) ?? {};
+        existingMetadata.daoAccountId = input.daoAccountId;
+        existingMetadata.daoNetwork = input.daoNetwork ?? "mainnet";
 
-      await safeAuthApi(() =>
-        services.auth.api.updateOrganization({
-          headers,
-          body: {
-            data: { metadata: existingMetadata },
-            organizationId: input.organizationId,
-          },
-        }),
-      );
-      return { success: true };
-    }),
+        await safeAuthApi(() =>
+          services.auth.api.updateOrganization({
+            headers,
+            body: {
+              data: { metadata: existingMetadata },
+              organizationId: input.organizationId,
+            },
+          }),
+        );
+        return { success: true };
+      }),
 
     unlinkDao: builder.unlinkDao
       .use(requireAuth)
@@ -257,21 +258,24 @@ export function createOrganizationHandlers(services: PluginServices, builder: an
         return { success: true };
       }),
 
-    getDao: builder.getDao.use(requireAuth).handler(async ({ input, context }: { input: any; context: any }) => {
-      const result = await safeAuthApi(() =>
-        services.auth.api.getFullOrganization({
-          headers: createHeaders(context.reqHeaders),
-          query: { organizationId: input.organizationId },
-        }),
-      );
-      if (!result) throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
-      const metadata = (typeof result.metadata === "string"
-        ? tryJsonParse<Record<string, unknown>>(result.metadata)
-        : (result.metadata as Record<string, unknown> | null | undefined)) ?? null;
-      return {
-        daoAccountId: (metadata?.daoAccountId as string) ?? null,
-        daoNetwork: (metadata?.daoNetwork as "mainnet" | "testnet") ?? null,
-      };
-    }),
+    getDao: builder.getDao
+      .use(requireAuth)
+      .handler(async ({ input, context }: { input: any; context: any }) => {
+        const result = await safeAuthApi(() =>
+          services.auth.api.getFullOrganization({
+            headers: createHeaders(context.reqHeaders),
+            query: { organizationId: input.organizationId },
+          }),
+        );
+        if (!result) throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
+        const metadata =
+          (typeof result.metadata === "string"
+            ? tryJsonParse<Record<string, unknown>>(result.metadata)
+            : (result.metadata as Record<string, unknown> | null | undefined)) ?? null;
+        return {
+          daoAccountId: (metadata?.daoAccountId as string) ?? null,
+          daoNetwork: (metadata?.daoNetwork as "mainnet" | "testnet") ?? null,
+        };
+      }),
   };
 }

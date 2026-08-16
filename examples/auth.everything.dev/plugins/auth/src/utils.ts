@@ -36,7 +36,12 @@ export function getActiveOrganizationId(session: unknown): string | null {
 export function toORPCError(error: unknown) {
   if (error instanceof ORPCError) return error;
   if (error && typeof error === "object") {
-    const apiError = error as { status?: number; statusCode?: number; message?: string; code?: string };
+    const apiError = error as {
+      status?: number;
+      statusCode?: number;
+      message?: string;
+      code?: string;
+    };
     const status = apiError.status ?? apiError.statusCode;
     if (status) {
       const statusMap: Record<number, string> = {

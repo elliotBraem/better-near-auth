@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import * as schema from "../../src/db/schema";
 import { createTestHandlers, createTestOrg, createTestServices, createTestUser } from "../helpers";
 
 let services: Awaited<ReturnType<typeof createTestServices>>;
@@ -36,7 +34,7 @@ describe("invitation handlers", () => {
       const org = await createTestOrg(services.services, owner.userId);
       const handlers = createTestHandlers(services.services);
 
-      const invite = await handlers.invitations.inviteMember({
+      await handlers.invitations.inviteMember({
         input: { email: "resend@example.com", role: "member", organizationId: org.id },
         context: { reqHeaders: owner.reqHeaders },
       });

@@ -578,9 +578,7 @@ function OrganizationDetail() {
                         : undefined
                     }
                     onResend={
-                      canManageMembers
-                        ? () => resendInviteMutation.mutate(invitation)
-                        : undefined
+                      canManageMembers ? () => resendInviteMutation.mutate(invitation) : undefined
                     }
                     isCancelling={cancelInvitationMutation.isPending}
                     isResending={resendInviteMutation.isPending}

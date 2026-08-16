@@ -925,7 +925,8 @@ export function GuestbookCard({ initialGreeting }: { initialGreeting?: string })
     mutationFn: async (text: string) => {
       const accountId = auth.near.getAccountId();
       if (!accountId) throw new Error("Not authenticated");
-      return auth.near.getNearClient()
+      return auth.near
+        .getNearClient()
         .transaction(accountId)
         .functionCall(
           GUESTBOOK_CONTRACT,

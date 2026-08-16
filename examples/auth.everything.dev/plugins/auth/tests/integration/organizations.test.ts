@@ -217,7 +217,7 @@ describe("organization handlers", () => {
 
     it("returns false for taken slug", async () => {
       const user = await createTestUser(services.services);
-      const org = await createTestOrg(services.services, user.userId, { slug: "taken-slug" });
+      await createTestOrg(services.services, user.userId, { slug: "taken-slug" });
 
       const handlers = createTestHandlers(services.services);
       const result = await handlers.organizations.checkSlug({

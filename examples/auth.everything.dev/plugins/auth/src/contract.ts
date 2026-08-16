@@ -514,18 +514,20 @@ export const contract = oc.router({
     .route({ method: "GET", path: "/v1/auth/invitations/get" })
     .input(z.object({ id: z.string() }))
     .output(
-      z.object({
-        id: z.string(),
-        organizationId: z.string(),
-        email: z.string(),
-        role: z.string().nullable(),
-        status: z.string(),
-        expiresAt: z.date(),
-        inviterId: z.string(),
-        organizationName: z.string(),
-        organizationSlug: z.string(),
-        inviterEmail: z.string(),
-      }).nullable(),
+      z
+        .object({
+          id: z.string(),
+          organizationId: z.string(),
+          email: z.string(),
+          role: z.string().nullable(),
+          status: z.string(),
+          expiresAt: z.date(),
+          inviterId: z.string(),
+          organizationName: z.string(),
+          organizationSlug: z.string(),
+          inviterEmail: z.string(),
+        })
+        .nullable(),
     )
     .errors(Errors),
 

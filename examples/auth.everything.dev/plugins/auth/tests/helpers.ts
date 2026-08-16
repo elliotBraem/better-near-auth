@@ -1,6 +1,5 @@
 import { and, eq } from "drizzle-orm";
 import { Effect } from "every-plugin/effect";
-import type { PluginServices } from "../src/service-types";
 import { type AuthConfig, createAuthInstance } from "../src/auth-instance";
 import { createDatabaseDriver } from "../src/db";
 import { loadMigrations, migrate } from "../src/db/migrate";
@@ -10,9 +9,10 @@ import { createInvitationHandlers } from "../src/handlers/invitations";
 import { createMemberHandlers } from "../src/handlers/members";
 import { createNearHandlers } from "../src/handlers/near";
 import { createOrganizationHandlers } from "../src/handlers/organizations";
-import { createTeamHandlers } from "../src/handlers/teams";
 import { createSessionHandlers } from "../src/handlers/session";
+import { createTeamHandlers } from "../src/handlers/teams";
 import { createRequireAuth } from "../src/middleware";
+import type { PluginServices } from "../src/service-types";
 
 const TEST_DB_URL = "pglite::memory:";
 
