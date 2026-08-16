@@ -5,10 +5,13 @@ description: >
   init calls, composable transaction hooks, and lifecycle callbacks with
   automatic rollback. Load when setting up subAccount config, deploying
   contracts to new sub-accounts, or handling post-creation side effects.
+  Sub-account creation surface has been stable since 1.7.0; the 1.8.x client
+  improvements (getNearClient, detectNearAccount, session-signal notify) do
+  not change the createSubAccount / checkSubAccountAvailability endpoints.
 metadata:
   type: core
   library: better-near-auth
-  library_version: "1.7.3"
+  library_version: "1.8.3"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/types.ts"

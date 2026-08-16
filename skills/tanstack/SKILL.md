@@ -204,10 +204,12 @@ const payload = await authClient.near.buildSignedDelegateAction(...);
 
 // Direct mode — manual
 await authClient.near.ensureConnected();
-authClient.near.client.transaction(accountId)
+authClient.near.getNearClient().transaction(accountId)
   .functionCall(contract, "method", args, opts)
   .send({ waitUntil: "FINAL" });
 ```
+
+`authClient.near.getNearClient()` (1.8.1+) replaces the removed `authClient.near.client` getter. Direct `.send()` throws on the server; pass `getNearClient()` only on the client.
 
 ### nearState persists accountId across disconnects
 
@@ -322,12 +324,12 @@ function UserNav() {
 
 Source: auth.ts:54-67
 
-### HIGH Using near.client.send() without ensureConnected
+### HIGH Using near.getNearClient().send() without ensureConnected
 
 Wrong:
 
 ```typescript
-authClient.near.client.transaction(accountId)
+authClient.near.getNearClient().transaction(accountId)
   .functionCall(contract, "method", args, opts)
   .send(); // fails if wallet disconnected after sign-in
 ```
@@ -336,12 +338,12 @@ Correct:
 
 ```typescript
 await authClient.near.ensureConnected();
-authClient.near.client.transaction(accountId)
+authClient.near.getNearClient().transaction(accountId)
   .functionCall(contract, "method", args, opts)
   .send();
 ```
 
-Wallet extensions disconnect between sign-in and subsequent signing. `buildSignedDelegateAction` calls `ensureConnected` automatically, but direct `.send()` does not.
+Wallet extensions disconnect between sign-in and subsequent signing. `buildSignedDelegateAction` calls `ensureConnected` automatically, but direct `.send()` does not. Use `authClient.near.getNearClient()` (1.8.1+) — the previous `authClient.near.client` getter was removed because it broke `$InferServerPlugin` type inference.
 
 Source: src/client.ts:249-253
 

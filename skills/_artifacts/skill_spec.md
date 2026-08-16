@@ -1,7 +1,13 @@
 # Better-Near-Auth — Skill Spec
-# Generated: 2026-07-11 | Library version: 1.7.3
+# Generated: 2026-08-15 | Library version: 1.8.3
 
 Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) and a built-in NEP-366 delegate action relayer. It provides wallet-based authentication for web applications and enables gasless on-chain transactions on behalf of authenticated users.
+
+## 1.8.x deltas covered by this spec
+
+- **1.8.2** — `signIn.near` and `near.link` notify the session atom. TanStack Query subscribers now react without an explicit `setQueryData` + `invalidateQueries`. Affects `auth-plugin` route-protection gotcha (cache-refresh still required for non-NEAR flows).
+- **1.8.1** — `authClient.near.client` getter removed (broke `$InferServerPlugin` type inference). Replacement is `authClient.near.getNearClient()`. Affects `client`, `tanstack`, `auth-plugin` failure modes that previously read `auth.near.client`.
+- **1.8.0** — `authClient.near.detectNearAccount()` added for silent wallet probing on login pages. Affects `client` action surface.
 
 ## Domains
 
@@ -21,9 +27,9 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | siwn | core | siwn | Plugin setup, nonce/verify, account linking, profiles | 4 |
 | subaccount | core | subaccount | Parent ownership, deploy/init, extendTx hook, onCreated/onRollback lifecycle, decoupled mode | 6 |
 | relay | core | relay | Relayer modes, delegate actions, whitelisting, gas limits | 4 |
-| client | core | client | siwnClient config, wallet actions, sign-in, delegate building, SSR behavior | 5 |
-| tanstack | framework | tanstack | Router context singleton, useAuthClient hook, sessionQueryOptions, type inference, SSR wiring | 5 |
-| auth-plugin | composition | auth-plugin | bos.config.json registration, UI auth client, route protection, in-process composition, auth context | 6 |
+| client | core | client | siwnClient config, wallet actions, sign-in, delegate building, SSR behavior, detectNearAccount (1.8.0), getNearClient (1.8.1) | 6 |
+| tanstack | framework | tanstack | Router context singleton, useAuthClient hook, sessionQueryOptions, type inference, SSR wiring | 6 |
+| auth-plugin | composition | auth-plugin | bos.config.json registration, UI auth client, route protection, in-process composition, auth context, 1.8.1 client migration | 7 |
 
 ## Failure Mode Inventory
 
@@ -62,22 +68,23 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 |---|---------|----------|--------|--------------|
 | 1 | Creating multiple siwnClient instances | CRITICAL | src/client.ts:64-72 | tanstack |
 | 2 | Recipient mismatch between server and client | CRITICAL | src/client.ts:108, src/index.ts:225 | siwn, tanstack |
-| 3 | Using near.client.send() without ensureConnected | HIGH | src/client.ts:249-253, src/client.ts:310-317 | tanstack |
+| 3 | Using near.getNearClient().send() without ensureConnected (1.8.1: replace removed `.client` with `getNearClient()`) | HIGH | src/client.ts:249-253, src/client.ts:310-317 | tanstack, auth-plugin |
 | 4 | Constructing transactions with wrong builder pattern | HIGH | src/client.ts:240-260 | relay, tanstack |
 | 5 | Using authClient.near.verify directly instead of signIn.near | MEDIUM | src/client.ts:402-437 | — |
 | 6 | Not listening to wallet disconnect events | MEDIUM | src/client.ts:65-66, src/client.ts:102-108 | — |
 
-### tanstack (5 failure modes)
+### tanstack (6 failure modes)
 
 | # | Mistake | Priority | Source | Cross-skill? |
 |---|---------|----------|--------|--------------|
 | 1 | Creating multiple siwnClient instances via factory | CRITICAL | src/client.ts:64-72 | client |
 | 2 | Threading runtimeConfig through query options and component props | HIGH | auth.ts:54-67 | — |
-| 3 | Using near.client.send() without ensureConnected | HIGH | src/client.ts:249-253 | client |
-| 4 | Module-level singleton in SSR causes cross-request state leaks | MEDIUM | router.server.tsx:60-71 | — |
-| 5 | Calling createAuthClient() without runtimeConfig on the server | MEDIUM | auth.ts:18-27 | — |
+| 3 | Using removed authClient.near.client getter (1.8.1) | HIGH | src/client.ts:55 — `near.client` field no longer exposed; use `getNearClient()` | client, auth-plugin |
+| 4 | Using near.getNearClient().send() without ensureConnected | HIGH | src/client.ts:249-253 | client |
+| 5 | Module-level singleton in SSR causes cross-request state leaks | MEDIUM | router.server.tsx:60-71 | — |
+| 6 | Calling createAuthClient() without runtimeConfig on the server | MEDIUM | auth.ts:18-27 | — |
 
-### auth-plugin (6 failure modes)
+### auth-plugin (7 failure modes)
 
 | # | Mistake | Priority | Source | Cross-skill? |
 |---|---------|----------|--------|--------------|
@@ -85,8 +92,9 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 | 2 | Not forwarding headers in SSR auth client | CRITICAL | ui/src/router.server.tsx | tanstack |
 | 3 | Using apiClient.auth.* instead of authClient for auth actions | HIGH | ui/src/lib/api.ts, ui/src/lib/auth.ts | — |
 | 4 | Forgetting inferAdditionalFields\<Auth\>() | HIGH | ui/src/lib/auth.ts | — |
-| 5 | Not refreshing session cache after sign-in/sign-out | HIGH | ui/src/routes/_layout/login.tsx | tanstack |
-| 6 | Missing credentials: "include" in auth client | MEDIUM | ui/src/lib/auth.ts | tanstack |
+| 5 | Using removed authClient.near.client getter (1.8.1) | HIGH | src/client.ts:55 — relies on direct NEAR Kit instance in plugin UI | client, tanstack |
+| 6 | Not refreshing session cache after non-NEAR sign-in/sign-out (1.8.2 covers NEAR flows) | HIGH | ui/src/routes/_layout/login.tsx | tanstack |
+| 7 | Missing credentials: "include" in auth client | MEDIUM | ui/src/lib/auth.ts | tanstack |
 
 ## Tensions
 

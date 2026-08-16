@@ -1,13 +1,13 @@
 # skills/_artifacts/skill_tree.yaml
 library:
   name: 'better-near-auth'
-  version: '1.7.3'
+  version: '1.8.3'
   repository: 'https://github.com/elliotBraem/better-near-auth'
   description: 'Better Auth plugin for NEAR wallet authentication (SIWN/NEP-413) and gasless delegate action relay (NEP-366), with TanStack Router integration'
 generated_from:
   domain_map: 'skills/_artifacts/domain_map.yaml'
   skill_spec: 'skills/_artifacts/skill_spec.md'
-generated_at: '2026-07-11'
+generated_at: '2026-08-15'
 
 skills:
   - name: 'SIWN authentication'
@@ -91,6 +91,9 @@ skills:
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/bos.config.json'
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/contract.ts'
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/auth-export.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/auth-instance.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/config.ts'
+      - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/config-schemas.ts'
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/src/index.ts'
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/README.md'
       - 'elliotBraem/better-near-auth:examples/auth.everything.dev/plugins/auth/plugin.dev.ts'
