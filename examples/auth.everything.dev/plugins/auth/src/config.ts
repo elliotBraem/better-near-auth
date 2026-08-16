@@ -56,10 +56,52 @@ export function buildRelayerConfig(
   siwn: AuthPluginVariables["siwn"],
   secrets: AuthPluginSecrets,
 ): AuthConfig["siwn"]["relayer"] {
-  if (!siwn.relayer?.accountId) return undefined;
+  if (!siwn.relayer) return undefined;
+  
+  // relayer: true → ephemeral mode with defaults
+  if (siwn.relayer === true) {
+    return true;
+  }
+  
+  // Dual-network config
+  if ("mainnet" in siwn.relayer || "testnet" in siwn.relayer) {
+    const dualConfig: AuthConfig["siwn"]["relayer"] = {};
+    if (siwn.relayer.mainnet) {
+      dualConfig.mainnet = {
+        ...siwn.relayer.mainnet,
+        privateKey: "accountId" in siwn.relayer.mainnet 
+          ? secrets.NEAR_RELAYER_PRIVATE_KEY 
+          : undefined,
+      };
+    }
+    if (siwn.relayer.testnet) {
+      dualConfig.testnet = {
+        ...siwn.relayer.testnet,
+        privateKey: "accountId" in siwn.relayer.testnet 
+          ? secrets.NEAR_RELAYER_PRIVATE_KEY 
+          : undefined,
+      };
+    }
+    return dualConfig;
+  }
+  
+  // Ephemeral mode (no accountId)
+  if (!("accountId" in siwn.relayer) || !siwn.relayer.accountId) {
+    return {
+      whitelistedContracts: siwn.relayer.whitelistedContracts,
+      maxGasPerTransaction: siwn.relayer.maxGasPerTransaction,
+      maxDepositPerTransaction: siwn.relayer.maxDepositPerTransaction,
+    };
+  }
+  
+  // Explicit mode (has accountId + privateKey)
   return {
     accountId: siwn.relayer.accountId,
     privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
+    privateKeys: siwn.relayer.privateKeys,
+    whitelistedContracts: siwn.relayer.whitelistedContracts,
+    maxGasPerTransaction: siwn.relayer.maxGasPerTransaction,
+    maxDepositPerTransaction: siwn.relayer.maxDepositPerTransaction,
   };
 }
 

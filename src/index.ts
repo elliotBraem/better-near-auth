@@ -105,14 +105,33 @@ function buildListAccountsResponse(nearAccounts: NearAccount[]): ListAccountsRes
 	};
 }
 
-export interface RelayerConfig {
-	accountId?: string;
-	privateKey?: string;
+interface RelayerEphemeralConfig {
+	accountId?: never;
+	privateKey?: never;
+	whitelistedContracts?: string[];
+	maxGasPerTransaction?: string;
+	maxDepositPerTransaction?: string;
+}
+
+interface RelayerExplicitConfig {
+	accountId: string;
+	privateKey: string;
 	privateKeys?: string[];
 	whitelistedContracts?: string[];
 	maxGasPerTransaction?: string;
 	maxDepositPerTransaction?: string;
 }
+
+interface RelayerDualNetworkConfig {
+	mainnet?: RelayerEphemeralConfig | RelayerExplicitConfig;
+	testnet?: RelayerEphemeralConfig | RelayerExplicitConfig;
+}
+
+export type RelayerConfig =
+	| true
+	| RelayerEphemeralConfig
+	| RelayerExplicitConfig
+	| RelayerDualNetworkConfig;
 
 interface RelayerState {
 	near: Near;
@@ -120,6 +139,9 @@ interface RelayerState {
 	network: "mainnet" | "testnet";
 	mode: "ephemeral" | "explicit";
 	publicKey: string;
+	whitelistedContracts?: string[];
+	maxGasPerTransaction?: string;
+	maxDepositPerTransaction?: string;
 	createdAt?: Date;
 	lastUsedAt?: Date;
 }
@@ -157,17 +179,29 @@ async function initRelayer(
 		headers["Authorization"] = `Bearer ${apiKey}`;
 	}
 
-	if (relayerConfig.accountId && (relayerConfig.privateKey || relayerConfig.privateKeys)) {
-		const keys = relayerConfig.privateKeys ?? (relayerConfig.privateKey ? [relayerConfig.privateKey] : []);
+	let networkConfig: RelayerEphemeralConfig | RelayerExplicitConfig | undefined;
+	
+	if (relayerConfig === true) {
+		networkConfig = {};
+	} else if ("mainnet" in relayerConfig || "testnet" in relayerConfig) {
+		const dualConfig = relayerConfig as RelayerDualNetworkConfig;
+		networkConfig = network === "mainnet" ? dualConfig.mainnet : dualConfig.testnet;
+		if (!networkConfig) return null;
+	} else {
+		networkConfig = relayerConfig as RelayerEphemeralConfig | RelayerExplicitConfig;
+	}
+
+	if ("accountId" in networkConfig && networkConfig.accountId && (networkConfig.privateKey || networkConfig.privateKeys)) {
+		const keys = networkConfig.privateKeys ?? (networkConfig.privateKey ? [networkConfig.privateKey] : []);
 		let keyStore: InMemoryKeyStore | RotatingKeyStore;
 
 		if (keys.length === 1) {
 			keyStore = new InMemoryKeyStore({
-				[relayerConfig.accountId]: keys[0]!,
+				[networkConfig.accountId]: keys[0]!,
 			});
 		} else {
 			keyStore = new RotatingKeyStore({
-				[relayerConfig.accountId]: keys as string[],
+				[networkConfig.accountId]: keys as string[],
 			});
 		}
 
@@ -175,10 +209,13 @@ async function initRelayer(
 		const explicitPublicKey = parseKey(keys[0]!);
 		return {
 			near,
-			accountId: relayerConfig.accountId,
+			accountId: networkConfig.accountId,
 			network,
 			mode: "explicit",
 			publicKey: explicitPublicKey.publicKey.toString(),
+			whitelistedContracts: networkConfig.whitelistedContracts,
+			maxGasPerTransaction: networkConfig.maxGasPerTransaction,
+			maxDepositPerTransaction: networkConfig.maxDepositPerTransaction,
 		};
 	}
 
@@ -205,6 +242,9 @@ async function initRelayer(
 			network,
 			mode: "ephemeral",
 			publicKey: keyPair.publicKey.toString(),
+			whitelistedContracts: networkConfig.whitelistedContracts,
+			maxGasPerTransaction: networkConfig.maxGasPerTransaction,
+			maxDepositPerTransaction: networkConfig.maxDepositPerTransaction,
 			createdAt: existing.createdAt,
 			lastUsedAt: existing.lastUsedAt,
 		};
@@ -249,6 +289,9 @@ async function initRelayer(
 		network,
 		mode: "ephemeral",
 		publicKey: keyPair.publicKey.toString(),
+		whitelistedContracts: networkConfig.whitelistedContracts,
+		maxGasPerTransaction: networkConfig.maxGasPerTransaction,
+		maxDepositPerTransaction: networkConfig.maxDepositPerTransaction,
 		createdAt,
 		lastUsedAt: createdAt,
 	};
@@ -342,8 +385,9 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 	const getRelayerConfig = (network: "mainnet" | "testnet"): RelayerConfig | undefined => {
 		if (!options.relayer) return undefined;
-		if ("mainnet" in options.relayer && typeof options.relayer.mainnet === "object") {
-			return (options.relayer as DualNetworkConfig<RelayerConfig>)[network];
+		if (options.relayer === true) return true;
+		if ("mainnet" in options.relayer || "testnet" in options.relayer) {
+			return (options.relayer as RelayerDualNetworkConfig)[network];
 		}
 		return options.relayer as RelayerConfig;
 	};
@@ -375,9 +419,14 @@ export const siwn = (options: SIWNPluginOptions) => {
 		if (fromSecrets) return fromSecrets;
 		const relayerCfg = getRelayerConfig(network);
 		const subAccountCfg = getSubAccountConfig(network);
-		const parent = subAccountCfg?.parentAccount ?? relayerCfg?.accountId;
-		if (parent && parent === relayerCfg?.accountId) {
-			return relayerCfg.privateKey ?? relayerCfg.privateKeys?.[0];
+		
+		if (!relayerCfg || relayerCfg === true) return undefined;
+		if ("mainnet" in relayerCfg || "testnet" in relayerCfg) return undefined;
+		
+		const explicitCfg = relayerCfg as RelayerExplicitConfig;
+		const parent = subAccountCfg?.parentAccount ?? explicitCfg.accountId;
+		if (parent && parent === explicitCfg.accountId) {
+			return explicitCfg.privateKey ?? explicitCfg.privateKeys?.[0];
 		}
 		return undefined;
 	};
@@ -400,16 +449,26 @@ export const siwn = (options: SIWNPluginOptions) => {
 		const relayerCfg = getRelayerConfig(network);
 		const networkRpcUrl = getRpcUrl(network);
 
-		const initPromise = initRelayer(relayerCfg, network, adapter, secret, apiKey, networkRpcUrl)
-			.then((state) => {
-				relayerStates.set(network, state);
-				relayerInitPromises.delete(network);
-				return state;
-			})
-			.catch((error) => {
-				relayerInitPromises.delete(network);
-				throw error;
-			});
+	const initPromise = initRelayer(relayerCfg, network, adapter, secret, apiKey, networkRpcUrl)
+		.then((state) => {
+			relayerStates.set(network, state);
+			relayerInitPromises.delete(network);
+			if (state) {
+				console.log(`[siwn] Relayer initialized: ${state.accountId} (${network}, ${state.mode})`);
+				if (state.mode === "ephemeral") {
+					console.log(`[siwn] Fund this account with NEAR to enable gasless relay`);
+					console.log(`[siwn] Private key is encrypted in DB — persists across restarts`);
+				}
+			} else if (relayerCfg) {
+				console.warn(`[siwn] Relayer config provided but not initialized for ${network}. Check BETTER_AUTH_SECRET for ephemeral mode.`);
+			}
+			return state;
+		})
+		.catch((error) => {
+			relayerInitPromises.delete(network);
+			console.error(`[siwn] Failed to initialize relayer for ${network}:`, error);
+			throw error;
+		});
 
 		relayerInitPromises.set(network, initPromise);
 		return initPromise;
@@ -1104,8 +1163,12 @@ export const siwn = (options: SIWNPluginOptions) => {
 						}
 
 						const relayerConfigForNetwork = getRelayerConfig(network);
-						if (relayerConfigForNetwork?.whitelistedContracts?.length) {
-							if (!relayerConfigForNetwork.whitelistedContracts.includes(delegateAction.receiverId)) {
+						const isDualNetwork = relayerConfigForNetwork && typeof relayerConfigForNetwork === "object" && ("mainnet" in relayerConfigForNetwork || "testnet" in relayerConfigForNetwork);
+						const isSimpleConfig = relayerConfigForNetwork && typeof relayerConfigForNetwork === "object" && !isDualNetwork;
+						const configWithLimits = isSimpleConfig ? relayerConfigForNetwork as RelayerEphemeralConfig | RelayerExplicitConfig : undefined;
+						const whitelistedContracts = configWithLimits?.whitelistedContracts;
+						if (whitelistedContracts?.length) {
+							if (!whitelistedContracts.includes(delegateAction.receiverId)) {
 								throw new APIError("FORBIDDEN", {
 									message: `Contract ${delegateAction.receiverId} is not whitelisted for relay`,
 									status: 403,
@@ -1113,27 +1176,29 @@ export const siwn = (options: SIWNPluginOptions) => {
 							}
 						}
 
-						if (relayerConfigForNetwork?.maxGasPerTransaction) {
+						const maxGasPerTransaction = configWithLimits?.maxGasPerTransaction;
+						if (maxGasPerTransaction) {
 							const totalGas = delegateAction.actions.reduce((sum: bigint, a) => {
 								return sum + ("functionCall" in a ? a.functionCall.gas : 0n);
 							}, 0n);
-							if (totalGas > BigInt(relayerConfigForNetwork.maxGasPerTransaction)) {
+							if (totalGas > BigInt(maxGasPerTransaction)) {
 								throw new APIError("BAD_REQUEST", {
-									message: `Transaction gas (${totalGas}) exceeds relayer limit (${relayerConfigForNetwork.maxGasPerTransaction})`,
+									message: `Transaction gas (${totalGas}) exceeds relayer limit (${maxGasPerTransaction})`,
 									status: 400,
 								});
 							}
 						}
 
-						if (relayerConfigForNetwork?.maxDepositPerTransaction) {
+						const maxDepositPerTransaction = configWithLimits?.maxDepositPerTransaction;
+						if (maxDepositPerTransaction) {
 							const totalDeposit = delegateAction.actions.reduce((sum: bigint, a) => {
 								if ("functionCall" in a) return sum + a.functionCall.deposit;
 								if ("transfer" in a) return sum + a.transfer.deposit;
 								return sum;
 							}, 0n);
-							if (totalDeposit > BigInt(relayerConfigForNetwork.maxDepositPerTransaction)) {
+							if (totalDeposit > BigInt(maxDepositPerTransaction)) {
 								throw new APIError("BAD_REQUEST", {
-									message: `Transaction deposit (${totalDeposit}) exceeds relayer limit (${relayerConfigForNetwork.maxDepositPerTransaction})`,
+									message: `Transaction deposit (${totalDeposit}) exceeds relayer limit (${maxDepositPerTransaction})`,
 									status: 400,
 								});
 							}

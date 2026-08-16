@@ -44,13 +44,43 @@ npm install better-near-auth
             siwn({
                 recipient: "myapp.com",
 
-                // Optional: enable gasless relay
-                relayer: {
-                  whitelistedContracts: ["myapp.near"],
-                },
+                // Optional: enable gasless relay (ephemeral mode by default)
+                relayer: true,
             }),
         ],
     });
+    ```
+
+    **Relayer Configuration Options:**
+
+    ```ts
+    // Ephemeral mode (default) - auto-generated keypair
+    relayer: true
+
+    // Ephemeral with custom settings
+    relayer: {
+      whitelistedContracts: ["myapp.near"],
+      maxGasPerTransaction: "300000000000000",
+      maxDepositPerTransaction: "0",
+    }
+
+    // Explicit mode - bring your own key
+    relayer: {
+      accountId: "relayer.myapp.near",
+      privateKey: process.env.RELAYER_PRIVATE_KEY,
+      whitelistedContracts: ["myapp.near"],
+    }
+
+    // Per-network configuration
+    relayer: {
+      mainnet: {
+        whitelistedContracts: ["myapp.near"],
+      },
+      testnet: {
+        whitelistedContracts: ["myapp.testnet"],
+        maxGasPerTransaction: "100000000000000", // lower for testing
+      },
+    }
     ```
 
 3. Generate the schema to add the necessary fields and tables to the database.
@@ -183,15 +213,42 @@ await authClient.near.disconnect();
 
 #### Relayer Configuration
 
+The relayer can be configured in several ways:
+
+| Value | Mode | Description |
+|---|---|---|
+| `true` | Ephemeral | Auto-generated ED25519 keypair (default) |
+| `RelayerEphemeralConfig` | Ephemeral | Ephemeral with custom settings |
+| `RelayerExplicitConfig` | Explicit | Bring your own key |
+| `RelayerDualNetworkConfig` | Mixed | Per-network configuration |
+
+**Ephemeral Config (`RelayerEphemeralConfig`):**
+
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `accountId` | `string` | — | Named relayer account (explicit mode) |
-| `privateKey` | `string` | — | Base64 private key (explicit mode) |
 | `whitelistedContracts` | `string[]` | — | Restrict relay to these contracts |
 | `maxGasPerTransaction` | `string` | — | Max gas per relayed tx |
 | `maxDepositPerTransaction` | `string` | — | Max deposit per relayed tx |
 
-When `accountId` and `privateKey` are omitted, the relayer starts in **ephemeral mode**: an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
+**Explicit Config (`RelayerExplicitConfig`):**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `accountId` | `string` | — | Named relayer account (required) |
+| `privateKey` | `string` | — | Base64 private key (required) |
+| `privateKeys` | `string[]` | — | Multiple keys for rotation |
+| `whitelistedContracts` | `string[]` | — | Restrict relay to these contracts |
+| `maxGasPerTransaction` | `string` | — | Max gas per relayed tx |
+| `maxDepositPerTransaction` | `string` | — | Max deposit per relayed tx |
+
+**Dual Network Config (`RelayerDualNetworkConfig`):**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `mainnet` | `RelayerEphemeralConfig \| RelayerExplicitConfig` | — | Mainnet relayer config |
+| `testnet` | `RelayerEphemeralConfig \| RelayerExplicitConfig` | — | Testnet relayer config |
+
+When using `relayer: true` or ephemeral config (no `accountId`/`privateKey`), an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
 
 ### Client Options
 
@@ -332,12 +389,27 @@ export const auth = betterAuth({
 
       apiKey: process.env.FASTNEAR_API_KEY,
 
+      // Ephemeral mode (simplest)
+      relayer: true,
+
+      // OR explicit mode
       relayer: {
         accountId: "relayer.myapp.near",
         privateKey: process.env.RELAYER_PRIVATE_KEY,
         whitelistedContracts: ["myapp.near"],
         maxGasPerTransaction: "300000000000000",
         maxDepositPerTransaction: "0",
+      },
+
+      // OR per-network configuration
+      relayer: {
+        mainnet: {
+          whitelistedContracts: ["myapp.near"],
+        },
+        testnet: {
+          whitelistedContracts: ["myapp.testnet"],
+          maxGasPerTransaction: "100000000000000",
+        },
       },
     }),
   ],
@@ -378,6 +450,9 @@ The plugin detects the network from the account ID:
 | "Network ID mismatch" | Ensure networkId matches the account's network |
 | Relay fails with "insufficient balance" | Fund the relayer account with NEAR |
 | Relay fails with "contract not whitelisted" | Add `receiverId` to `whitelistedContracts` |
+| Relayer not initializing (ephemeral mode) | Ensure `BETTER_AUTH_SECRET` is set; check startup logs for `[siwn] Relayer initialized` |
+| Empty `relayer_key` table | Relayer config not being passed; use `relayer: true` or provide config object |
+| "BETTER_AUTH_SECRET required" error | Required for ephemeral mode encryption; generate a secure random string |
 
 ## Examples
 

@@ -32,14 +32,39 @@ export const subAccountNetworkSchema = z.object({
     .optional(),
 });
 
+export const relayerEphemeralSchema = z.object({
+  accountId: z.never().optional(),
+  privateKey: z.never().optional(),
+  whitelistedContracts: z.array(z.string()).optional(),
+  maxGasPerTransaction: z.string().optional(),
+  maxDepositPerTransaction: z.string().optional(),
+});
+
+export const relayerExplicitSchema = z.object({
+  accountId: z.string(),
+  privateKey: z.string(),
+  privateKeys: z.array(z.string()).optional(),
+  whitelistedContracts: z.array(z.string()).optional(),
+  maxGasPerTransaction: z.string().optional(),
+  maxDepositPerTransaction: z.string().optional(),
+});
+
+export const relayerDualNetworkSchema = z.object({
+  mainnet: z.union([relayerEphemeralSchema, relayerExplicitSchema]).optional(),
+  testnet: z.union([relayerEphemeralSchema, relayerExplicitSchema]).optional(),
+});
+
+export const relayerConfigSchema = z.union([
+  z.literal(true),
+  relayerEphemeralSchema,
+  relayerExplicitSchema,
+  relayerDualNetworkSchema,
+]);
+
 export const authSiwnBaseSchema = z.object({
   apiKey: z.string().optional(),
   rpcUrl: z.string().optional(),
-  relayer: z
-    .object({
-      accountId: z.string().optional(),
-    })
-    .optional(),
+  relayer: relayerConfigSchema.optional(),
   subAccount: z
     .object({
       mainnet: subAccountNetworkSchema.optional(),
