@@ -20,7 +20,7 @@
     "@better-auth/api-key": "catalog:",
     "@better-auth/passkey": "catalog:",
     "better-auth": "catalog:",
-    "better-near-auth": "^1.9.0",
+    "better-near-auth": "^1.10.0",
     "drizzle-orm": "^0.45.1",
     "every-plugin": "catalog:",
     "pg": "^8.12.0",
