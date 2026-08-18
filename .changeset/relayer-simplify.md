@@ -1,5 +1,5 @@
 ---
-"better-near-auth": minor
+"better-near-auth": patch
 ---
 
 feat: collapse relayer config into a single shape with per-network secrets
