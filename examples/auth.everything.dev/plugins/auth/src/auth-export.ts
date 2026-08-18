@@ -71,12 +71,7 @@ export interface AuthConfig {
 
 export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
 
-export type AuthSession = Auth["$Infer"]["Session"];
-export type AuthSessionData = InferOutput<"getSession">;
-export type AuthSessionUser = NonNullable<AuthSessionData["user"]>;
-export type AuthRequestContext = InferOutput<"getContext">;
-export type AuthActiveMember = InferOutput<"getActiveMember">;
-export type AuthOrganizationContext = AuthRequestContext["organization"];
+export type AuthOrganizationContext = InferOutput<"getContext">["organization"];
 export type AuthOrganization = NonNullable<InferOutput<"getFullOrganization">>;
 export type AuthOrganizationSummary = NonNullable<AuthOrganizationContext["organization"]>;
 export type AuthOrganizationMember = InferOutput<"listMembers">["members"][number];
