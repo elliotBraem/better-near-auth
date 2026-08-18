@@ -12,14 +12,18 @@
   "app": {
     "ui": {
       "name": "ui",
-      "development": "local:ui"
+      "development": "local:ui",
+      "production": "https://elliot-braem-7444-ui-better-near-auth-elliotbraem-858f84543-ze.zephyrcloud.app",
+      "integrity": "sha384-6bNcKiFFu8+QFxorj0pSJa9ZMBE0Jmp/QKmyrGx5fj0AJKrp+h32aBbhm2UzSAjc"
     },
     "api": {
       "name": "api",
       "development": "local:api",
       "secrets": [
         "API_DATABASE_URL"
-      ]
+      ],
+      "production": "https://elliot-braem-7446-api-better-near-auth-elliotbrae-a709b7ee8-ze.zephyrcloud.app",
+      "integrity": "sha384-KFAcoz3IVC4MTgpHXTz426WjGVBDeTitnM8hMow4cNwSaWmIuizucwCmwJ4ufKNz"
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
