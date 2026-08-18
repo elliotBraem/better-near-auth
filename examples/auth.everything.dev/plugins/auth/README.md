@@ -49,7 +49,8 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 | `siwn.recipients.mainnet` | `string` | — | Mainnet SIWN recipient |
 | `siwn.recipients.testnet` | `string` | — | Testnet SIWN recipient |
 | `siwn.rpcUrl` | `string` | — | Optional NEAR RPC endpoint |
-| `siwn.relayer.accountId` | `string` | — | Optional relayer account ID |
+| `siwn.relayer.mainnet.accountId` | `string` | — | Optional mainnet relayer account ID |
+| `siwn.relayer.testnet.accountId` | `string` | — | Optional testnet relayer account ID |
 | `siwn.subAccount.mainnet.parentAccount` | `string` | — | Optional mainnet sub-account parent |
 | `siwn.subAccount.testnet.parentAccount` | `string` | — | Optional testnet sub-account parent |
 
@@ -64,7 +65,8 @@ It runs inside the **everything-plugin** framework (oRPC + Effect) and is design
 | `TWILIO_ACCOUNT_SID` | `string` | — | Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | `string` | — | Twilio auth token |
 | `TWILIO_PHONE_NUMBER` | `string` | — | Twilio sender phone number |
-| `NEAR_RELAYER_PRIVATE_KEY` | `string` | — | Optional relayer private key |
+| `NEAR_RELAYER_PRIVATE_KEY_MAINNET` | `string` | — | Optional mainnet relayer private key |
+| `NEAR_RELAYER_PRIVATE_KEY_TESTNET` | `string` | — | Optional testnet relayer private key |
 | `NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET` | `string` | — | Optional mainnet sub-account parent key |
 | `NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET` | `string` | — | Optional testnet sub-account parent key |
 
@@ -91,7 +93,7 @@ The plugin itself does **not** read `process.env`. The host passes all configura
 | `ACCOUNT` | Single-network SIWN recipient or mainnet recipient |
 | `TESTNET_ACCOUNT` | Testnet SIWN recipient |
 | `NEAR_RPC_URL` | Custom NEAR RPC endpoint |
-| `NEAR_RELAYER_ACCOUNT_ID` | Optional relayer account ID |
+| `NEAR_RELAYER_ACCOUNT_ID` | Optional mainnet relayer account ID |
 | `AUTH_DATABASE_URL` | Database URL |
 | `BETTER_AUTH_SECRET` | Session signing secret |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
@@ -99,7 +101,8 @@ The plugin itself does **not** read `process.env`. The host passes all configura
 | `TWILIO_ACCOUNT_SID` | Twilio account SID |
 | `TWILIO_AUTH_TOKEN` | Twilio auth token |
 | `TWILIO_PHONE_NUMBER` | Twilio sender phone number |
-| `NEAR_RELAYER_PRIVATE_KEY` | Optional relayer private key |
+| `NEAR_RELAYER_PRIVATE_KEY_MAINNET` | Optional mainnet relayer private key |
+| `NEAR_RELAYER_PRIVATE_KEY_TESTNET` | Optional testnet relayer private key |
 | `NEAR_SUB_ACCOUNT_PARENT_MAINNET` | Optional mainnet sub-account parent account |
 | `NEAR_SUB_ACCOUNT_PARENT_TESTNET` | Optional testnet sub-account parent account |
 

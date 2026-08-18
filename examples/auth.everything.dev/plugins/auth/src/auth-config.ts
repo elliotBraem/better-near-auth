@@ -1,4 +1,8 @@
-import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
+import type {
+  DualNetworkConfig,
+  RelayerDualNetworkConfig,
+  SubAccountConfig,
+} from "better-near-auth";
 
 export interface AuthPasskeyConfig {
   rpID?: string;
@@ -6,39 +10,10 @@ export interface AuthPasskeyConfig {
   origin?: string;
 }
 
-export interface AuthRelayerEphemeralConfig {
-  accountId?: never;
-  privateKey?: never;
-  ephemeral?: true;
-  whitelistedContracts?: string[];
-  maxGasPerTransaction?: string;
-  maxDepositPerTransaction?: string;
-}
-
-export interface AuthRelayerExplicitConfig {
-  accountId: string;
-  privateKey: string;
-  privateKeys?: string[];
-  whitelistedContracts?: string[];
-  maxGasPerTransaction?: string;
-  maxDepositPerTransaction?: string;
-}
-
-export interface AuthRelayerDualNetworkConfig {
-  mainnet?: AuthRelayerEphemeralConfig | AuthRelayerExplicitConfig;
-  testnet?: AuthRelayerEphemeralConfig | AuthRelayerExplicitConfig;
-}
-
-export type AuthRelayerConfig =
-  | true
-  | AuthRelayerEphemeralConfig
-  | AuthRelayerExplicitConfig
-  | AuthRelayerDualNetworkConfig;
-
 export interface AuthSiwnBaseConfig {
   apiKey?: string;
   rpcUrl?: string;
-  relayer?: AuthRelayerConfig;
+  relayer?: RelayerDualNetworkConfig;
   subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
   secrets?: {
     parentKey?: string | DualNetworkConfig<string>;

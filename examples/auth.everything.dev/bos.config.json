@@ -12,20 +12,14 @@
   "app": {
     "ui": {
       "name": "ui",
-      "development": "local:ui",
-      "production": "https://elliot-braem-7386-ui-better-near-auth-elliotbraem-f8f136e8e-ze.zephyrcloud.app",
-      "ssr": "https://elliot-braem-7049-ui-better-near-auth-elliotbraem-2b0c05758-ze.zephyrcloud.app",
-      "ssrIntegrity": "sha384-LL7PuMy+GljGdHwdgI/yKDq1GRQVmeqEa0oWSd8ur9dofV1ZKeyksBqom15hJCok",
-      "integrity": "sha384-6bNcKiFFu8+QFxorj0pSJa9ZMBE0Jmp/QKmyrGx5fj0AJKrp+h32aBbhm2UzSAjc"
+      "development": "local:ui"
     },
     "api": {
       "name": "api",
       "development": "local:api",
       "secrets": [
         "API_DATABASE_URL"
-      ],
-      "production": "https://elliot-braem-7387-api-better-near-auth-elliotbrae-51152484e-ze.zephyrcloud.app",
-      "integrity": "sha384-KFAcoz3IVC4MTgpHXTz426WjGVBDeTitnM8hMow4cNwSaWmIuizucwCmwJ4ufKNz"
+      ]
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
@@ -47,7 +41,9 @@
             "testnet": "dev.allthethings.testnet"
           },
           "relayer": {
-            "accountId": ""
+            "mainnet": {
+              "accountId": ""
+            }
           }
         }
       },
@@ -61,7 +57,8 @@
         "TWILIO_AUTH_TOKEN",
         "TWILIO_PHONE_NUMBER",
         "RESEND_API_KEY",
-        "NEAR_RELAYER_PRIVATE_KEY",
+        "NEAR_RELAYER_PRIVATE_KEY_MAINNET",
+        "NEAR_RELAYER_PRIVATE_KEY_TESTNET",
         "NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET",
         "NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET"
       ]

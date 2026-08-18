@@ -1,5 +1,9 @@
 import type { Auth as BetterAuthResult } from "better-auth";
-import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
+import type {
+  DualNetworkConfig,
+  RelayerDualNetworkConfig,
+  SubAccountConfig,
+} from "better-near-auth";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { InferInput, InferOutput } from "./contract";
 
@@ -15,10 +19,7 @@ export interface AuthPasskeyConfig {
 export interface AuthSiwnBaseConfig {
   apiKey?: string;
   rpcUrl?: string;
-  relayer?: {
-    accountId?: string;
-    privateKey?: string;
-  };
+  relayer?: RelayerDualNetworkConfig;
   subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
   secrets?: {
     parentKey?: string | DualNetworkConfig<string>;
@@ -71,12 +72,7 @@ export interface AuthConfig {
 
 export type AuthDatabase = PgDatabase<PgQueryResultHKT, Record<string, unknown>>;
 
-export type AuthSession = Auth["$Infer"]["Session"];
-export type AuthSessionData = InferOutput<"getSession">;
-export type AuthSessionUser = NonNullable<AuthSessionData["user"]>;
-export type AuthRequestContext = InferOutput<"getContext">;
-export type AuthActiveMember = InferOutput<"getActiveMember">;
-export type AuthOrganizationContext = AuthRequestContext["organization"];
+export type AuthOrganizationContext = InferOutput<"getContext">["organization"];
 export type AuthOrganization = NonNullable<InferOutput<"getFullOrganization">>;
 export type AuthOrganizationSummary = NonNullable<AuthOrganizationContext["organization"]>;
 export type AuthOrganizationMember = InferOutput<"listMembers">["members"][number];

@@ -1,4 +1,9 @@
-import type { DualNetworkConfig } from "better-near-auth";
+import type {
+  DualNetworkConfig,
+  RelayerConfig,
+  RelayerDualNetworkConfig,
+  SubAccountConfig,
+} from "better-near-auth";
 import type { AuthConfig } from "./auth-config";
 import type { AuthPluginSecrets, AuthPluginVariables } from "./config-schemas";
 import { localDevTrustedOrigins } from "./utils";
@@ -52,75 +57,59 @@ export function parseTrustedOrigins(
   return { baseUrl: baseUrl ?? "http://localhost:3000", trustedOrigins: [...new Set(origins)] };
 }
 
+function pickDefined<T extends Record<string, unknown>>(obj: T | undefined): T | undefined {
+  if (!obj) return undefined;
+  const result = { ...obj };
+  for (const key of Object.keys(result)) {
+    if (result[key] === undefined) delete result[key];
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export function buildRelayerConfig(
   siwn: AuthPluginVariables["siwn"],
   secrets: AuthPluginSecrets,
-): AuthConfig["siwn"]["relayer"] {
+): RelayerDualNetworkConfig | undefined {
   if (!siwn.relayer) return undefined;
 
-  // relayer: true → ephemeral mode with defaults
-  if (siwn.relayer === true) {
-    return true;
-  }
-
-  // Dual-network config
-  if ("mainnet" in siwn.relayer || "testnet" in siwn.relayer) {
-    const dualConfig: AuthConfig["siwn"]["relayer"] = {};
-    if (siwn.relayer.mainnet) {
-      dualConfig.mainnet = {
-        ...siwn.relayer.mainnet,
-        privateKey:
-          "accountId" in siwn.relayer.mainnet ? secrets.NEAR_RELAYER_PRIVATE_KEY : undefined,
-      };
+  function resolveRelayerPrivateKey(
+    config: { accountId?: string } | undefined,
+    privateKey: string | undefined,
+  ): RelayerConfig | undefined {
+    const base = pickDefined(config);
+    if (!base?.accountId) {
+      return base as RelayerConfig | undefined;
     }
-    if (siwn.relayer.testnet) {
-      dualConfig.testnet = {
-        ...siwn.relayer.testnet,
-        privateKey:
-          "accountId" in siwn.relayer.testnet ? secrets.NEAR_RELAYER_PRIVATE_KEY : undefined,
-      };
+    if (!privateKey) {
+      throw new Error(
+        `Relayer accountId "${base.accountId}" is set but no NEAR_RELAYER_PRIVATE_KEY is configured for its network. ` +
+          `Set the secret for that network or remove accountId to use ephemeral mode.`,
+      );
     }
-    return dualConfig;
+    return { ...base, privateKey };
   }
 
-  // Ephemeral mode (no accountId)
-  if (!("accountId" in siwn.relayer) || !siwn.relayer.accountId) {
-    return {
-      whitelistedContracts: siwn.relayer.whitelistedContracts,
-      maxGasPerTransaction: siwn.relayer.maxGasPerTransaction,
-      maxDepositPerTransaction: siwn.relayer.maxDepositPerTransaction,
-    };
-  }
-
-  // Explicit mode (has accountId + privateKey)
   return {
-    accountId: siwn.relayer.accountId,
-    privateKey: secrets.NEAR_RELAYER_PRIVATE_KEY,
-    privateKeys: siwn.relayer.privateKeys,
-    whitelistedContracts: siwn.relayer.whitelistedContracts,
-    maxGasPerTransaction: siwn.relayer.maxGasPerTransaction,
-    maxDepositPerTransaction: siwn.relayer.maxDepositPerTransaction,
+    mainnet: resolveRelayerPrivateKey(
+      siwn.relayer.mainnet,
+      secrets.NEAR_RELAYER_PRIVATE_KEY_MAINNET,
+    ),
+    testnet: resolveRelayerPrivateKey(
+      siwn.relayer.testnet,
+      secrets.NEAR_RELAYER_PRIVATE_KEY_TESTNET,
+    ),
   };
 }
 
 export function buildSubAccountConfig(
   siwn: AuthPluginVariables["siwn"],
-): AuthConfig["siwn"]["subAccount"] {
+): DualNetworkConfig<SubAccountConfig> | undefined {
   if (!siwn.subAccount) return undefined;
-
-  function pickDefined<T extends Record<string, unknown>>(obj?: T): T | undefined {
-    if (!obj) return undefined;
-    const result = { ...obj };
-    for (const key of Object.keys(result)) {
-      if (result[key] === undefined) delete result[key];
-    }
-    return Object.keys(result).length > 0 ? result : undefined;
-  }
 
   return {
     mainnet: pickDefined(siwn.subAccount.mainnet),
     testnet: pickDefined(siwn.subAccount.testnet),
-  } as NonNullable<AuthConfig["siwn"]["subAccount"]>;
+  } as DualNetworkConfig<SubAccountConfig>;
 }
 
 export function buildSecrets(secrets: AuthPluginSecrets): AuthConfig["siwn"]["secrets"] {

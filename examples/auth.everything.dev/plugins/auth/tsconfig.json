@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "types": ["node"],
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "ESNext",
@@ -29,6 +30,7 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*", "plugin.dev.ts"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "files": ["tests/types.d.ts"],
+  "include": ["src/**/*", "tests/**/*", "plugin.dev.ts"],
+  "exclude": ["node_modules", "dist"]
 }

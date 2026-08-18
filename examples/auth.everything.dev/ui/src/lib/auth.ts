@@ -23,6 +23,8 @@ import type { ClientRuntimeConfig } from "everything-dev/types";
 import { getRuntimeConfig } from "everything-dev/ui/runtime";
 import type { Auth } from "./auth-types.gen";
 
+export type * from "./auth-types.gen";
+
 type RuntimeAuthVariables = {
   siwn: {
     recipient?: string;

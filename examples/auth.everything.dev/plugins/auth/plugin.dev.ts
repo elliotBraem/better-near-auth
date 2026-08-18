@@ -53,7 +53,9 @@ export default {
             }),
         rpcUrl: process.env.NEAR_RPC_URL,
         relayer: {
-          accountId: process.env.NEAR_RELAYER_ACCOUNT_ID,
+          mainnet: {
+            accountId: process.env.NEAR_RELAYER_ACCOUNT_ID,
+          },
         },
         subAccount: {
           mainnet: {
@@ -82,7 +84,8 @@ export default {
       TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
       TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
       RESEND_API_KEY: process.env.RESEND_API_KEY,
-      NEAR_RELAYER_PRIVATE_KEY: process.env.NEAR_RELAYER_PRIVATE_KEY,
+      NEAR_RELAYER_PRIVATE_KEY_MAINNET: process.env.NEAR_RELAYER_PRIVATE_KEY_MAINNET,
+      NEAR_RELAYER_PRIVATE_KEY_TESTNET: process.env.NEAR_RELAYER_PRIVATE_KEY_TESTNET,
       NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: process.env.NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET,
       NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: process.env.NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET,
     },

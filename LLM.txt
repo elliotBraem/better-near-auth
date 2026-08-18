@@ -62,17 +62,18 @@ siwn({
   // Custom RPC URL (sandbox, private node, etc.)
   rpcUrl?: string;
 
-  // Relayer
+  // Relayer (Ommit accountId for ephemeral mode with auto-generated keypair)
   relayer?: {
     accountId?: string;                  // explicit mode (production)
-    privateKey?: string;                 // single key (base64 ed25519:...)
-    privateKeys?: string[];              // multiple keys for RotatingKeyStore
+    privateKey?: string;                 // ed25519:... (required when accountId is set)
     whitelistedContracts?: string[];
     maxGasPerTransaction?: string;
     maxDepositPerTransaction?: string;
+  } | {
+    mainnet?: { accountId?: string; privateKey?: string; whitelistedContracts?: string[]; maxGasPerTransaction?: string; maxDepositPerTransaction?: string; };
+    testnet?:  { accountId?: string; privateKey?: string; whitelistedContracts?: string[]; maxGasPerTransaction?: string; maxDepositPerTransaction?: string; };
   };
-  // When accountId + privateKey omitted → ephemeral mode
-})
+  // Omit accountId → ephemeral mode
 ```
 
 ## Email Handling
@@ -101,11 +102,7 @@ Startup log:
 
 ### Explicit (production)
 
-When `accountId` + `privateKey`/`privateKeys` are provided in config — for named, persistent relayer accounts like `relayer.myapp.near`.
-
-### Rotating Keys
-
-When `privateKeys` array is provided with multiple keys, a `RotatingKeyStore` is used to cycle through keys round-robin, eliminating nonce collisions for high-throughput relayers.
+When `accountId` + `privateKey` are provided in config — for named, persistent relayer accounts like `relayer.myapp.near`. If `accountId` is set but no `privateKey` is provided, a warning is logged and the relayer falls back to ephemeral mode.
 
 ## Database Schema
 

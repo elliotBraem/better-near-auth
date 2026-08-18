@@ -91,37 +91,27 @@ export function resolvePasskeyRelyingPartyOptions(
 }
 
 export function buildSiwnOptions(config: AuthConfig): Parameters<typeof siwn>[0] {
+  const base = {
+    apiKey: config.siwn.apiKey,
+    rpcUrl: config.siwn.rpcUrl,
+    relayer: config.siwn.relayer,
+    subAccount: config.siwn.subAccount,
+    secrets: config.siwn.secrets,
+  };
+
   if (isRecipientsConfig(config.siwn)) {
     return {
+      ...base,
       recipients: {
         mainnet: config.siwn.recipients.mainnet,
         testnet: config.siwn.recipients.testnet,
       },
-      apiKey: config.siwn.apiKey,
-      rpcUrl: config.siwn.rpcUrl,
-      relayer: config.siwn.relayer?.accountId
-        ? {
-            accountId: config.siwn.relayer.accountId,
-            privateKey: config.siwn.relayer.privateKey,
-          }
-        : undefined,
-      subAccount: config.siwn.subAccount,
-      secrets: config.siwn.secrets,
     };
   }
 
   return {
+    ...base,
     recipient: config.siwn.recipient,
-    apiKey: config.siwn.apiKey,
-    rpcUrl: config.siwn.rpcUrl,
-    relayer: config.siwn.relayer?.accountId
-      ? {
-          accountId: config.siwn.relayer.accountId,
-          privateKey: config.siwn.relayer.privateKey,
-        }
-      : undefined,
-    subAccount: config.siwn.subAccount,
-    secrets: config.siwn.secrets,
   };
 }
 

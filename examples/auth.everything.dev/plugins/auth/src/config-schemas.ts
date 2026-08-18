@@ -32,40 +32,22 @@ export const subAccountNetworkSchema = z.object({
     .optional(),
 });
 
-export const relayerEphemeralSchema = z.object({
-  accountId: z.never().optional(),
-  privateKey: z.never().optional(),
-  ephemeral: z.literal(true).optional(),
+export const relayerNetworkSchema = z.object({
+  accountId: z.string().optional(),
   whitelistedContracts: z.array(z.string()).optional(),
   maxGasPerTransaction: z.string().optional(),
   maxDepositPerTransaction: z.string().optional(),
 });
-
-export const relayerExplicitSchema = z.object({
-  accountId: z.string(),
-  privateKey: z.string(),
-  privateKeys: z.array(z.string()).optional(),
-  whitelistedContracts: z.array(z.string()).optional(),
-  maxGasPerTransaction: z.string().optional(),
-  maxDepositPerTransaction: z.string().optional(),
-});
-
-export const relayerDualNetworkSchema = z.object({
-  mainnet: z.union([relayerEphemeralSchema, relayerExplicitSchema]).optional(),
-  testnet: z.union([relayerEphemeralSchema, relayerExplicitSchema]).optional(),
-});
-
-export const relayerConfigSchema = z.union([
-  z.literal(true),
-  relayerEphemeralSchema,
-  relayerExplicitSchema,
-  relayerDualNetworkSchema,
-]);
 
 export const authSiwnBaseSchema = z.object({
   apiKey: z.string().optional(),
   rpcUrl: z.string().optional(),
-  relayer: relayerConfigSchema.optional(),
+  relayer: z
+    .object({
+      mainnet: relayerNetworkSchema.optional(),
+      testnet: relayerNetworkSchema.optional(),
+    })
+    .optional(),
   subAccount: z
     .object({
       mainnet: subAccountNetworkSchema.optional(),
@@ -129,7 +111,8 @@ export const authSecretsSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_PHONE_NUMBER: z.string().optional(),
-  NEAR_RELAYER_PRIVATE_KEY: z.string().optional(),
+  NEAR_RELAYER_PRIVATE_KEY_MAINNET: z.string().optional(),
+  NEAR_RELAYER_PRIVATE_KEY_TESTNET: z.string().optional(),
   NEAR_SUB_ACCOUNT_PARENT_KEY_MAINNET: z.string().optional(),
   NEAR_SUB_ACCOUNT_PARENT_KEY_TESTNET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),

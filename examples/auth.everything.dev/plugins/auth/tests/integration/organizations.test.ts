@@ -24,9 +24,9 @@ describe("organization handlers", () => {
       const org = await createTestOrg(services.services, user.userId, { name: "Team Org" });
 
       const handlers = createTestHandlers(services.services);
-      const result = await handlers.organizations.listOrganizations({
+      const result = (await handlers.organizations.listOrganizations({
         context: { reqHeaders: user.reqHeaders },
-      });
+      })) as Array<{ id: string; name: string; slug: string }>;
 
       const orgIds = result.map((o) => o.id);
       expect(orgIds).toContain(user.personalOrgId);

@@ -143,33 +143,67 @@ describe("parseTrustedOrigins", () => {
 });
 
 describe("buildRelayerConfig", () => {
-  it("returns undefined when relayer accountId is missing", () => {
+  it("returns undefined when relayer is not configured", () => {
     expect(buildRelayerConfig({ recipient: "test.near" }, baseSecrets)).toBeUndefined();
   });
 
-  it("returns undefined when relayer is undefined", () => {
-    expect(buildRelayerConfig({ recipient: "test.near" }, baseSecrets)).toBeUndefined();
-  });
-
-  it("returns relayer config with accountId and privateKey", () => {
-    const result = buildRelayerConfig(
-      { recipient: "test.near", relayer: { accountId: "relayer.near" } },
-      { ...baseSecrets, NEAR_RELAYER_PRIVATE_KEY: "ed25519:abc" },
-    );
-    expect(result).toEqual({
-      accountId: "relayer.near",
-      privateKey: "ed25519:abc",
+  it("returns empty dual-network config when relayer is empty", () => {
+    expect(buildRelayerConfig({ recipient: "test.near", relayer: {} }, baseSecrets)).toEqual({
+      mainnet: undefined,
+      testnet: undefined,
     });
   });
 
-  it("returns undefined privateKey when secret is missing", () => {
-    const result = buildRelayerConfig(
-      { recipient: "test.near", relayer: { accountId: "relayer.near" } },
-      baseSecrets,
-    );
-    expect(result).toEqual({
-      accountId: "relayer.near",
-      privateKey: undefined,
+  it("resolves mainnet privateKey from NEAR_RELAYER_PRIVATE_KEY_MAINNET", () => {
+    expect(
+      buildRelayerConfig(
+        { recipient: "test.near", relayer: { mainnet: { accountId: "relayer.near" } } },
+        { ...baseSecrets, NEAR_RELAYER_PRIVATE_KEY_MAINNET: "ed25519:abc" },
+      ),
+    ).toEqual({
+      mainnet: { accountId: "relayer.near", privateKey: "ed25519:abc" },
+      testnet: undefined,
+    });
+  });
+
+  it("resolves testnet privateKey from NEAR_RELAYER_PRIVATE_KEY_TESTNET", () => {
+    expect(
+      buildRelayerConfig(
+        {
+          recipient: "test.testnet",
+          relayer: { testnet: { accountId: "relayer.testnet" } },
+        },
+        { ...baseSecrets, NEAR_RELAYER_PRIVATE_KEY_TESTNET: "ed25519:xyz" },
+      ),
+    ).toEqual({
+      mainnet: undefined,
+      testnet: { accountId: "relayer.testnet", privateKey: "ed25519:xyz" },
+    });
+  });
+
+  it("throws when accountId is set but NEAR_RELAYER_PRIVATE_KEY_MAINNET is missing", () => {
+    expect(() =>
+      buildRelayerConfig(
+        { recipient: "test.near", relayer: { mainnet: { accountId: "relayer.near" } } },
+        baseSecrets,
+      ),
+    ).toThrow("NEAR_RELAYER_PRIVATE_KEY");
+  });
+
+  it("passes through ephemeral-only config (no accountId)", () => {
+    expect(
+      buildRelayerConfig(
+        {
+          recipient: "test.near",
+          relayer: {
+            mainnet: { whitelistedContracts: ["foo.near"] },
+          },
+        },
+        baseSecrets,
+      ),
+    ).toEqual({
+      mainnet: { whitelistedContracts: ["foo.near"] },
+      testnet: undefined,
     });
   });
 });
@@ -309,14 +343,16 @@ describe("normalizeAuthConfig", () => {
         ...baseVariables,
         siwn: {
           recipient: "test.near",
-          relayer: { accountId: "relayer.near" },
+          relayer: {
+            mainnet: { accountId: "relayer.near" },
+          },
         },
       },
-      { ...baseSecrets, NEAR_RELAYER_PRIVATE_KEY: "ed25519:key" },
+      { ...baseSecrets, NEAR_RELAYER_PRIVATE_KEY_MAINNET: "ed25519:key" },
     );
     expect((authConfig.siwn as any).relayer).toEqual({
-      accountId: "relayer.near",
-      privateKey: "ed25519:key",
+      mainnet: { accountId: "relayer.near", privateKey: "ed25519:key" },
+      testnet: undefined,
     });
   });
 
