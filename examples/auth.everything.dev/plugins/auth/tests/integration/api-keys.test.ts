@@ -70,7 +70,6 @@ describe("API key handlers", () => {
       const apiKey = await createTestApiKey(services.services, {
         userId: user.userId,
         organizationId: org.id,
-        headers: user.headers,
       });
       const handlers = createTestHandlers(services.services);
 
@@ -103,7 +102,6 @@ describe("API key handlers", () => {
       const apiKey = await createTestApiKey(services.services, {
         userId: user.userId,
         organizationId: org.id,
-        headers: user.headers,
       });
       const handlers = createTestHandlers(services.services);
 
@@ -148,10 +146,10 @@ describe("API key handlers", () => {
       await createTestApiKey(services.services, { userId: user.userId, name: "Key 2" });
       const handlers = createTestHandlers(services.services);
 
-      const result = await handlers.apiKeys.listApiKeys({
+      const result = (await handlers.apiKeys.listApiKeys({
         input: {},
         context: { reqHeaders: user.reqHeaders },
-      });
+      })) as Array<{ id: string; name: string | null }>;
 
       expect(result).toHaveLength(2);
       expect(result.map((k) => k.name)).toContain("Key 1");

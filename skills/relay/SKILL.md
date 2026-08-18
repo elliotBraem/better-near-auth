@@ -4,8 +4,7 @@ description: >
   Configure the gasless NEP-366 delegate action relayer in ephemeral or explicit
   mode, relay signed delegate actions on-chain, enforce contract whitelisting and
   gas/deposit limits, check relay status and history, and use the contract view
-  endpoint. Load when setting up relayer config, debugging relay failures, or
-  configuring RotatingKeyStore for high-throughput relay.
+  endpoint. Load when setting up relayer config or debugging relay failures.
 metadata:
   type: core
   library: better-near-auth
@@ -34,7 +33,10 @@ export const auth = betterAuth({
   plugins: [
     siwn({
       recipient: "myapp.com",
-      relayer: true, // auto-generates keypair on first startup
+      // Omit `accountId` to auto-generate the ephemeral keypair on first startup
+      relayer: {
+        whitelistedContracts: ["myapp.near"],
+      },
     }),
   ],
 });
@@ -71,7 +73,7 @@ siwn({
   recipient: "myapp.com",
   relayer: {
     accountId: "relayer.myapp.near",
-    privateKey: process.env.RELAYER_PRIVATE_KEY, // base64 ed25519:...
+    privateKey: process.env.RELAYER_PRIVATE_KEY, // ed25519:...
     whitelistedContracts: ["myapp.near"],
     maxGasPerTransaction: "300000000000000", // 300 Tgas
     maxDepositPerTransaction: "0",
@@ -89,9 +91,13 @@ siwn({
   },
   relayer: {
     mainnet: {
+      accountId: "relayer.myapp.near",
+      privateKey: process.env.RELAYER_PRIVATE_KEY_MAINNET,
       whitelistedContracts: ["myapp.near"],
     },
     testnet: {
+      accountId: "relayer.myapp.testnet",
+      privateKey: process.env.RELAYER_PRIVATE_KEY_TESTNET,
       whitelistedContracts: ["myapp.testnet"],
       maxGasPerTransaction: "100000000000000", // lower for testing
     },
@@ -99,26 +105,7 @@ siwn({
 });
 ```
 
-Creates separate ephemeral keys for each network with independent settings.
-
-### Rotating keys (high-throughput)
-
-```typescript
-siwn({
-  recipient: "myapp.com",
-  relayer: {
-    accountId: "relayer.myapp.near",
-    privateKeys: [
-      process.env.RELAYER_KEY_1,
-      process.env.RELAYER_KEY_2,
-      process.env.RELAYER_KEY_3,
-    ],
-    whitelistedContracts: ["myapp.near"],
-  },
-});
-```
-
-Multiple keys cycle round-robin via `RotatingKeyStore`, eliminating nonce collisions for high-throughput relayers.
+Each network gets its own keypair and policy. When `accountId` is omitted, ephemeral keys are generated independently per network.
 
 ## Core Patterns
 
@@ -182,42 +169,32 @@ View calls are read-only, authenticated, and executed server-side.
 
 ## Relayer Configuration
 
-The relayer can be configured in several ways:
+The relayer takes a single `RelayerConfig` shape. The mode is determined at runtime by whether `accountId` is set:
 
-| Value | Mode | Description |
-|-------|------|-------------|
-| `true` | Ephemeral | Auto-generated ED25519 keypair (simplest) |
-| `RelayerEphemeralConfig` | Ephemeral | Ephemeral with custom settings |
-| `RelayerExplicitConfig` | Explicit | Bring your own key |
-| `RelayerDualNetworkConfig` | Mixed | Per-network configuration |
+| Form | Mode | Description |
+|------|------|-------------|
+| `{ whitelistedContracts?: ... }` | Ephemeral | Auto-generated ED25519 keypair (simplest) |
+| `{ accountId, privateKey, ... }` | Explicit | Bring your own key for a named account |
+| `{ mainnet: {...}, testnet: {...} }` | Mixed | Per-network configuration |
 
-**Ephemeral Config (`RelayerEphemeralConfig`):**
+**`RelayerConfig`:**
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `accountId` | `string` | — | Named relayer account. If set, the relayer runs in explicit mode using `privateKey`. |
+| `privateKey` | `string` | — | ed25519:... private key. Required when `accountId` is set; otherwise the relayer logs a warning and falls back to ephemeral mode. |
 | `whitelistedContracts` | `string[]` | — | Restrict relay to these contract IDs |
 | `maxGasPerTransaction` | `string` | — | Max gas per relayed transaction (yoctoNEAR) |
 | `maxDepositPerTransaction` | `string` | — | Max deposit per relayed transaction (yoctoNEAR) |
 
-**Explicit Config (`RelayerExplicitConfig`):**
+**`RelayerDualNetworkConfig`:**
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `accountId` | `string` | — | Named relayer account (required) |
-| `privateKey` | `string` | — | Base64 ed25519:... (required) |
-| `privateKeys` | `string[]` | — | Multiple keys for RotatingKeyStore |
-| `whitelistedContracts` | `string[]` | — | Restrict relay to these contract IDs |
-| `maxGasPerTransaction` | `string` | — | Max gas per relayed transaction (yoctoNEAR) |
-| `maxDepositPerTransaction` | `string` | — | Max deposit per relayed transaction (yoctoNEAR) |
+| `mainnet` | `RelayerConfig` | — | Per-network config. Independent ephemeral keys when `accountId` is omitted. |
+| `testnet` | `RelayerConfig` | — | Per-network config. Independent ephemeral keys when `accountId` is omitted. |
 
-**Dual Network Config (`RelayerDualNetworkConfig`):**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `mainnet` | `RelayerEphemeralConfig \| RelayerExplicitConfig` | — | Mainnet relayer config |
-| `testnet` | `RelayerEphemeralConfig \| RelayerExplicitConfig` | — | Testnet relayer config |
-
-When using `relayer: true` or ephemeral config (no `accountId`/`privateKey`), an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
+When `accountId` is not set, an ED25519 keypair is generated on first startup, the implicit account ID is derived from the public key, and the private key is encrypted with AES-256-GCM (using `BETTER_AUTH_SECRET` as KEK via HKDF-SHA256) and stored in the database. The same keypair is recovered on restart.
 
 ## Encryption Details
 
@@ -230,48 +207,29 @@ When using `relayer: true` or ephemeral config (no `accountId`/`privateKey`), an
 
 ### CRITICAL Not funding the ephemeral relayer account
 
-Wrong:
-
 ```typescript
 siwn({
   recipient: "myapp.com",
-  relayer: true, // ephemeral — but account has zero balance
-});
-// Server starts, relayer created, but every relay attempt fails
-```
-
-Correct:
-
-```typescript
-siwn({
-  recipient: "myapp.com",
-  relayer: true, // ephemeral
+  relayer: {
+    // Omit accountId to use ephemeral mode (account starts with zero balance)
+    whitelistedContracts: ["myapp.near"],
+  },
 });
 // After startup, check logs for the accountId:
 // [siwn] Relayer initialized: 7a3c4b5c... (mainnet, ephemeral)
-// Send NEAR to that account ID to fund the relayer
+// Send NEAR to that account ID to fund the relayer — every relay attempt fails otherwise
 ```
 
-The ephemeral mode generates an implicit account (hex of public key) with zero balance. Without funding, every relay attempt fails with an insufficient balance error from the NEAR RPC. The server catches this at src/index.ts:952-958 and surfaces it as `"Relay failed"` — check server logs for the actual RPC error. Alternatively, use explicit mode with a pre-funded named account.
+The ephemeral mode generates an implicit account (hex of public key) with zero balance. Without funding, every relay attempt fails with an insufficient balance error from the NEAR RPC. The server catches this at src/index.ts:1153-1160 and surfaces it as `"Relay failed"` — check server logs for the actual RPC error. Alternatively, use explicit mode with a pre-funded named account.
 
-Source: src/index.ts:179-181, maintainer interview
+Source: src/index.ts:152-235, maintainer interview
 
 ### CRITICAL Empty relayer_key table (config not passed)
-
-Wrong:
-
-```typescript
-// Config builder returns undefined when checking for accountId
-if (!siwn.relayer?.accountId) return undefined;
-// Relayer never initializes, relayer_key table stays empty
-```
 
 Correct:
 
 ```typescript
-// Use relayer: true or provide config object
-relayer: true
-// OR
+// Provide a config object — even an empty one enables ephemeral mode
 relayer: {
   whitelistedContracts: ["myapp.near"],
 }
@@ -355,7 +313,9 @@ Wrong:
 // No BETTER_AUTH_SECRET set — ephemeral key encryption uses empty string
 siwn({
   recipient: "myapp.com",
-  relayer: true,
+  relayer: {
+    whitelistedContracts: ["myapp.near"],
+  },
 });
 ```
 
@@ -367,12 +327,14 @@ Correct:
 process.env.BETTER_AUTH_SECRET = "your-secure-secret";
 siwn({
   recipient: "myapp.com",
-  relayer: true,
+  relayer: {
+    whitelistedContracts: ["myapp.near"],
+  },
 });
 ```
 
 The ephemeral relayer encrypts its private key using HKDF-SHA256 derived from `BETTER_AUTH_SECRET`. If missing, key derivation falls back to an empty string, which is insecure and may cause decryption failures on server restart.
 
-Source: src/utils.ts:21-41, src/index.ts:134
+Source: src/utils.ts:21-41, src/index.ts:133
 
 

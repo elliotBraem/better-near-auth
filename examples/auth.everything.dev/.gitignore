@@ -333,6 +333,5 @@ node_modules/.federation
 !CONTRIBUTING.md
 !**/README.md
 !**/CHANGELOG.md
-!.changeset/*.md
 !.changeset/**/*.md
 .bos/sync-backup/

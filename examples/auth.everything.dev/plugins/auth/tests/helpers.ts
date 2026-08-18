@@ -148,7 +148,7 @@ export async function addTestMember(
   services: PluginServices,
   orgId: string,
   userId: string,
-  role: string = "member",
+  role: "member" | "owner" | "admin" = "member",
 ): Promise<string> {
   const result = (await services.auth.api.addMember({
     body: {
@@ -183,24 +183,26 @@ type MiddlewareFn = (opts: {
   }) => Promise<{ context: Record<string, unknown> }> | { context: Record<string, unknown> };
 }) => Promise<{ context: Record<string, unknown> }> | { context: Record<string, unknown> };
 
-type HandlerFn = (opts: {
+type HandlerFn<R = unknown> = (opts: {
   context: Record<string, unknown>;
   input?: Record<string, unknown>;
-}) => unknown;
+}) => Promise<R> | R;
+
+type MockRoute = {
+  use: (mw: MiddlewareFn) => { handler: <R>(h: HandlerFn<R>) => HandlerFn<R> };
+  handler: <R>(h: HandlerFn<R>) => HandlerFn<R>;
+};
 
 interface MockBuilder {
-  middleware: (mw: MiddlewareFn) => MiddlewareFn;
-  [route: string]: {
-    use: (mw: MiddlewareFn) => { handler: (h: HandlerFn) => HandlerFn };
-    handler: (h: HandlerFn) => HandlerFn;
-  };
+  middleware: ((mw: MiddlewareFn) => MiddlewareFn) & MockRoute;
+  [route: string]: MockRoute;
 }
 
 function createMockBuilder(): MockBuilder {
-  const routeProxy = {
+  const routeProxy: MockRoute = {
     use: (mw: MiddlewareFn) => ({
       handler:
-        (handler: HandlerFn): HandlerFn =>
+        <R>(handler: HandlerFn<R>): HandlerFn<R> =>
         async (opts: { context: Record<string, unknown>; input?: Record<string, unknown> }) => {
           const result = await mw({
             context: opts.context,
@@ -209,13 +211,14 @@ function createMockBuilder(): MockBuilder {
           return handler({ ...opts, context: result.context });
         },
     }),
-    handler: (fn: HandlerFn) => fn,
+    handler: <R>(fn: HandlerFn<R>) => fn,
   };
 
   return new Proxy({} as MockBuilder, {
     get(_target, prop: string) {
       if (prop === "middleware") {
-        return (mw: MiddlewareFn) => mw;
+        const fn = ((mw: MiddlewareFn) => mw) as (mw: MiddlewareFn) => MiddlewareFn;
+        return Object.assign(fn, routeProxy);
       }
       return routeProxy;
     },

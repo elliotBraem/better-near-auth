@@ -6,7 +6,7 @@ import type {} from "@better-auth/core/env";
 import type {} from "@better-auth/core/oauth2";
 import type {} from "better-call";
 
-import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore, RotatingKeyStore } from "near-kit";
+import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore } from "near-kit";
 import type { SignedDelegateAction, PrivateKey } from "near-kit";
 import { hex, base58 } from "@scure/base";
 import z from "zod";
@@ -105,34 +105,20 @@ function buildListAccountsResponse(nearAccounts: NearAccount[]): ListAccountsRes
 	};
 }
 
-interface RelayerEphemeralConfig {
-	accountId?: never;
-	privateKey?: never;
-	ephemeral?: true;
-	whitelistedContracts?: string[];
-	maxGasPerTransaction?: string;
-	maxDepositPerTransaction?: string;
-}
-
-interface RelayerExplicitConfig {
-	accountId: string;
-	privateKey: string;
-	privateKeys?: string[];
+interface RelayerConfig {
+	accountId?: string;
+	privateKey?: string;
 	whitelistedContracts?: string[];
 	maxGasPerTransaction?: string;
 	maxDepositPerTransaction?: string;
 }
 
 interface RelayerDualNetworkConfig {
-	mainnet?: RelayerEphemeralConfig | RelayerExplicitConfig;
-	testnet?: RelayerEphemeralConfig | RelayerExplicitConfig;
+	mainnet?: RelayerConfig;
+	testnet?: RelayerConfig;
 }
 
-export type RelayerConfig =
-	| true
-	| RelayerEphemeralConfig
-	| RelayerExplicitConfig
-	| RelayerDualNetworkConfig;
+export type { RelayerConfig, RelayerDualNetworkConfig };
 
 interface RelayerState {
 	near: Near;
@@ -147,11 +133,22 @@ interface RelayerState {
 	lastUsedAt?: Date;
 }
 
+function isRelayerDualNetworkConfig(
+	cfg: RelayerConfig | RelayerDualNetworkConfig,
+): cfg is RelayerDualNetworkConfig {
+	return (
+		typeof cfg === "object" &&
+		cfg !== null &&
+		"mainnet" in cfg &&
+		typeof (cfg as RelayerDualNetworkConfig).mainnet === "object"
+	);
+}
+
 function createNear(
 	network: "mainnet" | "testnet",
 	headers: Record<string, string>,
 	rpcUrl?: string,
-	keyStore?: InMemoryKeyStore | RotatingKeyStore,
+	keyStore?: InMemoryKeyStore,
 ): Near {
 	const config: ConstructorParameters<typeof Near>[0] = { headers };
 	if (rpcUrl) {
@@ -166,7 +163,7 @@ function createNear(
 }
 
 async function initRelayer(
-	relayerConfig: RelayerConfig | undefined,
+	relayerConfig: RelayerConfig | RelayerDualNetworkConfig | undefined,
 	network: "mainnet" | "testnet",
 	adapter: DBAdapter,
 	secret: string | undefined,
@@ -180,34 +177,21 @@ async function initRelayer(
 		headers["Authorization"] = `Bearer ${apiKey}`;
 	}
 
-	let networkConfig: RelayerEphemeralConfig | RelayerExplicitConfig | undefined;
-	
-	if (relayerConfig === true) {
-		networkConfig = {};
-	} else if ("mainnet" in relayerConfig || "testnet" in relayerConfig) {
-		const dualConfig = relayerConfig as RelayerDualNetworkConfig;
-		networkConfig = network === "mainnet" ? dualConfig.mainnet : dualConfig.testnet;
-		if (!networkConfig) return null;
+	let networkConfig: RelayerConfig | undefined;
+	if (isRelayerDualNetworkConfig(relayerConfig)) {
+		networkConfig = network === "mainnet" ? relayerConfig.mainnet : relayerConfig.testnet;
 	} else {
-		networkConfig = relayerConfig as RelayerEphemeralConfig | RelayerExplicitConfig;
+		networkConfig = relayerConfig;
 	}
+	if (!networkConfig) return null;
 
-	if ("accountId" in networkConfig && networkConfig.accountId && (networkConfig.privateKey || networkConfig.privateKeys)) {
-		const keys = networkConfig.privateKeys ?? (networkConfig.privateKey ? [networkConfig.privateKey] : []);
-		let keyStore: InMemoryKeyStore | RotatingKeyStore;
-
-		if (keys.length === 1) {
-			keyStore = new InMemoryKeyStore({
-				[networkConfig.accountId]: keys[0]!,
-			});
-		} else {
-			keyStore = new RotatingKeyStore({
-				[networkConfig.accountId]: keys as string[],
-			});
-		}
+	if (networkConfig.accountId && networkConfig.privateKey) {
+		const keyStore = new InMemoryKeyStore({
+			[networkConfig.accountId]: networkConfig.privateKey,
+		});
 
 		const near = createNear(network, headers, rpcUrl, keyStore);
-		const explicitPublicKey = parseKey(keys[0]!);
+		const explicitPublicKey = parseKey(networkConfig.privateKey);
 		return {
 			near,
 			accountId: networkConfig.accountId,
@@ -218,6 +202,12 @@ async function initRelayer(
 			maxGasPerTransaction: networkConfig.maxGasPerTransaction,
 			maxDepositPerTransaction: networkConfig.maxDepositPerTransaction,
 		};
+	}
+
+	if (networkConfig.accountId && !networkConfig.privateKey) {
+		console.warn(
+			`[siwn] Relayer accountId "${networkConfig.accountId}" is set for ${network} but no privateKey was provided. Falling back to ephemeral mode. Set the relayer privateKey in your SIWN plugin options to use explicit mode.`,
+		);
 	}
 
 	const existing = await adapter.findOne<{ encryptedPrivateKey: string; iv: string; createdAt: Date; lastUsedAt: Date }>({
@@ -359,7 +349,7 @@ export interface SIWNPluginOptions {
 	}) => Promise<boolean>;
 	apiKey?: string;
 	rpcUrl?: string | DualNetworkConfig<string>;
-	relayer?: RelayerConfig | DualNetworkConfig<RelayerConfig>;
+	relayer?: RelayerConfig | RelayerDualNetworkConfig;
 	secrets?: {
 		parentKey?: string | DualNetworkConfig<string>;
 	};
@@ -386,11 +376,10 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 	const getRelayerConfig = (network: "mainnet" | "testnet"): RelayerConfig | undefined => {
 		if (!options.relayer) return undefined;
-		if (options.relayer === true) return true;
-		if ("mainnet" in options.relayer || "testnet" in options.relayer) {
-			return (options.relayer as RelayerDualNetworkConfig)[network];
+		if (isRelayerDualNetworkConfig(options.relayer)) {
+			return options.relayer[network];
 		}
-		return options.relayer as RelayerConfig;
+		return options.relayer;
 	};
 
 	const getRpcUrl = (network: "mainnet" | "testnet"): string | undefined => {
@@ -420,14 +409,12 @@ export const siwn = (options: SIWNPluginOptions) => {
 		if (fromSecrets) return fromSecrets;
 		const relayerCfg = getRelayerConfig(network);
 		const subAccountCfg = getSubAccountConfig(network);
-		
-		if (!relayerCfg || relayerCfg === true) return undefined;
-		if ("mainnet" in relayerCfg || "testnet" in relayerCfg) return undefined;
-		
-		const explicitCfg = relayerCfg as RelayerExplicitConfig;
-		const parent = subAccountCfg?.parentAccount ?? explicitCfg.accountId;
-		if (parent && parent === explicitCfg.accountId) {
-			return explicitCfg.privateKey ?? explicitCfg.privateKeys?.[0];
+
+		if (!relayerCfg || !relayerCfg.accountId || !relayerCfg.privateKey) return undefined;
+
+		const parent = subAccountCfg?.parentAccount ?? relayerCfg.accountId;
+		if (parent && parent === relayerCfg.accountId) {
+			return relayerCfg.privateKey;
 		}
 		return undefined;
 	};
@@ -1164,10 +1151,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 						}
 
 						const relayerConfigForNetwork = getRelayerConfig(network);
-						const isDualNetwork = relayerConfigForNetwork && typeof relayerConfigForNetwork === "object" && ("mainnet" in relayerConfigForNetwork || "testnet" in relayerConfigForNetwork);
-						const isSimpleConfig = relayerConfigForNetwork && typeof relayerConfigForNetwork === "object" && !isDualNetwork;
-						const configWithLimits = isSimpleConfig ? relayerConfigForNetwork as RelayerEphemeralConfig | RelayerExplicitConfig : undefined;
-						const whitelistedContracts = configWithLimits?.whitelistedContracts;
+						const whitelistedContracts = relayerConfigForNetwork?.whitelistedContracts;
 						if (whitelistedContracts?.length) {
 							if (!whitelistedContracts.includes(delegateAction.receiverId)) {
 								throw new APIError("FORBIDDEN", {
@@ -1177,7 +1161,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 							}
 						}
 
-						const maxGasPerTransaction = configWithLimits?.maxGasPerTransaction;
+						const maxGasPerTransaction = relayerConfigForNetwork?.maxGasPerTransaction;
 						if (maxGasPerTransaction) {
 							const totalGas = delegateAction.actions.reduce((sum: bigint, a) => {
 								return sum + ("functionCall" in a ? a.functionCall.gas : 0n);
@@ -1190,7 +1174,7 @@ export const siwn = (options: SIWNPluginOptions) => {
 							}
 						}
 
-						const maxDepositPerTransaction = configWithLimits?.maxDepositPerTransaction;
+						const maxDepositPerTransaction = relayerConfigForNetwork?.maxDepositPerTransaction;
 						if (maxDepositPerTransaction) {
 							const totalDeposit = delegateAction.actions.reduce((sum: bigint, a) => {
 								if ("functionCall" in a) return sum + a.functionCall.deposit;

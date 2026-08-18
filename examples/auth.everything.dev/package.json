@@ -4,7 +4,8 @@
   "workspaces": {
     "packages": [
       "api",
-      "ui"
+      "ui",
+      "plugins/*"
     ],
     "catalog": {
       "react": "19.2.4",
@@ -18,8 +19,8 @@
       "better-auth": "1.6.25",
       "@better-auth/api-key": "1.6.25",
       "@better-auth/passkey": "1.6.25",
-      "better-near-auth": "1.9.0",
-      "every-plugin": "^2.10.0",
+      "better-near-auth": "1.10.0",
+      "every-plugin": "^2.10.1",
       "typescript": "^5.9.3",
       "vitest": "^4.1.8",
       "@libsql/client": "0.17.0",
@@ -44,7 +45,7 @@
       "@module-federation/dts-plugin": "^2.4.0",
       "@tanstack/intent": "^0.3.5",
       "@opentelemetry/api": "^1.9.0",
-      "everything-dev": "^1.52.0",
+      "everything-dev": "^1.53.2",
       "@rspack/core": "1.7.11",
       "@rspack/cli": "1.7.11",
       "@rsbuild/core": "1.7.5",
@@ -91,12 +92,22 @@
     "db:studio": "bos db:studio",
     "db:generate": "bun run --cwd api drizzle-kit generate",
     "db:migrate": "bun run --cwd api drizzle-kit migrate",
-    "test:api": "bun run --if-present --cwd api test",
+    "test:api": "bun run --cwd api test --if-present",
     "test:plugin": "bun run --cwd plugins/auth test",
-    "test": "bun run --if-present --cwd api test && bun run --if-present --cwd ui test && if [ -d plugins ]; then for dir in plugins/*; do if [ -f \"$dir/package.json\" ]; then bun run --if-present --cwd \"$dir\" test; fi; done; fi",
+    "test": "bun run --cwd api test --if-present && bun run --cwd ui test --if-present && for d in plugins/*; do [ -f \"$d/package.json\" ] && bun run --cwd \"$d\" test --if-present; done",
     "test:integration": "bun run --cwd api test tests/integration/ --if-present",
     "db:doctor": "bos db:doctor",
-    "db:repair": "bos db:repair"
+    "db:repair": "bos db:repair",
+    "regression:start:dev": "BOS_NO_PERSIST_PORTS=1 bun packages/everything-dev/src/cli.ts dev --no-interactive --port 4100 --api-port 4101 --auth-port 4102 --ui-port 4103 --plugin-port-start 4110",
+    "regression:start:prod": "BOS_NO_PERSIST_PORTS=1 PORT=4100 bun ./node_modules/everything-dev/dist/cli.mjs start --no-interactive",
+    "test:regression:http:dev": "REGRESSION_MODE=dev sh -lc 'cd tests/regression/http && go test ./... -count=1 -v -timeout 10m'",
+    "test:regression:http:prod": "REGRESSION_MODE=prod sh -lc 'cd tests/regression/http && go test ./... -count=1 -v -timeout 10m'",
+    "test:regression:browser:install": "bunx playwright install --with-deps chromium",
+    "test:regression:browser:dev": "REGRESSION_MODE=dev bunx playwright test -c tests/regression/browser/playwright.config.mjs --project=dev",
+    "test:regression:browser:prod": "REGRESSION_MODE=prod bunx playwright test -c tests/regression/browser/playwright.config.mjs --project=prod",
+    "test:regression:dev": "bun run test:regression:http:dev && bun run test:regression:browser:dev",
+    "test:regression:prod": "bun run test:regression:http:prod && bun run test:regression:browser:prod",
+    "test:regression": "bun run test:regression:dev"
   },
   "packageManager": "bun@1.3.14",
   "type": "module",
@@ -124,7 +135,7 @@
     "@opentelemetry/api": "catalog:",
     "every-plugin": "catalog:",
     "everything-dev": "catalog:",
-    "better-near-auth": "^1.9.0",
+    "better-near-auth": "catalog:",
     "@electric-sql/pglite": "catalog:",
     "@better-auth/core": "catalog:",
     "pg": "catalog:"

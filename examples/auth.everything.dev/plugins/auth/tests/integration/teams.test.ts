@@ -50,10 +50,10 @@ describe("team handlers", () => {
         context: { reqHeaders: user.reqHeaders },
       });
 
-      const result = await handlers.teams.listTeams({
+      const result = (await handlers.teams.listTeams({
         input: { organizationId: org.id },
         context: { reqHeaders: user.reqHeaders },
-      });
+      })) as Array<{ id: string; name: string }>;
 
       expect(result.length).toBeGreaterThanOrEqual(2);
       const names = result.map((t) => t.name);

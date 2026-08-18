@@ -6,7 +6,7 @@ import {
   EveryPluginDevServer,
   FixMfDataUriPlugin,
 } from "every-plugin/build/rspack";
-import { computeSriHashForUrl, reportDeployResult } from "everything-dev/integrity";
+import { computeSriHashForUrl, findPluginKey, reportDeployResult } from "everything-dev/integrity";
 import { withZephyr } from "zephyr-rspack-plugin";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,38 +19,7 @@ const baseConfig = {
   externals: ["pg", "@electric-sql/pglite"],
   devtool: shouldDeploy ? false : "source-map",
   plugins: [
-    new EmitPluginManifest({
-      additionalExports: [
-        {
-          srcPath: "auth-export.d.ts",
-          exportNames: [
-            "Auth",
-            "BaseAuth",
-            "AuthPasskeyConfig",
-            "AuthSiwnBaseConfig",
-            "AuthSiwnRecipientConfig",
-            "AuthSiwnRecipientsConfig",
-            "AuthSiwnConfig",
-            "AuthConfig",
-            "AuthDatabase",
-            "AuthOrganizationContext",
-            "AuthOrganization",
-            "AuthOrganizationSummary",
-            "AuthOrganizationMember",
-            "AuthApiKey",
-            "AuthInvitation",
-            "AuthTeam",
-            "GetActiveMemberInput",
-            "GetFullOrganizationInput",
-            "ListMembersInput",
-            "ListInvitationsInput",
-            "ListApiKeysInput",
-            "createAuthInstance",
-            "AuthServices",
-          ],
-        },
-      ],
-    }),
+    new EmitPluginManifest(),
     new EveryPluginDevServer({ dts: false }),
     new FixMfDataUriPlugin(),
     DrizzleORMMigrations(),
@@ -67,13 +36,16 @@ export default shouldDeploy
         onDeployComplete: async (info) => {
           console.log("🚀 Plugin Deployed:", info.url);
           const integrity = await computeSriHashForUrl(info.url);
-          reportDeployResult({
-            url: info.url,
-            integrity,
-            bosConfigPath,
-            urlField: "app.auth.production",
-            integrityField: "app.auth.integrity",
-          });
+          const key = findPluginKey(bosConfigPath, __dirname);
+          if (key) {
+            reportDeployResult({
+              url: info.url,
+              integrity,
+              bosConfigPath,
+              urlField: `plugins.${key}.production`,
+              integrityField: `plugins.${key}.integrity`,
+            });
+          }
         },
       },
     })(baseConfig)

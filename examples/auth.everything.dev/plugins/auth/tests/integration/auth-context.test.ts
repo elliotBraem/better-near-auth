@@ -192,9 +192,9 @@ describe("getContext handler", () => {
     const org2 = await createTestOrg(services.services, user.userId, { name: "Org 2" });
 
     const handlers = createTestHandlers(services.services);
-    const result = await handlers.session.getContext({
+    const result = (await handlers.session.getContext({
       context: { reqHeaders: user.reqHeaders },
-    });
+    })) as { organizations?: Array<{ id: string; role: string; name?: string; slug?: string }> };
 
     expect(result.organizations).toBeDefined();
     const orgIds = result.organizations!.map((o) => o.id);

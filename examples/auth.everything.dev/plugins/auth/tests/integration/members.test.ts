@@ -32,10 +32,10 @@ describe("member handlers", () => {
       await addTestMember(services.services, org.id, member2.userId, "admin");
 
       const handlers = createTestHandlers(services.services);
-      const result = await handlers.members.listMembers({
+      const result = (await handlers.members.listMembers({
         input: { organizationId: org.id },
         context: { reqHeaders: owner.reqHeaders },
-      });
+      })) as { members: Array<{ role: string }>; total: number };
 
       expect(result.members).toHaveLength(3);
       const roles = result.members.map((m) => m.role).sort();

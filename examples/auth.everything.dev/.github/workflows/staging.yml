@@ -76,8 +76,25 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bos.config.json
-          if ! git diff --cached --quiet; then
+
+          for i in 1 2 3 4 5; do
+            git fetch origin "$TARGET_BRANCH"
+            if ! git rebase "origin/$TARGET_BRANCH"; then
+              echo "Rebase conflict — manual intervention required"
+              exit 1
+            fi
+            git add bos.config.json
+            if git diff --cached --quiet; then
+              echo "Nothing to push after rebase (attempt $i)"
+              exit 0
+            fi
             git commit -m "chore: update staging deployment URLs [skip ci]"
-            git push origin "$TARGET_BRANCH"
-          fi
+            if git push origin "$TARGET_BRANCH"; then
+              echo "Push succeeded on attempt $i"
+              exit 0
+            fi
+            echo "Push attempt $i failed, retrying in $((i*5))s..."
+            sleep $((i*5))
+          done
+          echo "All push attempts failed"
+          exit 1

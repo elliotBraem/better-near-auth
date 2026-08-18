@@ -105,10 +105,10 @@ describe("invitation handlers", () => {
         context: { reqHeaders: owner.reqHeaders },
       });
 
-      const result = await handlers.invitations.listInvitations({
+      const result = (await handlers.invitations.listInvitations({
         input: { organizationId: org.id },
         context: { reqHeaders: owner.reqHeaders },
-      });
+      })) as Array<{ id: string; email: string }>;
 
       expect(result).toHaveLength(2);
       const emails = result.map((i) => i.email);
@@ -130,9 +130,9 @@ describe("invitation handlers", () => {
         context: { reqHeaders: owner.reqHeaders },
       });
 
-      const result = await handlers.invitations.listUserInvitations({
+      const result = (await handlers.invitations.listUserInvitations({
         context: { reqHeaders: invitedUser.reqHeaders },
-      });
+      })) as Array<{ id: string; email: string }>;
 
       expect(result.length).toBeGreaterThanOrEqual(1);
       const emails = result.map((i) => i.email);

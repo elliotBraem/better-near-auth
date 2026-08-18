@@ -1,5 +1,9 @@
 import type { Auth as BetterAuthResult } from "better-auth";
-import type { DualNetworkConfig, SubAccountConfig } from "better-near-auth";
+import type {
+  DualNetworkConfig,
+  RelayerDualNetworkConfig,
+  SubAccountConfig,
+} from "better-near-auth";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type { InferInput, InferOutput } from "./contract";
 
@@ -15,10 +19,7 @@ export interface AuthPasskeyConfig {
 export interface AuthSiwnBaseConfig {
   apiKey?: string;
   rpcUrl?: string;
-  relayer?: {
-    accountId?: string;
-    privateKey?: string;
-  };
+  relayer?: RelayerDualNetworkConfig;
   subAccount?: SubAccountConfig | DualNetworkConfig<SubAccountConfig>;
   secrets?: {
     parentKey?: string | DualNetworkConfig<string>;
