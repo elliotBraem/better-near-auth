@@ -167,6 +167,32 @@ export interface RelayedTransactionRecord {
 	updatedAt: Date;
 }
 
+export const relayerConfigSchema = z
+	.object({
+		accountId: z.string().optional(),
+		privateKey: z.string().optional(),
+		whitelistedContracts: z.array(z.string()).optional(),
+		maxGasPerTransaction: z
+			.string()
+			.regex(/^\d+$/, "must be a non-negative integer string of gas units")
+			.optional(),
+		maxDepositPerTransaction: z
+			.string()
+			.regex(/^\d+$/, "must be a non-negative integer string of yoctoNEAR")
+			.optional(),
+	})
+	.strict();
+
+export const relayerDualNetworkConfigSchema = z
+	.object({
+		mainnet: relayerConfigSchema.optional(),
+		testnet: relayerConfigSchema.optional(),
+	})
+	.strict();
+
+export type RelayerConfig = z.infer<typeof relayerConfigSchema>;
+export type RelayerDualNetworkConfig = z.infer<typeof relayerDualNetworkConfigSchema>;
+
 export interface RelayerInfo extends AccountState {
 	accountId: string;
 	mode: "ephemeral" | "explicit";
@@ -177,6 +203,7 @@ export interface RelayerInfo extends AccountState {
 	lastUsedAt?: Date;
 	parentAccount?: string;
 	subAccountAvailable?: boolean;
+	error?: string;
 }
 
 export interface DualNetworkConfig<T> {

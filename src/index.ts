@@ -5,6 +5,8 @@ import type { Account, User, DBAdapter } from "better-auth/types";
 import type {} from "@better-auth/core/env";
 import type {} from "@better-auth/core/oauth2";
 import type {} from "better-call";
+import type { AuthContext } from "@better-auth/core";
+import { BetterAuthError } from "@better-auth/core/error";
 
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore } from "near-kit";
 import type { SignedDelegateAction, PrivateKey } from "near-kit";
@@ -21,6 +23,8 @@ import {
 	type Profile,
 	type RelayerInfo,
 	type RelayedTransactionRecord,
+	type RelayerConfig,
+	type RelayerDualNetworkConfig,
 	type SubAccountConfig,
 	LinkAccountRequest,
 	NonceRequest,
@@ -32,6 +36,8 @@ import {
 	RelayRequest,
 	RelayResponse,
 	RelayStatusResponse,
+	relayerConfigSchema,
+	relayerDualNetworkConfigSchema,
 	SetPrimaryAccountRequest,
 	ViewContractRequest,
 	ViewContractResponse,
@@ -105,21 +111,6 @@ function buildListAccountsResponse(nearAccounts: NearAccount[]): ListAccountsRes
 	};
 }
 
-interface RelayerConfig {
-	accountId?: string;
-	privateKey?: string;
-	whitelistedContracts?: string[];
-	maxGasPerTransaction?: string;
-	maxDepositPerTransaction?: string;
-}
-
-interface RelayerDualNetworkConfig {
-	mainnet?: RelayerConfig;
-	testnet?: RelayerConfig;
-}
-
-export type { RelayerConfig, RelayerDualNetworkConfig };
-
 interface RelayerState {
 	near: Near;
 	accountId: string;
@@ -133,15 +124,42 @@ interface RelayerState {
 	lastUsedAt?: Date;
 }
 
-function isRelayerDualNetworkConfig(
-	cfg: RelayerConfig | RelayerDualNetworkConfig,
-): cfg is RelayerDualNetworkConfig {
-	return (
-		typeof cfg === "object" &&
-		cfg !== null &&
-		"mainnet" in cfg &&
-		typeof (cfg as RelayerDualNetworkConfig).mainnet === "object"
-	);
+type ParsedRelayerConfig =
+	| { kind: "flat"; config: RelayerConfig }
+	| { kind: "dual"; config: RelayerDualNetworkConfig };
+
+export function parseRelayerConfig(
+	input: RelayerConfig | RelayerDualNetworkConfig | undefined,
+): ParsedRelayerConfig | undefined {
+	if (input == null) return undefined;
+	if (typeof input !== "object") {
+		throw new BetterAuthError(
+			"Invalid relayer config: expected an object with 'mainnet'/'testnet' keys or top-level relayer fields.",
+		);
+	}
+	const keys = Object.keys(input);
+	const flatKeys = Object.keys(relayerConfigSchema.shape) as (keyof RelayerConfig)[];
+	const hasNetworkKey = keys.includes("mainnet") || keys.includes("testnet");
+	const hasFlatKey = flatKeys.some((k) => keys.includes(k));
+	if (hasNetworkKey && hasFlatKey) {
+		throw new BetterAuthError(
+			`Invalid relayer config: cannot mix per-network keys (mainnet/testnet) with top-level fields (${flatKeys.join(", ")}). Use either a flat RelayerConfig or a RelayerDualNetworkConfig.`,
+		);
+	}
+	const schema = hasNetworkKey
+		? relayerDualNetworkConfigSchema
+		: relayerConfigSchema;
+	const result = schema.safeParse(input);
+	if (!result.success) {
+		const detail = result.error.issues
+			.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+			.join("; ");
+		throw new BetterAuthError(`Invalid relayer config: ${detail}`);
+	}
+	if (hasNetworkKey) {
+		return { kind: "dual", config: result.data as RelayerDualNetworkConfig };
+	}
+	return { kind: "flat", config: result.data as RelayerConfig };
 }
 
 function createNear(
@@ -163,27 +181,21 @@ function createNear(
 }
 
 async function initRelayer(
-	relayerConfig: RelayerConfig | RelayerDualNetworkConfig | undefined,
+	networkConfig: RelayerConfig | undefined,
 	network: "mainnet" | "testnet",
 	adapter: DBAdapter,
 	secret: string | undefined,
 	apiKey?: string,
 	rpcUrl?: string,
 ): Promise<RelayerState | null> {
-	if (!relayerConfig) return null;
+	if (!networkConfig) return null;
 
 	const headers: Record<string, string> = {};
 	if (apiKey) {
 		headers["Authorization"] = `Bearer ${apiKey}`;
 	}
 
-	let networkConfig: RelayerConfig | undefined;
-	if (isRelayerDualNetworkConfig(relayerConfig)) {
-		networkConfig = network === "mainnet" ? relayerConfig.mainnet : relayerConfig.testnet;
-	} else {
-		networkConfig = relayerConfig;
-	}
-	if (!networkConfig) return null;
+
 
 	if (networkConfig.accountId && networkConfig.privateKey) {
 		const keyStore = new InMemoryKeyStore({
@@ -361,6 +373,8 @@ export const siwn = (options: SIWNPluginOptions) => {
 		throw new Error("Either 'recipient' or 'recipients' must be provided to siwn plugin");
 	}
 
+	const relayerConfig = parseRelayerConfig(options.relayer);
+
 	const apiKey = options.apiKey;
 
 	const getRecipient = (network: "mainnet" | "testnet"): string => {
@@ -375,11 +389,8 @@ export const siwn = (options: SIWNPluginOptions) => {
 	};
 
 	const getRelayerConfig = (network: "mainnet" | "testnet"): RelayerConfig | undefined => {
-		if (!options.relayer) return undefined;
-		if (isRelayerDualNetworkConfig(options.relayer)) {
-			return options.relayer[network];
-		}
-		return options.relayer;
+		if (!relayerConfig) return undefined;
+		return relayerConfig.kind === "dual" ? relayerConfig.config[network] : relayerConfig.config;
 	};
 
 	const getRpcUrl = (network: "mainnet" | "testnet"): string | undefined => {
@@ -473,6 +484,21 @@ export const siwn = (options: SIWNPluginOptions) => {
 	return ({
 		id: "siwn",
 		schema,
+		init: (ctx: AuthContext) => {
+			if (!relayerConfig) return;
+			for (const network of getSupportedNetworks()) {
+				// Better-auth fires plugin `init` before the host calls `runMigrations()`,
+				// so the `relayerKey` table may not exist yet. Defer to the next tick so the
+				// findOne/create sees the migrated schema and the boot log shows a real accountId.
+				setImmediate(() => {
+					ensureRelayer(ctx.adapter, ctx.secret, network).catch((err) => {
+						console.error(
+							`[siwn] Relayer init failed for ${network}: ${err instanceof Error ? err.message : String(err)}`,
+						);
+					});
+				});
+			}
+		},
 		hooks: {
 			after: [
 				{
@@ -1303,7 +1329,18 @@ export const siwn = (options: SIWNPluginOptions) => {
 				async (ctx) => {
 					const { network: requestedNetwork } = ctx.body;
 					const targetNetwork = (requestedNetwork ?? primaryNetwork) as "mainnet" | "testnet";
-					const rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, targetNetwork);
+					let rState: RelayerState | null = null;
+					try {
+						rState = await ensureRelayer(ctx.context.adapter, ctx.context.secret, targetNetwork);
+					} catch (error) {
+						const message = error instanceof Error ? error.message : String(error);
+						console.error(`[siwn] getRelayerInfo: relayer init failed for ${targetNetwork}: ${message}`);
+						return ctx.json({
+							enabled: false,
+							error: message,
+							subAccountAvailable: false,
+						} satisfies Partial<RelayerInfo> & { enabled: boolean });
+					}
 
 					if (!rState) {
 						return ctx.json({ enabled: false, subAccountAvailable: false } satisfies Partial<RelayerInfo> & { enabled: boolean });

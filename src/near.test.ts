@@ -613,6 +613,91 @@ describe("siwn plugin", () => {
 		}
 	});
 
+	describe("relayer config validation", () => {
+		it("throws BetterAuthError on hybrid relayer config (network keys + flat security fields)", () => {
+			let caught: unknown;
+			try {
+				siwn({
+					recipient: MOCK_RECIPIENT,
+					relayer: {
+						mainnet: {},
+						testnet: {},
+						whitelistedContracts: ["example.near"],
+						maxGasPerTransaction: "300000000000000",
+						maxDepositPerTransaction: "0",
+					} as any,
+				});
+			} catch (e) {
+				caught = e;
+			}
+			expect(caught).toBeInstanceOf(Error);
+			expect(String(caught)).toMatch(/whitelistedContracts|maxGasPerTransaction|maxDepositPerTransaction|cannot mix/);
+		});
+
+		it("throws on unknown relayer config key (strict)", () => {
+			expect(() =>
+				siwn({
+					recipient: MOCK_RECIPIENT,
+					relayer: { ephemeral: true } as any,
+				}),
+			).toThrow();
+		});
+
+		it("throws when maxGasPerTransaction / maxDepositPerTransaction are not non-negative integer strings", () => {
+			expect(() =>
+				siwn({ recipient: MOCK_RECIPIENT, relayer: { maxGasPerTransaction: 300 as any } }),
+			).toThrow();
+			expect(() =>
+				siwn({ recipient: MOCK_RECIPIENT, relayer: { maxGasPerTransaction: "300.5" } }),
+			).toThrow();
+			expect(() =>
+				siwn({ recipient: MOCK_RECIPIENT, relayer: { maxGasPerTransaction: "-1" } }),
+			).toThrow();
+			expect(() =>
+				siwn({ recipient: MOCK_RECIPIENT, relayer: { maxDepositPerTransaction: "abc" } }),
+			).toThrow();
+		});
+
+		it("throws when whitelistedContracts is not an array of strings", () => {
+			expect(() =>
+				siwn({ recipient: MOCK_RECIPIENT, relayer: { whitelistedContracts: "example.near" as any } }),
+			).toThrow();
+		});
+
+		it("accepts a valid flat relayer config", () => {
+			expect(() =>
+				siwn({
+					recipient: MOCK_RECIPIENT,
+					relayer: {
+						accountId: "relayer.near",
+						privateKey: "ed25519:abcd",
+						whitelistedContracts: ["example.near"],
+						maxGasPerTransaction: "300000000000000",
+						maxDepositPerTransaction: "0",
+					},
+				}),
+			).not.toThrow();
+		});
+
+		it("accepts a valid dual relayer config", () => {
+			expect(() =>
+				siwn({
+					recipients: { mainnet: "x.near", testnet: "x.testnet" },
+					relayer: {
+						mainnet: {},
+						testnet: { accountId: "r.testnet", privateKey: "ed25519:abcd" },
+					},
+				}),
+			).not.toThrow();
+		});
+
+		it("exports relayerConfigSchema and relayerDualNetworkConfigSchema", async () => {
+			const exported = await import("./index.js");
+			expect(exported.relayerConfigSchema).toBeDefined();
+			expect(exported.relayerDualNetworkConfigSchema).toBeDefined();
+		});
+	});
+
 	describe("relayer", () => {
 		it("should return relayer info when relayer is configured", async () => {
 			const { client } = await setup({ relayer: {} });
@@ -665,6 +750,52 @@ describe("siwn plugin", () => {
 			expect(relayerInfo.enabled).toBe(true);
 			expect(relayerInfo.network).toBe("mainnet");
 			expect(relayerInfo.balance).toBe("100");
+		});
+
+		it("logs ephemeral relayer initialization at boot without any API call (eager init)", async () => {
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			try {
+				await setup({ recipient: MOCK_RECIPIENT, relayer: {} });
+				await vi.waitFor(
+					() => {
+						expect(logSpy).toHaveBeenCalledWith(
+							expect.stringMatching(/\[siwn\] Relayer initialized: \S+ \(mainnet, ephemeral\)/),
+						);
+					},
+					{ timeout: 3000 },
+				);
+			} finally {
+				logSpy.mockRestore();
+			}
+		});
+
+		it("getRelayerInfo returns { enabled:false, error } when ensureRelayer throws at runtime", async () => {
+			const { customFetchImpl } = await setup({ recipient: MOCK_RECIPIENT, relayer: {} });
+			const cookie = await verifyWithCookie(customFetchImpl);
+
+			// Force ensureRelayer to throw on the next fresh ephemeral init by making generateKey throw.
+			const { generateKey } = await import("near-kit");
+			const generateSpy = (generateKey as any);
+			const originalImpl = generateSpy.getMockImplementation() ?? (() => ({ publicKey: { data: new Uint8Array(32).fill(1), toString: () => MOCK_GENERATED_PUBLIC_KEY }, secretKey: MOCK_GENERATED_SECRET_KEY, sign: vi.fn(), signNep413Message: vi.fn() }));
+			generateSpy.mockImplementation(() => {
+				throw new Error("Forced key gen failure: simulated runtime DB/secret error");
+			});
+
+			try {
+				const res = await customFetchImpl("http://localhost/api/auth/near/relayer-info", {
+					method: "POST",
+					headers: { "Content-Type": "application/json", cookie },
+					body: JSON.stringify({ network: "testnet" }),
+				});
+				expect(res.status).toBe(200);
+				const body = await res.json();
+				expect(body.enabled).toBe(false);
+				expect(typeof body.error).toBe("string");
+				expect(body.error).toMatch(/Forced key gen failure/);
+				expect(body.subAccountAvailable).toBe(false);
+			} finally {
+				generateSpy.mockImplementation(originalImpl);
+			}
 		});
 	});
 

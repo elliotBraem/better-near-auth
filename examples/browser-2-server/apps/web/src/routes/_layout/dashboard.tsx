@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, Loader2, Zap, Wallet, Copy, Check, RefreshCw, Search } from "lucide-react";
+import { CheckCircle2, Loader2, Zap, Wallet, Copy, Check, RefreshCw, Search, AlertCircle } from "lucide-react";
 import { NearProfile } from "@/components/near-profile";
 import { Link } from "@tanstack/react-router";
 import RelayFeed from "@/components/relay-feed";
@@ -25,19 +25,20 @@ function explorerTxUrl(txHash: string) {
 }
 
 interface RelayerData {
-  enabled: boolean;
-  accountId?: string;
-  mode?: "ephemeral" | "explicit";
-  network?: "mainnet" | "testnet";
-  balance?: string;
-  available?: string;
-  staked?: string;
-  storageUsage?: string;
-  storageBytes?: number;
-  hasContract?: boolean;
-  hasKey?: boolean;
-  createdAt?: string;
-  lastUsedAt?: string;
+	enabled: boolean;
+	accountId?: string;
+	mode?: "ephemeral" | "explicit";
+	network?: "mainnet" | "testnet";
+	balance?: string;
+	available?: string;
+	staked?: string;
+	storageUsage?: string;
+	storageBytes?: number;
+	hasContract?: boolean;
+	hasKey?: boolean;
+	createdAt?: string;
+	lastUsedAt?: string;
+	error?: string;
 }
 
 function formatNearDisplay(balance: string): string {
@@ -333,6 +334,32 @@ function RelayerCard() {
   }
 
   if (!data?.enabled || !data.accountId) {
+    if (data?.error) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              Relayer
+            </CardTitle>
+            <CardDescription>Gasless transaction relayer</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <span className="text-sm font-medium">Relayer Error</span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-2">
+              The relayer is configured but failed to initialize. This is usually
+              transient (DB or secret). Check server logs.
+            </p>
+            <code className="block text-xs bg-muted px-2 py-1 rounded break-all">
+              {data.error}
+            </code>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <Card>
         <CardHeader>
