@@ -58,7 +58,6 @@ The private key is encrypted with AES-256-GCM using `BETTER_AUTH_SECRET` as the 
 siwn({
   recipient: "myapp.com",
   relayer: {
-    ephemeral: true, // explicit marker (optional)
     whitelistedContracts: ["myapp.near"],
     maxGasPerTransaction: "300000000000000", // 300 Tgas
     maxDepositPerTransaction: "0",

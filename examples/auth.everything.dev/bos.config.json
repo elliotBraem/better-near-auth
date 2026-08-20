@@ -13,8 +13,10 @@
     "ui": {
       "name": "ui",
       "development": "local:ui",
-      "production": "https://elliot-braem-7444-ui-better-near-auth-elliotbraem-858f84543-ze.zephyrcloud.app",
-      "integrity": "sha384-6bNcKiFFu8+QFxorj0pSJa9ZMBE0Jmp/QKmyrGx5fj0AJKrp+h32aBbhm2UzSAjc"
+      "production": "https://elliot-braem-7537-ui-better-near-auth-elliotbraem-7ebfb0df4-ze.zephyrcloud.app",
+      "integrity": "sha384-cahPXaG978mInAAPkxhqn0PiHmoXLroWlzS8CNSiduwNnNW5PmLNJMQH3IjeozMe",
+      "ssr": "https://elliot-braem-7541-ui-better-near-auth-elliotbraem-1b8ea89fa-ze.zephyrcloud.app",
+      "ssrIntegrity": "sha384-QjcVI2DezOc1NUdKLv2+orqYInPpcScu0DTEsSlyJWc0aB6Xuzwyxp0cvxw04vqJ"
     },
     "api": {
       "name": "api",
@@ -22,14 +24,14 @@
       "secrets": [
         "API_DATABASE_URL"
       ],
-      "production": "https://elliot-braem-7446-api-better-near-auth-elliotbrae-a709b7ee8-ze.zephyrcloud.app",
-      "integrity": "sha384-KFAcoz3IVC4MTgpHXTz426WjGVBDeTitnM8hMow4cNwSaWmIuizucwCmwJ4ufKNz"
+      "production": "https://elliot-braem-7540-api-better-near-auth-elliotbrae-a682393a7-ze.zephyrcloud.app",
+      "integrity": "sha384-6PBOyGjZGoaCR02gODTN1sApm497povQxfzob6ICNrVsrWFud9xbOOSjBAWYSbzW"
     },
     "auth": {
       "name": "everything-dev_auth-plugin",
       "development": "local:plugins/auth",
-      "production": "https://elliot-braem-7388-everything-dev-auth-plugin-bett-b5d21a026-ze.zephyrcloud.app",
-      "integrity": "sha384-/61E52kHlbhBnZyjgQ0oXsIbIPt8FaJ4STFe09tFoG/mTcwMetm4E0RTYNhAjzpj",
+      "production": "https://elliot-braem-7538-everything-dev-auth-plugin-bett-6a8b025fb-ze.zephyrcloud.app",
+      "integrity": "sha384-5PFfr4JQZMd0pU09YVbT40T6vnZe11uknYWkR6K22lRdykFvVang3XTHdreKdVsm",
       "variables": {
         "socialProviders": {
           "github": {},
@@ -44,11 +46,7 @@
             "mainnet": "auth.everything.near",
             "testnet": "dev.allthethings.testnet"
           },
-          "relayer": {
-            "mainnet": {
-              "accountId": ""
-            }
-          }
+          "relayer": false
         }
       },
       "secrets": [
@@ -69,6 +67,8 @@
     }
   },
   "plugins": {
-    "auth": {}
+    "auth": {
+      "development": "local:plugins/auth"
+    }
   }
 }

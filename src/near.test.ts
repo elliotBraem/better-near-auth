@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { getTestInstance } from "better-auth/test";
 import { siwn } from "./index.js";
+import { siwnClient } from "./client.js";
 import { SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 import { hex } from "@scure/base";
+import { atom } from "nanostores";
 
 const MOCK_ACCOUNT_ID = "test.near";
 const MOCK_TESTNET_ACCOUNT_ID = "test.testnet";
@@ -1079,6 +1081,132 @@ describe("siwn plugin", () => {
 				publicKey: "ed25519:testpublickey",
 			});
 			expect(res.status).toBe(503);
+		});
+	});
+});
+
+describe("siwnClient getActions", () => {
+	type SessionAtom = ReturnType<typeof atom<unknown>>;
+
+	function makeSessionStore(initial: unknown) {
+		const sessionAtom = atom<unknown>(initial);
+		const store = {
+			atoms: { session: sessionAtom },
+			notify: vi.fn(),
+			listen: vi.fn(),
+		};
+		return { store, sessionAtom };
+	}
+
+	function setupClient(initial: unknown, $fetchImpl: (path: string, opts?: unknown) => unknown = () => Promise.resolve({ data: null, error: null })) {
+		const plugin = siwnClient({ recipient: MOCK_RECIPIENT });
+		const { store, sessionAtom } = makeSessionStore(initial);
+		const $fetch = vi.fn((path: string, opts?: unknown) => $fetchImpl(path, opts)) as unknown as Parameters<typeof plugin.getActions>[0];
+		const actions = plugin.getActions($fetch, store as unknown as Parameters<typeof plugin.getActions>[1], undefined);
+		return { actions, sessionAtom, plugin, store, $fetch };
+	}
+
+	describe("getAccountId session fallback", () => {
+		it("returns null when there is no session and no NearConnect state", () => {
+			const { actions } = setupClient(null);
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+
+		it("returns the primary nearAccount from session when NearConnect is not connected", () => {
+			const { actions, sessionAtom } = setupClient({
+				data: {
+					user: {
+						id: "user-1",
+						nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true },
+					},
+				},
+			});
+			expect(actions.near.getAccountId()).toBe("alice.near");
+			sessionAtom.set({
+				data: {
+					user: { id: "user-1", nearAccount: { accountId: "bob.near", network: "testnet", isPrimary: true } },
+				},
+			});
+			expect(actions.near.getAccountId()).toBe("bob.near");
+		});
+
+		it("returns the live NearConnect account when connected, even if a SIWN-linked account exists", () => {
+			const { actions, plugin } = setupClient({
+				data: {
+					user: {
+						id: "user-1",
+						nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true },
+					},
+				},
+			});
+			plugin.getAtoms(undefined as unknown as Parameters<typeof plugin.getAtoms>[0]).nearState.set({
+				accountId: "charlie.near",
+				publicKey: "ed25519:live",
+				networkId: "mainnet",
+			});
+			expect(actions.near.getAccountId()).toBe("charlie.near");
+		});
+
+		it("returns null when the session is cleared", () => {
+			const { actions, sessionAtom } = setupClient({
+				data: {
+					user: { id: "user-1", nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true } },
+				},
+			});
+			expect(actions.near.getAccountId()).toBe("alice.near");
+			sessionAtom.set({ data: null });
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+
+		it("returns null when session has a user but no nearAccount (no primary linked)", () => {
+			const { actions } = setupClient({ data: { user: { id: "user-1" } } });
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+
+		it("returns null when nearAccount.accountId is not a string", () => {
+			const { actions } = setupClient({ data: { user: { id: "user-1", nearAccount: { accountId: 123 } } } });
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+	});
+
+	describe("setPrimaryAccount", () => {
+		it("notifies $sessionSignal so the session's nearAccount refreshes", async () => {
+			const fetchResponse = {
+				data: {
+					success: true,
+					accountId: "bob.near",
+					network: "mainnet",
+					message: "ok",
+					accounts: [],
+					activeAccount: {
+						id: "acc-bob",
+						userId: "user-1",
+						accountId: "bob.near",
+						network: "mainnet",
+						publicKey: "ed25519:bob",
+						isPrimary: true,
+						createdAt: new Date(),
+						providerId: "siwn",
+						isActive: true,
+						isAvailable: false,
+					},
+					availableAccounts: [],
+				},
+				error: null,
+			};
+			const { actions, store, plugin } = setupClient(
+				{ data: { user: { id: "user-1", nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true } } } },
+				() => Promise.resolve(fetchResponse),
+			);
+
+			await actions.near.setPrimaryAccount({ accountId: "bob.near", network: "mainnet" });
+
+			expect((store.notify as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("$sessionSignal");
+			expect(plugin.getAtoms(undefined as unknown as Parameters<typeof plugin.getAtoms>[0]).nearState.get()).toEqual({
+				accountId: "bob.near",
+				publicKey: "ed25519:bob",
+				networkId: "mainnet",
+			});
 		});
 	});
 });
