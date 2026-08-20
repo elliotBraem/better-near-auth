@@ -410,7 +410,10 @@ export const siwnClient = (config: SIWNClientConfig) => {
 					},
 					getAccountId: () => {
 						const state = nearState.get();
-						return state?.accountId || null;
+						if (state?.accountId) return state.accountId;
+						const sessionData = sessionAtom?.get()?.data ?? null;
+						const nearAcct = (sessionData?.user as { nearAccount?: { accountId?: unknown } } | null | undefined)?.nearAccount;
+						return typeof nearAcct?.accountId === "string" ? nearAcct.accountId : null;
 					},
 					getState: () => nearState.get(),
 					isWalletConnected: () => walletConnected.get(),
@@ -532,6 +535,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 							});
 							activeNetwork.set(activeAccount.network);
 						}
+						$store.notify("$sessionSignal");
 						return response;
 					},
 					buildSignedDelegateAction: async (
