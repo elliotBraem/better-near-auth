@@ -3,8 +3,9 @@ import { getTestInstance } from "better-auth/test";
 import { siwn } from "./index.js";
 import { siwnClient } from "./client.js";
 import { SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
-import { hex } from "@scure/base";
+import { hex, base58, base64 } from "@scure/base";
 import { atom } from "nanostores";
+import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 
 const MOCK_ACCOUNT_ID = "test.near";
 const MOCK_TESTNET_ACCOUNT_ID = "test.testnet";
@@ -1207,6 +1208,130 @@ describe("siwnClient getActions", () => {
 				publicKey: "ed25519:bob",
 				networkId: "mainnet",
 			});
+		});
+	});
+
+	describe("ml-dsa-65 signatures", () => {
+		const MLDSA65_PUBLIC_KEY_LENGTH = 1952;
+
+		function concat(parts: Uint8Array[]): Uint8Array {
+			const total = parts.reduce((sum, p) => sum + p.length, 0);
+			const out = new Uint8Array(total);
+			let offset = 0;
+			for (const p of parts) {
+				out.set(p, offset);
+				offset += p.length;
+			}
+			return out;
+		}
+
+		function borshU32(value: number, littleEndian = true): Uint8Array {
+			const out = new Uint8Array(4);
+			new DataView(out.buffer).setUint32(0, value, littleEndian);
+			return out;
+		}
+
+		function borshString(value: string): Uint8Array {
+			const bytes = new TextEncoder().encode(value);
+			return concat([borshU32(bytes.length), bytes]);
+		}
+
+		async function makeMlDsa65VerifyBody(accountId: string = MOCK_ACCOUNT_ID, tamperSignature = false) {
+			const seed = new Uint8Array(32).fill(7);
+			const keys = ml_dsa65.keygen(seed);
+			const publicKey = `ml-dsa-65:${base58.encode(keys.publicKey)}`;
+
+			const nonce = new Uint8Array(32);
+			new DataView(nonce.buffer).setBigUint64(0, BigInt(Date.now()), false);
+			crypto.getRandomValues(nonce.subarray(8));
+
+			const message = `Sign in to ${MOCK_RECIPIENT}`;
+			const recipient = MOCK_RECIPIENT;
+			const tagBytes = borshU32(2147484061, true);
+			const callbackNone = borshU32(0, true);
+			const payload = concat([tagBytes, borshString(message), nonce, borshString(recipient), callbackNone]);
+			const payloadAb = (() => {
+				const ab = new ArrayBuffer(payload.byteLength);
+				new Uint8Array(ab).set(payload);
+				return ab;
+			})();
+			const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", payloadAb));
+			const signatureBytes = ml_dsa65.sign(hash, keys.secretKey);
+			const signature = base64.encode(tamperSignature ? flipBytes(signatureBytes) : signatureBytes);
+
+			return {
+				signedMessage: { accountId, publicKey, signature },
+				message,
+				recipient,
+				nonce: hex.encode(nonce),
+				accountId,
+			};
+		}
+
+		function flipBytes(bytes: Uint8Array): Uint8Array {
+			const out = new Uint8Array(bytes);
+			out[0] ^= 0xff;
+			return out;
+		}
+
+		it("should accept a valid ml-dsa-65 signed message and create a session", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+			(verifyNep413Signature as any).mockClear();
+			(verifyNep413Signature as any).mockImplementation(() => {
+				throw new Error("Only Ed25519 keys are supported for NEP-413");
+			});
+
+			const { client } = await setup();
+			const body = await makeMlDsa65VerifyBody();
+			expect(body.signedMessage.publicKey.startsWith("ml-dsa-65:")).toBe(true);
+			const decoded = base58.decode(body.signedMessage.publicKey.slice("ml-dsa-65:".length));
+			expect(decoded.length).toBe(MLDSA65_PUBLIC_KEY_LENGTH);
+
+			const { data, error } = await client.near.verify(body);
+			expect(verifyNep413Signature as any).not.toHaveBeenCalled();
+			expect(error).toBeNull();
+			expect(data?.success).toBe(true);
+			expect(data?.token).toBeDefined();
+			expect(data?.user.accountId).toBe(MOCK_ACCOUNT_ID);
+		});
+
+		it("should reject an ml-dsa-65 message with a tampered signature", async () => {
+			const { client } = await setup();
+			const body = await makeMlDsa65VerifyBody(undefined, true);
+			const { error } = await client.near.verify(body);
+			expect(error).toBeDefined();
+		});
+
+		it("should accept an ml-dsa-65 signed message on the link-account endpoint", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+			(verifyNep413Signature as any).mockClear();
+			(verifyNep413Signature as any).mockImplementation(() => {
+				throw new Error("Only Ed25519 keys are supported for NEP-413");
+			});
+
+			const { customFetchImpl, signInWithTestUser } = await getTestInstance(
+				{
+					plugins: [siwn({ recipient: MOCK_RECIPIENT, requireFullAccessKey: false })],
+					emailAndPassword: { enabled: true },
+				},
+				{ clientOptions: { plugins: [] } },
+			);
+
+			const { headers } = await signInWithTestUser();
+			const body = await makeMlDsa65VerifyBody();
+
+			const res = await customFetchImpl("http://localhost/api/auth/near/link-account", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					cookie: headers.get("cookie") || "",
+				},
+				body: JSON.stringify(body),
+			});
+			expect(res.status).toBe(200);
+			expect(verifyNep413Signature as any).not.toHaveBeenCalled();
+			const json = await res.json();
+			expect(json.success).toBe(true);
 		});
 	});
 });

@@ -10,7 +10,8 @@ import { BetterAuthError } from "@better-auth/core/error";
 
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore } from "near-kit";
 import type { SignedDelegateAction, PrivateKey } from "near-kit";
-import { hex, base58 } from "@scure/base";
+import { hex, base58, base64 } from "@scure/base";
+import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import z from "zod";
 import { defaultGetProfile, getImageUrl, getNetworkFromAccountId } from "./profile.js";
 import { schema } from "./schema.js";
@@ -329,6 +330,108 @@ async function defaultValidateLimitedAccessKey(
 	return false;
 }
 
+const ML_DSA_65_KEY_PREFIX = "ml-dsa-65:";
+const ML_DSA_65_PUBLIC_KEY_LENGTH = 1952;
+const NEP413_TAG = 2147484061;
+
+function concatUint8Arrays(parts: Uint8Array[]): Uint8Array {
+	const total = parts.reduce((sum, p) => sum + p.length, 0);
+	const out = new Uint8Array(total);
+	let offset = 0;
+	for (const part of parts) {
+		out.set(part, offset);
+		offset += part.length;
+	}
+	return out;
+}
+
+function encodeBorshU32(value: number): Uint8Array {
+	const out = new Uint8Array(4);
+	new DataView(out.buffer).setUint32(0, value, true);
+	return out;
+}
+
+function encodeBorshString(value: string): Uint8Array {
+	const bytes = new TextEncoder().encode(value);
+	return concatUint8Arrays([encodeBorshU32(bytes.length), bytes]);
+}
+
+function serializeNep413Message(params: {
+	message: string;
+	nonce: Uint8Array;
+	recipient: string;
+	callbackUrl?: string;
+}): Uint8Array {
+	if (params.nonce.length !== 32) {
+		throw new Error("Nonce must be exactly 32 bytes");
+	}
+	const tagBytes = encodeBorshU32(NEP413_TAG);
+	const callbackUrlBytes: Uint8Array = params.callbackUrl
+		? concatUint8Arrays([encodeBorshU32(1), encodeBorshString(params.callbackUrl)])
+		: encodeBorshU32(0);
+	const messageBytes = encodeBorshString(params.message);
+	const nonceBytes = params.nonce;
+	const recipientBytes = encodeBorshString(params.recipient);
+	return concatUint8Arrays([tagBytes, messageBytes, nonceBytes, recipientBytes, callbackUrlBytes]);
+}
+
+function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
+	const ab = new ArrayBuffer(u8.byteLength);
+	new Uint8Array(ab).set(u8);
+	return ab;
+}
+
+interface MlDsa65VerifyOptions {
+	near: Near;
+	maxAge?: number;
+}
+
+async function verifyMlDsa65Nep413Signature(
+	signedMessage: { accountId: string; publicKey: string; signature: string },
+	params: {
+		message: string;
+		recipient: string;
+		nonce: Uint8Array;
+		callbackUrl?: string;
+	},
+	options: MlDsa65VerifyOptions,
+): Promise<boolean> {
+	try {
+		const { near, maxAge = 5 * 60 * 1000 } = options;
+
+		if (!signedMessage.publicKey.startsWith(ML_DSA_65_KEY_PREFIX)) {
+			return false;
+		}
+
+		const stripped = signedMessage.publicKey.slice(ML_DSA_65_KEY_PREFIX.length);
+		const publicKeyBytes = base58.decode(stripped);
+		if (publicKeyBytes.length !== ML_DSA_65_PUBLIC_KEY_LENGTH) {
+			return false;
+		}
+
+		if (maxAge !== Infinity && params.nonce.length === 32) {
+			const view = new DataView(params.nonce.buffer, params.nonce.byteOffset, params.nonce.byteLength);
+			const timestamp = Number(view.getBigUint64(0, false));
+			const age = Date.now() - timestamp;
+			if (age > maxAge) return false;
+			if (age < 0) return false;
+		}
+
+		const accessKey = await near.getAccessKey(signedMessage.accountId, signedMessage.publicKey);
+		if (!accessKey || accessKey.permission !== "FullAccess") {
+			return false;
+		}
+
+		const combined = serializeNep413Message(params);
+		const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", toArrayBuffer(combined)));
+
+		const signatureBytes = base64.decode(signedMessage.signature);
+		return ml_dsa65.verify(signatureBytes, hash, publicKeyBytes);
+	} catch {
+		return false;
+	}
+}
+
 function isImplicitAccount(accountId: string): boolean {
 	return /^[0-9a-f]{64}$/.test(accountId);
 }
@@ -555,11 +658,17 @@ export const siwn = (options: SIWNPluginOptions) => {
 						const near = getNear(network);
 						const nonceBytes = hex.decode(nonce);
 
-						const isValid = await verifyNep413Signature(
-						signedMessage,
-						{ message, recipient, nonce: nonceBytes, callbackUrl },
-							{ near, maxAge: 15 * 60 * 1000 },
-						);
+						const isValid = signedMessage.publicKey.startsWith("ml-dsa-65:")
+							? await verifyMlDsa65Nep413Signature(
+								signedMessage,
+								{ message, recipient, nonce: nonceBytes, callbackUrl },
+								{ near, maxAge: 15 * 60 * 1000 },
+							)
+							: await verifyNep413Signature(
+								signedMessage,
+								{ message, recipient, nonce: nonceBytes, callbackUrl },
+								{ near, maxAge: 15 * 60 * 1000 },
+							);
 
 						if (!isValid) {
 							throw new APIError("UNAUTHORIZED", {
@@ -925,11 +1034,17 @@ export const siwn = (options: SIWNPluginOptions) => {
 						const near = getNear(network);
 						const nonceBytes = hex.decode(nonce);
 
-						const isValid = await verifyNep413Signature(
-						signedMessage,
-						{ message, recipient, nonce: nonceBytes, callbackUrl },
-							{ near, maxAge: 15 * 60 * 1000 },
-						);
+						const isValid = signedMessage.publicKey.startsWith("ml-dsa-65:")
+							? await verifyMlDsa65Nep413Signature(
+								signedMessage,
+								{ message, recipient, nonce: nonceBytes, callbackUrl },
+								{ near, maxAge: 15 * 60 * 1000 },
+							)
+							: await verifyNep413Signature(
+								signedMessage,
+								{ message, recipient, nonce: nonceBytes, callbackUrl },
+								{ near, maxAge: 15 * 60 * 1000 },
+							);
 
 						if (!isValid) {
 							throw new APIError("UNAUTHORIZED", {
