@@ -534,8 +534,8 @@ export const siwnClient = (config: SIWNClientConfig) => {
 								networkId: activeAccount.network,
 							});
 							activeNetwork.set(activeAccount.network);
+							$store.notify("$sessionSignal");
 						}
-						$store.notify("$sessionSignal");
 						return response;
 					},
 					buildSignedDelegateAction: async (
