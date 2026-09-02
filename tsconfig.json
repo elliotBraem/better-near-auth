@@ -29,5 +29,5 @@
     "verbatimModuleSyntax": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules/**", "src/near.test.ts", "examples/**"]
+  "exclude": ["node_modules/**", "src/*.test.ts", "examples/**"]
 }

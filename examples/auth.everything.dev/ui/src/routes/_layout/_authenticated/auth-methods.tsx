@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { type SessionData, sessionQueryOptions, useAuthClient } from "@/app";
 import { AuthMethodsPanel, useUserPasskeys } from "@/components/settings-sections";
+import { useNearAccountId } from "@/lib/near";
 
 export const Route = createFileRoute("/_layout/_authenticated/auth-methods")({
   head: () => ({
@@ -31,7 +32,7 @@ function AuthMethodsPage() {
   const user = session?.user;
   const passkeysQuery = useUserPasskeys(!!user);
   const passkeys = passkeysQuery.data ?? [];
-  const nearAccountId = auth.near.getAccountId();
+  const nearAccountId = useNearAccountId();
 
   if (sessionQuery.isLoading || passkeysQuery.isLoading) {
     return (

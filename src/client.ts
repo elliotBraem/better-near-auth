@@ -4,7 +4,10 @@ import type { EventMap } from "@hot-labs/near-connect";
 import { hex } from "@scure/base";
 import type { BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
+import type { NearClientAtoms, NearNetwork, NearState } from "./store.js";
 import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT, SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
+
+export { getNearAtoms, type NearAtomsSource, type NearClientAtoms, type NearNetwork, type NearState } from "./store.js";
 
 export interface AuthCallbacks {
 	onSuccess?: () => void;
@@ -32,7 +35,7 @@ export interface SIWNClientActions {
 		getProfile: (accountId?: AccountId) => Promise<BetterFetchResponse<ProfileResponseT>>;
 		view: (params: ViewContractRequestT) => Promise<BetterFetchResponse<ViewContractResponseT>>;
 		getAccountId: () => string | null;
-		getState: () => { accountId: string | null; publicKey: string | null; networkId: string } | null;
+		getState: () => NearState;
 		isWalletConnected: () => boolean;
 		detectNearAccount: () => Promise<{ accountId: string; publicKey: string | null; networkId: string } | null>;
 		ensureConnected: () => Promise<boolean>;
@@ -59,12 +62,10 @@ export interface SIWNClientActions {
 	};
 }
 
-type NearState = { accountId: string | null; publicKey: string | null; networkId: string } | null;
-
 export const siwnClient = (config: SIWNClientConfig) => {
 	const nearState = atom<NearState>(null);
 	const walletConnected = atom<boolean>(false);
-	const activeNetwork = atom<"mainnet" | "testnet">(config.networkId || "mainnet");
+	const activeNetwork = atom<NearNetwork>(config.networkId || "mainnet");
 
 	const getRecipient = (network?: "mainnet" | "testnet"): string => {
 		const net = network || activeNetwork.get();
@@ -354,7 +355,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 		id: "siwn" as const,
 		$InferServerPlugin: {},
 
-		getAtoms: (_$fetch: BetterFetch) => ({
+		getAtoms: (_$fetch: BetterFetch): NearClientAtoms => ({
 			nearState,
 			walletConnected,
 			activeNetwork,
