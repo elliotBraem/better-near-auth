@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getTestInstance } from "better-auth/test";
 import { siwn } from "./index.js";
 import { siwnClient } from "./client.js";
@@ -1333,5 +1333,89 @@ describe("siwnClient getActions", () => {
 			const json = await res.json();
 			expect(json.success).toBe(true);
 		});
+
+		describe("key policy", () => {
+			it("should accept an ml-dsa-65 function-call access key scoped to the recipient by default", async () => {
+				const { Near } = await import("near-kit");
+				new (Near as any)().getAccessKey.mockImplementation(() =>
+					Promise.resolve({ nonce: 0, permission: { FunctionCall: { receiver_id: MOCK_RECIPIENT, method_names: [] } } }));
+				const { client } = await setup();
+				const body = await makeMlDsa65VerifyBody();
+				const { data, error } = await client.near.verify(body);
+				expect(error).toBeNull();
+				expect(data?.success).toBe(true);
+				expect(data?.token).toBeDefined();
+			});
+		});
+	});
+});
+
+describe("NEP-413 key policy", () => {
+	const FCAK_RECIPIENT = { nonce: 0, permission: { FunctionCall: { receiver_id: MOCK_RECIPIENT, method_names: [] } } };
+	const FCAK_OTHER_CONTRACT = { nonce: 0, permission: { FunctionCall: { receiver_id: "other.contract.near", method_names: [] } } };
+
+	async function setAccessKey(accessKey: unknown) {
+		const { Near } = await import("near-kit");
+		new (Near as any)().getAccessKey.mockImplementation(() => Promise.resolve(accessKey));
+	}
+
+	beforeEach(async () => {
+		const { Near, verifyNep413Signature } = await import("near-kit");
+		new (Near as any)().getAccessKey.mockImplementation(() => Promise.resolve({ nonce: 0, permission: "FullAccess" }));
+		(verifyNep413Signature as any).mockImplementation(() => Promise.resolve(true));
+	});
+
+	afterEach(async () => {
+		const { Near, verifyNep413Signature } = await import("near-kit");
+		new (Near as any)().getAccessKey.mockImplementation(() => Promise.resolve({ nonce: 0, permission: "FullAccess" }));
+		(verifyNep413Signature as any).mockImplementation(() => Promise.resolve(true));
+	});
+
+	it("should accept a function-call access key scoped to the recipient by default", async () => {
+		await setAccessKey(FCAK_RECIPIENT);
+		const { client } = await setup();
+		const { data, error } = await client.near.verify(makeVerifyBody());
+		expect(error).toBeNull();
+		expect(data?.success).toBe(true);
+		expect(data?.token).toBeDefined();
+	});
+
+	it("should reject a function-call access key scoped to another contract by default", async () => {
+		await setAccessKey(FCAK_OTHER_CONTRACT);
+		const { client } = await setup();
+		const { error } = await client.near.verify(makeVerifyBody());
+		expect(error).toBeDefined();
+		expect(error?.status).toBe(401);
+	});
+
+	it("should reject a signing key that does not exist on the claimed account", async () => {
+		await setAccessKey(null);
+		const { client } = await setup();
+		const { error } = await client.near.verify(makeVerifyBody());
+		expect(error).toBeDefined();
+		expect(error?.status).toBe(401);
+	});
+
+	it("should reject a function-call access key when requireFullAccessKey is true", async () => {
+		await setAccessKey(FCAK_RECIPIENT);
+		const { client } = await setup({ requireFullAccessKey: true });
+		const { error } = await client.near.verify(makeVerifyBody());
+		expect(error).toBeDefined();
+		expect(error?.status).toBe(401);
+	});
+
+	it("should accept a full access key when requireFullAccessKey is true", async () => {
+		const { client } = await setup({ requireFullAccessKey: true });
+		const { data, error } = await client.near.verify(makeVerifyBody());
+		expect(error).toBeNull();
+		expect(data?.success).toBe(true);
+	});
+
+	it("should let validateLimitedAccessKey enable keys the default validator would reject", async () => {
+		await setAccessKey(FCAK_OTHER_CONTRACT);
+		const { client } = await setup({ validateLimitedAccessKey: async () => true });
+		const { data, error } = await client.near.verify(makeVerifyBody());
+		expect(error).toBeNull();
+		expect(data?.success).toBe(true);
 	});
 });

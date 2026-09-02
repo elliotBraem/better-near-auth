@@ -320,8 +320,9 @@ async function defaultValidateLimitedAccessKey(
 	publicKey: string,
 	recipient: string,
 	near: Near,
+	accessKey?: Awaited<ReturnType<Near["getAccessKey"]>>,
 ): Promise<boolean> {
-	const key = await near.getAccessKey(accountId, publicKey);
+	const key = accessKey ?? await near.getAccessKey(accountId, publicKey);
 	if (!key) return false;
 	if (key.permission === "FullAccess") return true;
 	if ("FunctionCall" in key.permission) {
@@ -382,7 +383,6 @@ function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
 }
 
 interface MlDsa65VerifyOptions {
-	near: Near;
 	maxAge?: number;
 }
 
@@ -397,7 +397,7 @@ async function verifyMlDsa65Nep413Signature(
 	options: MlDsa65VerifyOptions,
 ): Promise<boolean> {
 	try {
-		const { near, maxAge = 5 * 60 * 1000 } = options;
+		const { maxAge = 5 * 60 * 1000 } = options;
 
 		if (!signedMessage.publicKey.startsWith(ML_DSA_65_KEY_PREFIX)) {
 			return false;
@@ -417,11 +417,6 @@ async function verifyMlDsa65Nep413Signature(
 			if (age < 0) return false;
 		}
 
-		const accessKey = await near.getAccessKey(signedMessage.accountId, signedMessage.publicKey);
-		if (!accessKey || accessKey.permission !== "FullAccess") {
-			return false;
-		}
-
 		const combined = serializeNep413Message(params);
 		const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", toArrayBuffer(combined)));
 
@@ -429,6 +424,71 @@ async function verifyMlDsa65Nep413Signature(
 		return ml_dsa65.verify(signatureBytes, hash, publicKeyBytes);
 	} catch {
 		return false;
+	}
+}
+
+const NEP413_MAX_AGE = 15 * 60 * 1000;
+
+async function verifyNep413SignatureAny(
+	signedMessage: { accountId: string; publicKey: string; signature: string },
+	params: {
+		message: string;
+		recipient: string;
+		nonce: Uint8Array;
+		callbackUrl?: string;
+	},
+): Promise<boolean> {
+	return signedMessage.publicKey.startsWith(ML_DSA_65_KEY_PREFIX)
+		? verifyMlDsa65Nep413Signature(signedMessage, params, { maxAge: NEP413_MAX_AGE })
+		: verifyNep413Signature(signedMessage, params, { maxAge: NEP413_MAX_AGE });
+}
+
+async function enforceNep413KeyPolicy(args: {
+	near: Near;
+	fallbackRecipient: string;
+	accountId: string;
+	publicKey: string;
+	recipient?: string;
+	requireFullAccessKey: boolean;
+	validateLimitedAccessKey?: (args: {
+		accountId: AccountId;
+		publicKey: string;
+		recipient?: string;
+	}) => Promise<boolean>;
+}): Promise<void> {
+	const accessKey = await args.near.getAccessKey(args.accountId, args.publicKey);
+	if (!accessKey) {
+		throw new APIError("UNAUTHORIZED", {
+			message: "Unauthorized: Invalid signature",
+			status: 401,
+		});
+	}
+
+	if (args.requireFullAccessKey) {
+		if (accessKey.permission !== "FullAccess") {
+			throw new APIError("UNAUTHORIZED", {
+				message: "Unauthorized: Full access key required",
+				status: 401,
+			});
+		}
+		return;
+	}
+
+	const validateKey = args.validateLimitedAccessKey
+		|| ((validatorArgs: { accountId: AccountId; publicKey: string; recipient?: string }) =>
+			defaultValidateLimitedAccessKey(validatorArgs.accountId, validatorArgs.publicKey, validatorArgs.recipient || args.fallbackRecipient, args.near, accessKey));
+
+	const isValidKey = await validateKey({
+		accountId: args.accountId,
+		publicKey: args.publicKey,
+		recipient: args.recipient,
+	});
+
+	if (!isValidKey) {
+		throw new APIError("UNAUTHORIZED", {
+			message: "Unauthorized: Invalid function call access key",
+			status: 401,
+		});
 	}
 }
 
@@ -658,17 +718,10 @@ export const siwn = (options: SIWNPluginOptions) => {
 						const near = getNear(network);
 						const nonceBytes = hex.decode(nonce);
 
-						const isValid = signedMessage.publicKey.startsWith("ml-dsa-65:")
-							? await verifyMlDsa65Nep413Signature(
-								signedMessage,
-								{ message, recipient, nonce: nonceBytes, callbackUrl },
-								{ near, maxAge: 15 * 60 * 1000 },
-							)
-							: await verifyNep413Signature(
-								signedMessage,
-								{ message, recipient, nonce: nonceBytes, callbackUrl },
-								{ near, maxAge: 15 * 60 * 1000 },
-							);
+						const isValid = await verifyNep413SignatureAny(
+							signedMessage,
+							{ message, recipient, nonce: nonceBytes, callbackUrl },
+						);
 
 						if (!isValid) {
 							throw new APIError("UNAUTHORIZED", {
@@ -686,20 +739,15 @@ export const siwn = (options: SIWNPluginOptions) => {
 
 						const publicKey = signedMessage.publicKey;
 
-						if (!options.requireFullAccessKey && options.validateLimitedAccessKey) {
-							const isValidKey = await options.validateLimitedAccessKey({
-								accountId: accountId,
-								publicKey: publicKey,
-								recipient: options.recipient
-							});
-
-							if (!isValidKey) {
-								throw new APIError("UNAUTHORIZED", {
-									message: "Unauthorized: Invalid function call access key",
-									status: 401,
-								});
-							}
-						}
+						await enforceNep413KeyPolicy({
+							near,
+							fallbackRecipient: getRecipient(network),
+							accountId: accountId,
+							publicKey: publicKey,
+							recipient: options.recipient,
+							requireFullAccessKey: options.requireFullAccessKey ?? false,
+							validateLimitedAccessKey: options.validateLimitedAccessKey,
+						});
 
 						const existingNearAccount: NearAccount | null = await ctx.context.adapter.findOne({
 							model: "nearAccount",
@@ -1034,17 +1082,10 @@ export const siwn = (options: SIWNPluginOptions) => {
 						const near = getNear(network);
 						const nonceBytes = hex.decode(nonce);
 
-						const isValid = signedMessage.publicKey.startsWith("ml-dsa-65:")
-							? await verifyMlDsa65Nep413Signature(
-								signedMessage,
-								{ message, recipient, nonce: nonceBytes, callbackUrl },
-								{ near, maxAge: 15 * 60 * 1000 },
-							)
-							: await verifyNep413Signature(
-								signedMessage,
-								{ message, recipient, nonce: nonceBytes, callbackUrl },
-								{ near, maxAge: 15 * 60 * 1000 },
-							);
+						const isValid = await verifyNep413SignatureAny(
+							signedMessage,
+							{ message, recipient, nonce: nonceBytes, callbackUrl },
+						);
 
 						if (!isValid) {
 							throw new APIError("UNAUTHORIZED", {
@@ -1082,24 +1123,15 @@ export const siwn = (options: SIWNPluginOptions) => {
 							expiresAt: new Date(Date.now() + 15 * 60 * 1000),
 						});
 
-						if (!options.requireFullAccessKey) {
-							const validateKey = options.validateLimitedAccessKey
-								|| ((args: { accountId: string; publicKey: string; recipient?: string }) =>
-									defaultValidateLimitedAccessKey(args.accountId, args.publicKey, args.recipient || getRecipient(network), near));
-
-							const isValidKey = await validateKey({
-								accountId: accountId,
-								publicKey: publicKey,
-								recipient: options.recipient
-							});
-
-							if (!isValidKey) {
-								throw new APIError("UNAUTHORIZED", {
-									message: "Unauthorized: Invalid function call access key",
-									status: 401,
-								});
-							}
-						}
+						await enforceNep413KeyPolicy({
+							near,
+							fallbackRecipient: getRecipient(network),
+							accountId: accountId,
+							publicKey: publicKey,
+							recipient: options.recipient,
+							requireFullAccessKey: options.requireFullAccessKey ?? false,
+							validateLimitedAccessKey: options.validateLimitedAccessKey,
+						});
 
 						let user: User | null = null;
 
