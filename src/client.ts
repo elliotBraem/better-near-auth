@@ -4,7 +4,7 @@ import type { EventMap } from "@hot-labs/near-connect";
 import { hex } from "@scure/base";
 import type { BetterFetch, BetterFetchOption, BetterFetchResponse, ClientStore } from "better-auth/client";
 import { atom } from "nanostores";
-import type { NearClientAtoms, NearNetwork, NearState } from "./store.js";
+import { type NearClientAtoms, type NearNetwork, type NearState, readSessionNearAccountId } from "./store.js";
 import { type AccountId, type DualNetworkConfig, type NonceRequestT, type NonceResponseT, type ProfileResponseT, type VerifyRequestT, type VerifyResponseT, type RelayResponseT, type RelayStatusResponseT, type NearAccount, type ListAccountsResponseT, type SetPrimaryAccountRequestT, type SetPrimaryAccountResponseT, type ViewContractRequestT, type ViewContractResponseT, type RelayerInfo, type RelayHistoryResponseT, type GetRelayerInfoRequestT, type CreateSubAccountRequestT, type CreateSubAccountResponseT, type CheckSubAccountAvailabilityRequestT, type CheckSubAccountAvailabilityResponseT, SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 
 export { getNearAtoms, type NearAtomsSource, type NearClientAtoms, type NearNetwork, type NearState } from "./store.js";
@@ -411,7 +411,8 @@ export const siwnClient = (config: SIWNClientConfig) => {
 					},
 					getAccountId: () => {
 						const state = nearState.get();
-						return state?.accountId || null;
+						if (state?.accountId) return state.accountId;
+						return readSessionNearAccountId(sessionAtom?.get());
 					},
 					getState: () => nearState.get(),
 					isWalletConnected: () => walletConnected.get(),
@@ -532,6 +533,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 								networkId: activeAccount.network,
 							});
 							activeNetwork.set(activeAccount.network);
+							$store.notify("$sessionSignal");
 						}
 						return response;
 					},

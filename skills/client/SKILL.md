@@ -28,7 +28,7 @@ Client-side plugin for NEAR wallet authentication and gasless relay. Connects to
 
 `siwnClient()` is SSR-safe. Wallet resources (`NearConnector`, `Near`, event listeners) are lazily initialized on first client-side access — they do not run at construction time. On the server:
 
-- `getAccountId()` returns `null` (no session restore yet)
+- `getAccountId()` returns `null` (no session yet) — once the session resolves on the client, it returns the primary SIWN-linked account (`session.user.nearAccount`) until NearConnect initializes.
 - `getState()` returns `null`
 - `isWalletConnected()` returns `false`
 - `detectNearAccount()` returns `null` (no browser wallet to probe)
@@ -175,7 +175,7 @@ if (detected) {
 
 `detectNearAccount()` silently probes `@hot-labs/near-connect`'s `getConnectedWallet()` across all supported networks — it reads localStorage for previously authorized wallet IDs and queries the wallet extension without showing any UI. Returns `null` if no wallet is found. Use it on login pages to offer a one-click "Continue with NEAR" option.
 
-When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey`. Use `isWalletConnected()` to check if signing operations are available, and `useNearAccountId(authClient)` (React) or `getAccountId()` for display purposes (works even when disconnected).
+When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey`. Use `isWalletConnected()` to check if signing operations are available, and `useNearAccountId(authClient)` (React) or `getAccountId()` for display purposes. `getAccountId()` returns the live connection when present, then falls back to the primary SIWN-linked account on the session, so it works for display even before NearConnect has been initialized.
 
 ### Sub-account creation
 
@@ -237,7 +237,7 @@ const result = await authClient.near.view({
 | `verify(params)` | `Promise<Response<VerifyResponse>>` | Verify NEP-413 signature |
 | `getProfile(accountId?)` | `Promise<Response<Profile>>` | Get NEAR profile |
 | `view(params)` | `Promise<Response<ViewResponse>>` | Server-side contract view call |
-| `getAccountId()` | `string \| null` | Currently connected account ID (persists across disconnects) |
+| `getAccountId()` | `string \| null` | The user's NEAR account ID. Prefers the live NearConnect connection; falls back to the primary SIWN-linked account on the session (`session.user.nearAccount`). Persists across disconnects. |
 | `getState()` | `{ accountId, publicKey, networkId } \| null` | Wallet state |
 | `isWalletConnected()` | `boolean` | Whether wallet is actively connected |
 | `detectNearAccount()` | `Promise<{ accountId, publicKey, networkId } \| null>` | Silently probe for a previously authorized wallet without prompting |

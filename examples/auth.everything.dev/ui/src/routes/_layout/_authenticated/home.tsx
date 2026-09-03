@@ -2,12 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Clock, Key, Link2, Search, ShieldCheck, UserRound, Zap } from "lucide-react";
 import { sessionQueryOptions } from "@/app";
 import { Badge, Button, Card, CardContent } from "@/components";
-import {
-  getActiveNearAccountId,
-  StatCard,
-  useSessionData,
-  useWorkspaceData,
-} from "@/components/demo-sections";
+import { StatCard, useSessionData, useWorkspaceData } from "@/components/demo-sections";
+import { readNearAccountId } from "@/lib/auth";
 
 export const Route = createFileRoute("/_layout/_authenticated/home")({
   head: () => ({
@@ -88,7 +84,7 @@ function WorkspacePage() {
   const { data: session } = useSessionData();
   const user = session?.user ?? null;
   const workspace = useWorkspaceData(session);
-  const nearAccountId = getActiveNearAccountId({ accounts: workspace.linkedAccounts });
+  const nearAccountId = readNearAccountId(session);
 
   return (
     <div className="space-y-6">

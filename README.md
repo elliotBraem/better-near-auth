@@ -45,7 +45,7 @@ npm install better-near-auth
                 recipient: "myapp.com",
 
                 // Optional: enable gasless relay (ephemeral mode by default)
-                relayer: true,
+                relayer: {},
             }),
         ],
     });
@@ -237,6 +237,8 @@ When `accountId` is not set, an ED25519 keypair is generated on first startup, t
 
 If `accountId` is set but no `privateKey` is provided, the SIWN plugin logs a warning and falls back to ephemeral mode.
 
+> **Validation:** `relayer` is parsed with Zod at plugin construction. Invalid configs throw `BetterAuthError` at startup — hybrid shapes (mixing `mainnet`/`testnet` keys with top-level security fields), unknown keys, and non-integer `maxGasPerTransaction` / `maxDepositPerTransaction` are all rejected. Use either a flat `RelayerConfig` or a `RelayerDualNetworkConfig`, never both.
+
 ### Client Options
 
 | Option | Type | Default | Description |
@@ -291,7 +293,7 @@ If `accountId` is set but no `privateKey` is provided, the SIWN plugin logs a wa
 - `nonce(params)` — Request a nonce from the server
 - `verify(params)` — Verify an auth token with the server
 - `getProfile(accountId?)` — Get user profile (near-kit profile lookup → NEAR Social fallback)
-- `getAccountId()` — Currently connected account ID
+- `getAccountId()` — The user's NEAR account ID. Prefers the live NearConnect connection; falls back to the primary SIWN-linked account from the session (`session.user.nearAccount`) so the value is available as soon as the session resolves, before NearConnect is initialized.
 - `getState()` — Current wallet state
 - `disconnect()` — Disconnect wallet and clear cached data
 - `link(callbacks?)` — Link a NEAR account to the current session
@@ -377,7 +379,7 @@ export const auth = betterAuth({
       apiKey: process.env.FASTNEAR_API_KEY,
 
       // Ephemeral mode (simplest)
-      relayer: true,
+      relayer: {},
 
       // OR explicit mode (privateKey provided directly)
       relayer: {
@@ -431,6 +433,9 @@ The plugin detects the network from the account ID:
 - Full access keys and function-call access keys (FAK)
 - FAK scoped to recipient contract for delegate actions
 - Configurable validation for limited access keys
+
+### Post-Quantum Keys
+- `ml-dsa-65:` (FIPS 204) full-access keys are accepted on `/api/auth/near/verify` and `/api/auth/near/link-account`. Signature verification is delegated to `@noble/post-quantum`'s `ml_dsa65.verify`, while the on-chain access-key check stays the same as ed25519. The NEP-413 SHA-256 + borsh payload format is unchanged from the ed25519 path.
 
 ## Troubleshooting
 
