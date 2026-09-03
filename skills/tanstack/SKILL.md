@@ -214,9 +214,11 @@ authClient.near.getNearClient().transaction(accountId)
 ### nearState persists accountId across disconnects
 
 When the wallet disconnects externally:
-- `getAccountId()` still returns the accountId (from session restore)
+- `getAccountId()` still returns the accountId — either the live connection if one is present, or the primary SIWN-linked account from the session
 - `isWalletConnected()` returns false
 - `publicKey` is cleared from state
+
+`getAccountId()` falls back to `session.user.nearAccount` so it returns the user's identity before NearConnect is initialized (e.g. on a fresh page load right after SIWN sign-in, before `restoreFromSession` has populated the wallet atom). Use `isWalletConnected()` or `getState().publicKey` to distinguish a live NearConnect connection from a session-only identity.
 
 This means UI can display the user's NEAR account even when the wallet is disconnected. Signing operations automatically prompt reconnection.
 

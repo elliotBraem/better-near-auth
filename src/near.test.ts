@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { getTestInstance } from "better-auth/test";
 import { siwn } from "./index.js";
+import { siwnClient } from "./client.js";
 import { SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
-import { hex } from "@scure/base";
+import { hex, base58, base64 } from "@scure/base";
+import { atom } from "nanostores";
+import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 
 const MOCK_ACCOUNT_ID = "test.near";
 const MOCK_TESTNET_ACCOUNT_ID = "test.testnet";
@@ -1079,6 +1082,256 @@ describe("siwn plugin", () => {
 				publicKey: "ed25519:testpublickey",
 			});
 			expect(res.status).toBe(503);
+		});
+	});
+});
+
+describe("siwnClient getActions", () => {
+	type SessionAtom = ReturnType<typeof atom<unknown>>;
+
+	function makeSessionStore(initial: unknown) {
+		const sessionAtom = atom<unknown>(initial);
+		const store = {
+			atoms: { session: sessionAtom },
+			notify: vi.fn(),
+			listen: vi.fn(),
+		};
+		return { store, sessionAtom };
+	}
+
+	function setupClient(initial: unknown, $fetchImpl: (path: string, opts?: unknown) => unknown = () => Promise.resolve({ data: null, error: null })) {
+		const plugin = siwnClient({ recipient: MOCK_RECIPIENT });
+		const { store, sessionAtom } = makeSessionStore(initial);
+		const $fetch = vi.fn((path: string, opts?: unknown) => $fetchImpl(path, opts)) as unknown as Parameters<typeof plugin.getActions>[0];
+		const actions = plugin.getActions($fetch, store as unknown as Parameters<typeof plugin.getActions>[1], undefined);
+		return { actions, sessionAtom, plugin, store, $fetch };
+	}
+
+	describe("getAccountId session fallback", () => {
+		it("returns null when there is no session and no NearConnect state", () => {
+			const { actions } = setupClient(null);
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+
+		it("returns the primary nearAccount from session when NearConnect is not connected", () => {
+			const { actions, sessionAtom } = setupClient({
+				data: {
+					user: {
+						id: "user-1",
+						nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true },
+					},
+				},
+			});
+			expect(actions.near.getAccountId()).toBe("alice.near");
+			sessionAtom.set({
+				data: {
+					user: { id: "user-1", nearAccount: { accountId: "bob.near", network: "testnet", isPrimary: true } },
+				},
+			});
+			expect(actions.near.getAccountId()).toBe("bob.near");
+		});
+
+		it("returns the live NearConnect account when connected, even if a SIWN-linked account exists", () => {
+			const { actions, plugin } = setupClient({
+				data: {
+					user: {
+						id: "user-1",
+						nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true },
+					},
+				},
+			});
+			plugin.getAtoms(undefined as unknown as Parameters<typeof plugin.getAtoms>[0]).nearState.set({
+				accountId: "charlie.near",
+				publicKey: "ed25519:live",
+				networkId: "mainnet",
+			});
+			expect(actions.near.getAccountId()).toBe("charlie.near");
+		});
+
+		it("returns null when the session is cleared", () => {
+			const { actions, sessionAtom } = setupClient({
+				data: {
+					user: { id: "user-1", nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true } },
+				},
+			});
+			expect(actions.near.getAccountId()).toBe("alice.near");
+			sessionAtom.set({ data: null });
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+
+		it("returns null when session has a user but no nearAccount (no primary linked)", () => {
+			const { actions } = setupClient({ data: { user: { id: "user-1" } } });
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+
+		it("returns null when nearAccount.accountId is not a string", () => {
+			const { actions } = setupClient({ data: { user: { id: "user-1", nearAccount: { accountId: 123 } } } });
+			expect(actions.near.getAccountId()).toBeNull();
+		});
+	});
+
+	describe("setPrimaryAccount", () => {
+		it("notifies $sessionSignal so the session's nearAccount refreshes", async () => {
+			const fetchResponse = {
+				data: {
+					success: true,
+					accountId: "bob.near",
+					network: "mainnet",
+					message: "ok",
+					accounts: [],
+					activeAccount: {
+						id: "acc-bob",
+						userId: "user-1",
+						accountId: "bob.near",
+						network: "mainnet",
+						publicKey: "ed25519:bob",
+						isPrimary: true,
+						createdAt: new Date(),
+						providerId: "siwn",
+						isActive: true,
+						isAvailable: false,
+					},
+					availableAccounts: [],
+				},
+				error: null,
+			};
+			const { actions, store, plugin } = setupClient(
+				{ data: { user: { id: "user-1", nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true } } } },
+				() => Promise.resolve(fetchResponse),
+			);
+
+			await actions.near.setPrimaryAccount({ accountId: "bob.near", network: "mainnet" });
+
+			expect((store.notify as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("$sessionSignal");
+			expect(plugin.getAtoms(undefined as unknown as Parameters<typeof plugin.getAtoms>[0]).nearState.get()).toEqual({
+				accountId: "bob.near",
+				publicKey: "ed25519:bob",
+				networkId: "mainnet",
+			});
+		});
+	});
+
+	describe("ml-dsa-65 signatures", () => {
+		const MLDSA65_PUBLIC_KEY_LENGTH = 1952;
+
+		function concat(parts: Uint8Array[]): Uint8Array {
+			const total = parts.reduce((sum, p) => sum + p.length, 0);
+			const out = new Uint8Array(total);
+			let offset = 0;
+			for (const p of parts) {
+				out.set(p, offset);
+				offset += p.length;
+			}
+			return out;
+		}
+
+		function borshU32(value: number, littleEndian = true): Uint8Array {
+			const out = new Uint8Array(4);
+			new DataView(out.buffer).setUint32(0, value, littleEndian);
+			return out;
+		}
+
+		function borshString(value: string): Uint8Array {
+			const bytes = new TextEncoder().encode(value);
+			return concat([borshU32(bytes.length), bytes]);
+		}
+
+		async function makeMlDsa65VerifyBody(accountId: string = MOCK_ACCOUNT_ID, tamperSignature = false) {
+			const seed = new Uint8Array(32).fill(7);
+			const keys = ml_dsa65.keygen(seed);
+			const publicKey = `ml-dsa-65:${base58.encode(keys.publicKey)}`;
+
+			const nonce = new Uint8Array(32);
+			new DataView(nonce.buffer).setBigUint64(0, BigInt(Date.now()), false);
+			crypto.getRandomValues(nonce.subarray(8));
+
+			const message = `Sign in to ${MOCK_RECIPIENT}`;
+			const recipient = MOCK_RECIPIENT;
+			const tagBytes = borshU32(2147484061, true);
+			const callbackNone = borshU32(0, true);
+			const payload = concat([tagBytes, borshString(message), nonce, borshString(recipient), callbackNone]);
+			const payloadAb = (() => {
+				const ab = new ArrayBuffer(payload.byteLength);
+				new Uint8Array(ab).set(payload);
+				return ab;
+			})();
+			const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", payloadAb));
+			const signatureBytes = ml_dsa65.sign(hash, keys.secretKey);
+			const signature = base64.encode(tamperSignature ? flipBytes(signatureBytes) : signatureBytes);
+
+			return {
+				signedMessage: { accountId, publicKey, signature },
+				message,
+				recipient,
+				nonce: hex.encode(nonce),
+				accountId,
+			};
+		}
+
+		function flipBytes(bytes: Uint8Array): Uint8Array {
+			const out = new Uint8Array(bytes);
+			out[0] ^= 0xff;
+			return out;
+		}
+
+		it("should accept a valid ml-dsa-65 signed message and create a session", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+			(verifyNep413Signature as any).mockClear();
+			(verifyNep413Signature as any).mockImplementation(() => {
+				throw new Error("Only Ed25519 keys are supported for NEP-413");
+			});
+
+			const { client } = await setup();
+			const body = await makeMlDsa65VerifyBody();
+			expect(body.signedMessage.publicKey.startsWith("ml-dsa-65:")).toBe(true);
+			const decoded = base58.decode(body.signedMessage.publicKey.slice("ml-dsa-65:".length));
+			expect(decoded.length).toBe(MLDSA65_PUBLIC_KEY_LENGTH);
+
+			const { data, error } = await client.near.verify(body);
+			expect(verifyNep413Signature as any).not.toHaveBeenCalled();
+			expect(error).toBeNull();
+			expect(data?.success).toBe(true);
+			expect(data?.token).toBeDefined();
+			expect(data?.user.accountId).toBe(MOCK_ACCOUNT_ID);
+		});
+
+		it("should reject an ml-dsa-65 message with a tampered signature", async () => {
+			const { client } = await setup();
+			const body = await makeMlDsa65VerifyBody(undefined, true);
+			const { error } = await client.near.verify(body);
+			expect(error).toBeDefined();
+		});
+
+		it("should accept an ml-dsa-65 signed message on the link-account endpoint", async () => {
+			const { verifyNep413Signature } = await import("near-kit");
+			(verifyNep413Signature as any).mockClear();
+			(verifyNep413Signature as any).mockImplementation(() => {
+				throw new Error("Only Ed25519 keys are supported for NEP-413");
+			});
+
+			const { customFetchImpl, signInWithTestUser } = await getTestInstance(
+				{
+					plugins: [siwn({ recipient: MOCK_RECIPIENT, requireFullAccessKey: false })],
+					emailAndPassword: { enabled: true },
+				},
+				{ clientOptions: { plugins: [] } },
+			);
+
+			const { headers } = await signInWithTestUser();
+			const body = await makeMlDsa65VerifyBody();
+
+			const res = await customFetchImpl("http://localhost/api/auth/near/link-account", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					cookie: headers.get("cookie") || "",
+				},
+				body: JSON.stringify(body),
+			});
+			expect(res.status).toBe(200);
+			expect(verifyNep413Signature as any).not.toHaveBeenCalled();
+			const json = await res.json();
+			expect(json.success).toBe(true);
 		});
 	});
 });

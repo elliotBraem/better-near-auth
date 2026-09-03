@@ -34,7 +34,7 @@ export default shouldDeploy
   ? withZephyr({
       hooks: {
         onDeployComplete: async (info) => {
-          console.log("🚀 Plugin Deployed:", info.url);
+          console.log("🚀 Auth Deployed:", info.url);
           const integrity = await computeSriHashForUrl(info.url);
           const key = findPluginKey(bosConfigPath, __dirname);
           if (key) {
@@ -42,8 +42,8 @@ export default shouldDeploy
               url: info.url,
               integrity,
               bosConfigPath,
-              urlField: `plugins.${key}.production`,
-              integrityField: `plugins.${key}.integrity`,
+              urlField: `app.${key}.production`,
+              integrityField: `app.${key}.integrity`,
             });
           }
         },

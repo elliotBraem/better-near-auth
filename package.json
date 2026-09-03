@@ -60,9 +60,10 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@noble/post-quantum": "^0.6.1",
     "@scure/base": "^2.2.0",
     "nanostores": "^1.1.0",
-    "near-kit": "^0.14.0",
+    "near-kit": "^0.19.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

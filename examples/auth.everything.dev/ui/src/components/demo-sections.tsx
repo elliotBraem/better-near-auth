@@ -40,7 +40,7 @@ import {
   CardTitle,
 } from "@/components";
 import { Input } from "@/components/ui/input";
-import { getLinkedProviders, getNearAccountId } from "@/lib/auth";
+import { readNearAccountId } from "@/lib/auth";
 import { relayHistoryQueryKey } from "@/lib/query-keys";
 import { NearProfile } from "./near-profile";
 import RelayFeed from "./relay-feed";
@@ -151,10 +151,6 @@ async function unlinkNearAccount(
     accountId,
     network: account.network,
   });
-}
-
-export function getActiveNearAccountId(data: { accounts: ListedNearAccount[] }) {
-  return getNearAccountId(data.accounts);
 }
 
 export function useNearAccountsData(enabled = true) {
@@ -819,14 +815,13 @@ export function AccountLinkingCard({
 
 export function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
   const auth = useAuthClient();
-  const { data: nearAccountsData } = useNearAccountsData(!!auth.near.getAccountId());
   const [newGreeting, setNewGreeting] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>("relay");
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [relayTxHash, setRelayTxHash] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const hasLinkedNear = Boolean(getActiveNearAccountId(nearAccountsData ?? { accounts: [] }));
+  const hasLinkedNear = !!auth.near.getAccountId();
   const canSignGuestbook = hasLinkedNear;
 
   const network = auth.useActiveNetwork();
@@ -1302,8 +1297,8 @@ export function useWorkspaceData(session: SessionData | null | undefined) {
   const greetingQuery = useGuestbookGreeting(!!session?.user);
   const relayerQuery = useRelayerInfo();
   const linkedAccounts = nearAccountsQuery.data?.accounts ?? [];
-  const nearAccountId = getNearAccountId(linkedAccounts);
-  const linkedProviders = getLinkedProviders(linkedAccounts);
+  const nearAccountId = readNearAccountId(session);
+  const linkedProviders = linkedAccounts.length > 0 ? ["siwn"] : [];
 
   return {
     linkedAccounts,

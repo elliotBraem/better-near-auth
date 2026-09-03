@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
 const version = rootPackage.version;
 const range = `^${version}`;
+const nearKitRange = rootPackage.dependencies?.["near-kit"] ?? rootPackage.devDependencies?.["near-kit"];
 
 function updateJson(path, update) {
 	const json = JSON.parse(readFileSync(path, "utf8"));
@@ -13,6 +14,9 @@ function updateJson(path, update) {
 updateJson("examples/auth.everything.dev/package.json", (json) => {
 	json.workspaces.catalog["better-near-auth"] = range;
 	json.dependencies["better-near-auth"] = range;
+	if (nearKitRange && json.workspaces?.catalog) {
+		json.workspaces.catalog["near-kit"] = nearKitRange;
+	}
 });
 
 updateJson("examples/auth.everything.dev/plugins/auth/package.json", (json) => {
