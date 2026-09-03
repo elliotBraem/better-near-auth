@@ -4,8 +4,11 @@ description: >
   Set up the siwnClient plugin for Better Auth client, configure NEAR wallet
   connection via NearConnect, use authClient.near actions for sign-in, profile
   lookup, account management, delegate action building with TransactionBuilder,
-  and relay submission. Load when implementing NEAR wallet sign-in on the client,
-  using authClient.near.* methods,   or building delegate actions for gasless relay.
+  and relay submission. Use the better-near-auth/react hooks (useNearAccountId,
+  useNearConnection, useNearState, useWalletConnected, useActiveNetwork) and
+  typed atoms via getNearAtoms for reactive wallet state. Load when implementing
+  NEAR wallet sign-in on the client, using authClient.near.* methods, consuming
+  wallet state in React, or building delegate actions for gasless relay.
 metadata:
   type: core
   library: better-near-auth
@@ -445,6 +448,11 @@ const connection = useNearConnection(authClient);
 import { getNearAtoms } from "better-near-auth/client";
 const { nearState, walletConnected } = getNearAtoms(authClient);
 nearState.subscribe(() => console.log(nearState.get()));
+
+// Vanilla: read the session-linked account (same fallback the hooks use) —
+// session.user.nearAccount is set by an after-hook, so narrow it via the helper
+import { readSessionNearAccountId } from "better-near-auth/client";
+const linkedAccountId = readSessionNearAccountId(sessionAtomValue);
 
 // Or check signing availability:
 const canSign = authClient.near.isWalletConnected();
