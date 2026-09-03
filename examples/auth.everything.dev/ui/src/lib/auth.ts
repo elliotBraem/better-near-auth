@@ -7,7 +7,6 @@
 
 import { apiKeyClient } from "@better-auth/api-key/client";
 import { passkeyClient } from "@better-auth/passkey/client";
-import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import {
   adminClient,
@@ -17,7 +16,6 @@ import {
   phoneNumberClient,
 } from "better-auth/client/plugins";
 import { createAuthClient as createBetterAuthClient } from "better-auth/react";
-import type { RelayedTransactionT } from "better-near-auth";
 import { siwnClient } from "better-near-auth/client";
 import type { ClientRuntimeConfig } from "everything-dev/types";
 import { getRuntimeConfig } from "everything-dev/ui/runtime";
@@ -162,16 +160,4 @@ export function sessionQueryOptions(authClient: AuthClient, initialSession?: Ses
   return initialSession === undefined
     ? baseOptions
     : { ...baseOptions, initialData: initialSession };
-}
-
-export function useRelayHistory(session: SessionData | null | undefined, authClient: AuthClient) {
-  return useQuery({
-    queryKey: ["relay-history"],
-    queryFn: async (): Promise<RelayedTransactionT[]> => {
-      const res = await authClient.near.relayHistory();
-      return res?.data?.transactions ?? [];
-    },
-    enabled: !!session,
-    refetchInterval: 2000,
-  });
 }

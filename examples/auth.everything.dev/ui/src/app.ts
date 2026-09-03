@@ -96,7 +96,6 @@ export {
   sessionQueryKey,
   sessionQueryOptions,
   useAuthClient,
-  useRelayHistory,
 } from "./lib/auth";
 
 import type {

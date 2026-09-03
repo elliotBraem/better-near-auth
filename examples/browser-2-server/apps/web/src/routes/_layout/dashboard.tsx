@@ -1,4 +1,5 @@
 import { authClient } from "@/lib/auth-client";
+import { useNearAccountId } from "better-near-auth/react";
 import { getNearAccountId, getLinkedProviders } from "@/lib/auth-utils";
 import { orpc } from "@/utils/orpc";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
@@ -478,7 +479,7 @@ function AccountLinkingCard({ linkedAccounts, nearAccountId }: {
   const [isProcessingNear, setIsProcessingNear] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState<string | null>(null);
 
-  const walletAccountId = authClient.near.getAccountId();
+  const walletAccountId = useNearAccountId(authClient);
   const accounts = linkedAccounts;
 
   const invalidateAccounts = () => {
@@ -777,7 +778,7 @@ function GuestbookCard({ initialGreeting }: { initialGreeting?: string }) {
       if (!accountId) throw new Error("Not authenticated");
       const connected = await authClient.near.ensureConnected();
       if (!connected) throw new Error("Wallet connection required");
-      return authClient.near.client
+      return authClient.near.getNearClient()
         .transaction(accountId)
         .functionCall(GUESTBOOK_CONTRACT, "set_greeting", { greeting: text }, {
           gas: Gas.Tgas(30),
