@@ -9,7 +9,7 @@ import type { AuthContext } from "@better-auth/core";
 import { BetterAuthError } from "@better-auth/core/error";
 
 import { Near, generateNonce, generateKey, parseKey, verifyNep413Signature, decodeSignedDelegateAction, InMemoryKeyStore } from "near-kit";
-import type { SignedDelegateAction, PrivateKey } from "near-kit";
+import type { SignedDelegateAction, PrivateKey, GlobalContractReference } from "near-kit";
 import { hex, base58, base64 } from "@scure/base";
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import z from "zod";
@@ -332,6 +332,15 @@ async function defaultValidateLimitedAccessKey(
 }
 
 const ML_DSA_65_KEY_PREFIX = "ml-dsa-65:";
+
+type NearAmount = `${number} NEAR` | `${bigint} yocto`;
+
+type NearFunctionCallKeyPermission = {
+	type: "functionCall";
+	receiverId: string;
+	methodNames?: string[];
+	allowance?: NearAmount;
+};
 const ML_DSA_65_PUBLIC_KEY_LENGTH = 1952;
 const NEP413_TAG = 2147484061;
 
@@ -1701,7 +1710,7 @@ const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCf
 					}
 
 					if (subAccountCfg?.addRelayerFCAK !== false && subAccountCfg?.relayerFCAK && rState) {
-						const fcakPermission: { type: "functionCall"; receiverId: string; methodNames?: string[]; allowance?: string } = {
+						const fcakPermission: NearFunctionCallKeyPermission = {
 							type: "functionCall",
 							receiverId: subAccountCfg.relayerFCAK.receiverId,
 						};
@@ -1709,9 +1718,13 @@ const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCf
 							fcakPermission.methodNames = subAccountCfg.relayerFCAK.methodNames;
 						}
 						if (subAccountCfg.relayerFCAK.allowance) {
-							fcakPermission.allowance = subAccountCfg.relayerFCAK.allowance as `${number} NEAR` | `${bigint} yocto`;
+							const raw = subAccountCfg.relayerFCAK.allowance;
+							if (!/^\d+(\.\d+)? NEAR$/.test(raw) && !/^\d+ yocto$/.test(raw)) {
+								throw new BetterAuthError(`subAccount.relayerFCAK.allowance must be formatted like "1 NEAR" or "1000 yocto", got "${raw}"`);
+							}
+							fcakPermission.allowance = raw as NearAmount;
 						}
-						txBuilder.addKey(rState.publicKey, fcakPermission as any);
+						txBuilder.addKey(rState.publicKey, fcakPermission);
 					}
 
 					txBuilder.transfer(newAccountId, minDeposit as `${number} NEAR`);
@@ -1719,9 +1732,18 @@ const { parentAccount, subAccountAvailable } = resolveParentAccount(subAccountCf
 					if (subAccountCfg?.deploy) {
 						if ("wasm" in subAccountCfg.deploy) {
 							txBuilder = txBuilder.deployContract(newAccountId, subAccountCfg.deploy.wasm);
-						} else if ("fromPublished" in subAccountCfg.deploy) {
-							txBuilder = txBuilder.deployFromPublished(subAccountCfg.deploy.fromPublished as any);
+					} else if ("fromPublished" in subAccountCfg.deploy) {
+						const { accountId, codeHash } = subAccountCfg.deploy.fromPublished;
+						const reference: GlobalContractReference | null = accountId !== undefined
+							? { accountId }
+							: codeHash !== undefined
+								? { codeHash }
+								: null;
+						if (!reference) {
+							throw new BetterAuthError("subAccount.deploy.fromPublished requires accountId or codeHash");
 						}
+						txBuilder = txBuilder.deployFromPublished(reference);
+					}
 					}
 
 					if (subAccountCfg?.init) {
