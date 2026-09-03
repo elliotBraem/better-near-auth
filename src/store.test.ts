@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { atom, type WritableAtom } from "nanostores";
-import { getNearAtoms, type NearState } from "./store.js";
+import { getNearAtoms, readSessionNearAccountId, type NearState } from "./store.js";
 
-function createClient(atoms: Record<string, WritableAtom<any>>) {
+function createClient(atoms: Record<string, WritableAtom<unknown>>) {
 	return { $store: { atoms } };
 }
 
@@ -33,5 +33,28 @@ describe("getNearAtoms", () => {
 		expect(() => getNearAtoms({})).toThrow(/siwnClient/);
 		expect(() => getNearAtoms(createClient({}))).toThrow(/siwnClient/);
 		expect(() => getNearAtoms(createClient({ nearState: atom(null) }))).toThrow(/siwnClient/);
+	});
+});
+
+describe("readSessionNearAccountId", () => {
+	it("returns the primary linked account from the session", () => {
+		const session = {
+			data: {
+				user: {
+					id: "user-1",
+					nearAccount: { accountId: "alice.near", network: "mainnet", isPrimary: true },
+				},
+			},
+		};
+		expect(readSessionNearAccountId(session)).toBe("alice.near");
+	});
+
+	it("returns null for missing, cleared, or malformed sessions", () => {
+		expect(readSessionNearAccountId(null)).toBeNull();
+		expect(readSessionNearAccountId(undefined)).toBeNull();
+		expect(readSessionNearAccountId({ data: null })).toBeNull();
+		expect(readSessionNearAccountId({ data: { user: {} } })).toBeNull();
+		expect(readSessionNearAccountId({ data: { user: { nearAccount: { accountId: 123 } } } })).toBeNull();
+		expect(readSessionNearAccountId("not a session")).toBeNull();
 	});
 });

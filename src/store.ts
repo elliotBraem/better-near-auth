@@ -15,18 +15,27 @@ export type NearClientAtoms = {
 };
 
 export type NearAtomsSource = {
-	$store?: { atoms?: Record<string, WritableAtom<any>> } | null;
+	$store?: { atoms?: Record<string, WritableAtom<unknown>> } | null;
 };
 
 export function getNearAtoms(client: NearAtomsSource): NearClientAtoms {
 	const atoms = client?.$store?.atoms;
-	const { nearState, walletConnected, activeNetwork } = atoms ?? {};
-	if (!nearState || !walletConnected || !activeNetwork) {
+	if (!atoms?.nearState || !atoms.walletConnected || !atoms.activeNetwork) {
 		throw new Error("Missing near atoms — add siwnClient() to your createAuthClient plugins");
 	}
-	return {
-		nearState: nearState as WritableAtom<NearState>,
-		walletConnected: walletConnected as WritableAtom<boolean>,
-		activeNetwork: activeNetwork as WritableAtom<NearNetwork>,
-	};
+	// The store record erases atom value types — siwnClient() guarantees these shapes.
+	return atoms as unknown as NearClientAtoms;
+}
+
+/**
+ * Read the primary SIWN-linked account ID (`session.user.nearAccount`) from a
+ * better-auth session-atom value. The `nearAccount` field is populated by an
+ * `after` hook on `GET /auth/session`, so it is not part of the inferred
+ * session user type — this helper narrows it in one place, shared by
+ * `getAccountId()` and the React hooks.
+ */
+export function readSessionNearAccountId(session: unknown): string | null {
+	const accountId = (session as { data?: { user?: { nearAccount?: { accountId?: unknown } } } } | null | undefined)
+		?.data?.user?.nearAccount?.accountId;
+	return typeof accountId === "string" ? accountId : null;
 }
