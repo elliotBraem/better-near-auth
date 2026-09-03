@@ -202,10 +202,10 @@ await authClient.near.disconnect();
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `recipient` | `string` | — | NEP-413 recipient identifier (required) |
-| `requireFullAccessKey` | `boolean` | `false` | Require full access keys |
+| `requireFullAccessKey` | `boolean` | `false` | Require full access keys; when false, function-call keys scoped to the recipient are accepted |
 | `getNonce` | `() => Promise<Uint8Array>` | — | Custom nonce generation |
 | `getProfile` | `(accountId: string) => Promise<Profile \| null>` | — | Custom profile lookup |
-| `validateLimitedAccessKey` | `(args) => Promise<boolean>` | — | Validate FAK when `requireFullAccessKey` is false |
+| `validateLimitedAccessKey` | `(args) => Promise<boolean>` | — | Replace the function-call key check when `requireFullAccessKey` is false (applies to both ed25519 and ml-dsa-65) |
 | `apiKey` | `string` | `process.env.FASTNEAR_API_KEY` | API key for RPC |
 | `rpcUrl` | `string` | — | Custom RPC URL (e.g., sandbox, private node) |
 | `relayer` | `RelayerConfig` | — | Relayer configuration (see below) |
@@ -430,9 +430,10 @@ The plugin detects the network from the account ID:
 - Trust model matches Better Auth session tokens: DB access + secret = full access
 
 ### Access Key Support
-- Full access keys and function-call access keys (FAK)
-- FAK scoped to recipient contract for delegate actions
+- Full access keys and function-call access keys (FCAK)
+- FCAK scoped to recipient contract for delegate actions
 - Configurable validation for limited access keys
+- The key policy (`requireFullAccessKey` / `validateLimitedAccessKey`) applies identically to ed25519 and post-quantum keys
 
 ### Post-Quantum Keys
 - `ml-dsa-65:` (FIPS 204) full-access keys are accepted on `/api/auth/near/verify` and `/api/auth/near/link-account`. Signature verification is delegated to `@noble/post-quantum`'s `ml_dsa65.verify`, while the on-chain access-key check stays the same as ed25519. The NEP-413 SHA-256 + borsh payload format is unchanged from the ed25519 path.
