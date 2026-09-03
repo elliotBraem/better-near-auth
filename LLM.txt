@@ -4,7 +4,7 @@
 
 Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, NEP-413) plus a built-in NEP-366 delegate action relayer. It provides:
 
-- **SIWN authentication** — wallet-based sign-in with single-step/two-step flow
+- **SIWN authentication** — wallet-based sign-in with single-step/two-step flow; ed25519 and post-quantum `ml-dsa-65:` (FIPS 204) keys; key policy (`requireFullAccessKey` / `validateLimitedAccessKey`) applies uniformly to both key types
 - **Gasless relay** — server-side relayer broadcasts delegate actions on behalf of authenticated users, paying gas from a relayer account
 - **Ephemeral relayer keypair** — auto-generated ED25519 keypair on startup, private key encrypted with AES-256-GCM in the database, survives server restarts
 - **Rotating key store** — support for multiple relayer keys for high-throughput scenarios
@@ -51,7 +51,7 @@ Better-near-auth is a Better Auth plugin implementing Sign in with NEAR (SIWN, N
 ```typescript
 siwn({
   recipient: string;                    // NEP-413 recipient (required)
-  requireFullAccessKey?: boolean;       // default: false
+  requireFullAccessKey?: boolean;       // default: false — false accepts FAKs or FCAKs scoped to the recipient (both key types)
   getNonce?: () => Promise<Uint8Array>;
   getProfile?: (accountId: string) => Promise<Profile | null>;
   validateLimitedAccessKey?: (args: { accountId, publicKey, recipient? }) => Promise<boolean>;
@@ -178,7 +178,7 @@ authClient.near.nonce(params)
 authClient.near.verify(params)
 authClient.near.getProfile(accountId?)
 authClient.near.view({ contractId, methodName, args })
-authClient.near.getAccountId()
+authClient.near.getAccountId()   // live NearConnect connection, falling back to the primary SIWN-linked account on the session
 authClient.near.getState()
 authClient.near.disconnect()
 authClient.near.link(callbacks?)
