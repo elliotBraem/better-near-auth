@@ -222,6 +222,32 @@ When the wallet disconnects externally:
 
 This means UI can display the user's NEAR account even when the wallet is disconnected. Signing operations automatically prompt reconnection.
 
+### Reactive reads via better-near-auth/react
+
+Prefer the React hooks over `getAccountId()` during render — the getter is not reactive:
+
+```typescript
+import { useNearAccountId, useNearConnection } from "better-near-auth/react";
+
+function Greeting() {
+  const authClient = useAuthClient();
+  const accountId = useNearAccountId(authClient); // live connection ?? session-linked account
+  // or: const { accountId, networkId, walletConnected } = useNearConnection(authClient);
+}
+```
+
+In apps where `authClient` lives in router context, bind the hook once in an app-owned module:
+
+```typescript
+// lib/near.ts
+import { useNearAccountId as useNearAccountIdOf } from "better-near-auth/react";
+import { useAuthClient } from "./auth";
+
+export function useNearAccountId() {
+  return useNearAccountIdOf(useAuthClient());
+}
+```
+
 ## SSR Safety
 
 `siwnClient()` is SSR-safe — wallet resources are lazily initialized on first client-side access. On the server they sit dormant. However, `createAuthClient()` calls `getHostUrl()`, `getAccount()`, and `getNetworkId()`, which read `window.__RUNTIME_CONFIG__` by default. On the server, you **must** pass `{ runtimeConfig }` so these helpers read from the provided config instead of the browser-only `window` object:

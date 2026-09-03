@@ -4,8 +4,11 @@ description: >
   Set up the siwnClient plugin for Better Auth client, configure NEAR wallet
   connection via NearConnect, use authClient.near actions for sign-in, profile
   lookup, account management, delegate action building with TransactionBuilder,
-  and relay submission. Load when implementing NEAR wallet sign-in on the client,
-  using authClient.near.* methods,   or building delegate actions for gasless relay.
+  and relay submission. Use the better-near-auth/react hooks (useNearAccountId,
+  useNearConnection, useNearState, useWalletConnected, useActiveNetwork) and
+  typed atoms via getNearAtoms for reactive wallet state. Load when implementing
+  NEAR wallet sign-in on the client, using authClient.near.* methods, consuming
+  wallet state in React, or building delegate actions for gasless relay.
 metadata:
   type: core
   library: better-near-auth
@@ -172,7 +175,7 @@ if (detected) {
 
 `detectNearAccount()` silently probes `@hot-labs/near-connect`'s `getConnectedWallet()` across all supported networks — it reads localStorage for previously authorized wallet IDs and queries the wallet extension without showing any UI. Returns `null` if no wallet is found. Use it on login pages to offer a one-click "Continue with NEAR" option.
 
-When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey`. Use `isWalletConnected()` to check if signing operations are available, and `getAccountId()` for display purposes. `getAccountId()` returns the live connection when present, then falls back to the primary SIWN-linked account on the session, so it works for display even before NearConnect has been initialized.
+When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey`. Use `isWalletConnected()` to check if signing operations are available, and `useNearAccountId(authClient)` (React) or `getAccountId()` for display purposes. `getAccountId()` returns the live connection when present, then falls back to the primary SIWN-linked account on the session, so it works for display even before NearConnect has been initialized.
 
 ### Sub-account creation
 
@@ -432,18 +435,30 @@ const accountId = authClient.near.getAccountId();
 Correct:
 
 ```typescript
-// Subscribe to nearState for reactive updates
-import { useStore } from "nanostores/react";
-const { nearState } = authClient.$store;
-const state = useStore(nearState);
-// state preserves accountId when wallet disconnects
-// publicKey becomes null, walletConnected becomes false
+// React: subscribe reactively (no extra deps)
+import { useNearAccountId, useNearConnection } from "better-near-auth/react";
+const accountId = useNearAccountId(authClient);
+// or the combined shape: { accountId, publicKey, networkId, walletConnected }
+const connection = useNearConnection(authClient);
+// accountId preserves the live connection, falling back to the
+// session-linked account; publicKey is null when the wallet is
+// disconnected but the account stays visible
+
+// Vanilla (no React): typed atom access
+import { getNearAtoms } from "better-near-auth/client";
+const { nearState, walletConnected } = getNearAtoms(authClient);
+nearState.subscribe(() => console.log(nearState.get()));
+
+// Vanilla: read the session-linked account (same fallback the hooks use) —
+// session.user.nearAccount is set by an after-hook, so narrow it via the helper
+import { readSessionNearAccountId } from "better-near-auth/client";
+const linkedAccountId = readSessionNearAccountId(sessionAtomValue);
 
 // Or check signing availability:
 const canSign = authClient.near.isWalletConnected();
 ```
 
-When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey` and sets `walletConnected` to false. Use `isWalletConnected()` to check if signing operations are available, and `getAccountId()` for display purposes (works even when disconnected).
+When the wallet disconnects externally (user signs out from wallet UI), `nearState` preserves `accountId` but clears `publicKey` and sets `walletConnected` to false. Use `isWalletConnected()` to check if signing operations are available, and `useNearAccountId(client)` / `getAccountId()` for display purposes (works even when disconnected).
 
 Source: src/client.ts:65-66, src/client.ts:102-108
 

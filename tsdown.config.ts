@@ -29,4 +29,17 @@ export default defineConfig([
 		},
 		clean: false,
 	},
+	{
+		entry: ['src/react.ts'],
+		format: 'esm',
+		dts: false,
+		sourcemap: true,
+		hash: false,
+		fixedExtension: false,
+		deps: {
+			neverBundle: [...neverBundle, /^react/],
+			onlyBundle: false,
+		},
+		clean: false,
+	},
 ])

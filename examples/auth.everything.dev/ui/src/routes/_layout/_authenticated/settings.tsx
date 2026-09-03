@@ -6,6 +6,7 @@ import { type SessionData, sessionQueryOptions, useAuthClient } from "@/app";
 import { Button, Card, CardContent } from "@/components";
 import { useUserPasskeys } from "@/components/settings-sections";
 import { Input } from "@/components/ui/input";
+import { useNearAccountId } from "@/lib/near";
 
 export const Route = createFileRoute("/_layout/_authenticated/settings")({
   head: () => ({
@@ -38,7 +39,7 @@ function Settings() {
   const { data: session } = useQuery<SessionData | null>(sessionQueryOptions(auth));
   const user = session?.user;
   const { data: passkeys = [] } = useUserPasskeys(!!user);
-  const nearAccountId = auth.near.getAccountId();
+  const nearAccountId = useNearAccountId();
 
   if (!user) {
     return null;
