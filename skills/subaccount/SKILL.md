@@ -11,7 +11,7 @@ description: >
 metadata:
   type: core
   library: better-near-auth
-  library_version: "1.8.3"
+  library_version: "1.10.2"
 sources:
   - "elliotBraem/better-near-auth:src/index.ts"
   - "elliotBraem/better-near-auth:src/types.ts"
@@ -413,6 +413,33 @@ siwn({
   relayer: { accountId: "relayer.near", privateKey: "..." },
   secrets: { parentKey: process.env.PARENT_KEY },
   subAccount: { parentAccount: "user.parent.near" },
+});
+```
+
+### MEDIUM Malformed relayerFCAK.allowance or deploy.fromPublished shape
+
+Both are validated at creation time and throw `BetterAuthError` with a clear message instead of failing obscurely inside near-kit:
+
+- `relayerFCAK.allowance` must match `"0.25 NEAR"` or `"1000000 yocto"` format
+- `deploy.fromPublished` requires exactly one of `accountId` or `codeHash` — omitting both throws `"subAccount.deploy.fromPublished requires accountId or codeHash"`
+
+```typescript
+// Wrong: unparseable allowance, fromPublished with neither field
+siwn({
+  subAccount: {
+    parentAccount: "myapp.near",
+    relayerFCAK: { receiverId: "myapp.near", allowance: "0.25NEAR" },
+    deploy: { fromPublished: {} },
+  },
+});
+
+// Correct: formatted allowance, one reference field
+siwn({
+  subAccount: {
+    parentAccount: "myapp.near",
+    relayerFCAK: { receiverId: "myapp.near", allowance: "0.25 NEAR" },
+    deploy: { fromPublished: { accountId: "publisher.near" } },
+  },
 });
 ```
 

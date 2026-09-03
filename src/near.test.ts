@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { getTestInstance } from "better-auth/test";
-import { siwn } from "./index.js";
+import { siwn, type SIWNPluginOptions } from "./index.js";
 import { siwnClient } from "./client.js";
 import { SUB_ACCOUNT_LABEL_REGEX } from "./types.js";
 import { hex, base58, base64 } from "@scure/base";
@@ -33,6 +33,11 @@ function makeUniqueNonce(): Uint8Array {
 	for (let i = 0; i < 32; i++) nonce[i] = (i + 1) ^ (nonceCounter & 0xff);
 	return nonce;
 }
+
+const getNearAccessKeyMock = async (): Promise<Mock> => {
+	const { Near } = await import("near-kit");
+	return (new Near() as unknown as { getAccessKey: Mock }).getAccessKey;
+};
 
 vi.mock("near-kit", () => {
 	const mockNearInstance = {
@@ -191,7 +196,7 @@ async function setup(overrides?: {
 	requireFullAccessKey?: boolean;
 	relayer?: any;
 	getProfile?: any;
-	validateLimitedAccessKey?: any;
+	validateLimitedAccessKey?: SIWNPluginOptions["validateLimitedAccessKey"];
 	subAccount?: any;
 	secrets?: { parentKey?: string };
 }) {
@@ -297,7 +302,7 @@ describe("siwn plugin", () => {
 
 		it("should reject an signed message with mismatched accountId", async () => {
 			const { verifyNep413Signature } = await import("near-kit");
-			(verifyNep413Signature as any).mockResolvedValueOnce(false);
+			vi.mocked(verifyNep413Signature).mockResolvedValueOnce(false);
 			const { client } = await setup();
 			const { error } = await client.near.verify(makeVerifyBody());
 			expect(error).toBeDefined();
@@ -305,7 +310,7 @@ describe("siwn plugin", () => {
 
 		it("should pass callbackUrl through to NEP-413 verification (redirect wallets)", async () => {
 			const { verifyNep413Signature } = await import("near-kit");
-			(verifyNep413Signature as any).mockClear();
+			vi.mocked(verifyNep413Signature).mockClear();
 			const { client } = await setup();
 
 			const { data, error } = await client.near.verify({
@@ -315,7 +320,7 @@ describe("siwn plugin", () => {
 
 			expect(error).toBeNull();
 			expect(data?.success).toBe(true);
-			const params = (verifyNep413Signature as any).mock.calls.at(-1)?.[1];
+			const params = vi.mocked(verifyNep413Signature).mock.calls.at(-1)?.[1];
 			expect(params?.callbackUrl).toBe("myapp://callback/success");
 		});
 
@@ -778,7 +783,7 @@ describe("siwn plugin", () => {
 
 			// Force ensureRelayer to throw on the next fresh ephemeral init by making generateKey throw.
 			const { generateKey } = await import("near-kit");
-			const generateSpy = (generateKey as any);
+			const generateSpy = vi.mocked(generateKey);
 			const originalImpl = generateSpy.getMockImplementation() ?? (() => ({ publicKey: { data: new Uint8Array(32).fill(1), toString: () => MOCK_GENERATED_PUBLIC_KEY }, secretKey: MOCK_GENERATED_SECRET_KEY, sign: vi.fn(), signNep413Message: vi.fn() }));
 			generateSpy.mockImplementation(() => {
 				throw new Error("Forced key gen failure: simulated runtime DB/secret error");
@@ -1140,7 +1145,7 @@ describe("siwnClient getActions", () => {
 					},
 				},
 			});
-			plugin.getAtoms(undefined as unknown as Parameters<typeof plugin.getAtoms>[0]).nearState.set({
+			plugin.getAtoms().nearState.set({
 				accountId: "charlie.near",
 				publicKey: "ed25519:live",
 				networkId: "mainnet",
@@ -1202,8 +1207,8 @@ describe("siwnClient getActions", () => {
 
 			await actions.near.setPrimaryAccount({ accountId: "bob.near", network: "mainnet" });
 
-			expect((store.notify as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("$sessionSignal");
-			expect(plugin.getAtoms(undefined as unknown as Parameters<typeof plugin.getAtoms>[0]).nearState.get()).toEqual({
+			expect(store.notify).toHaveBeenCalledWith("$sessionSignal");
+			expect(plugin.getAtoms().nearState.get()).toEqual({
 				accountId: "bob.near",
 				publicKey: "ed25519:bob",
 				networkId: "mainnet",
@@ -1276,8 +1281,8 @@ describe("siwnClient getActions", () => {
 
 		it("should accept a valid ml-dsa-65 signed message and create a session", async () => {
 			const { verifyNep413Signature } = await import("near-kit");
-			(verifyNep413Signature as any).mockClear();
-			(verifyNep413Signature as any).mockImplementation(() => {
+			vi.mocked(verifyNep413Signature).mockClear();
+			vi.mocked(verifyNep413Signature).mockImplementation(() => {
 				throw new Error("Only Ed25519 keys are supported for NEP-413");
 			});
 
@@ -1288,7 +1293,7 @@ describe("siwnClient getActions", () => {
 			expect(decoded.length).toBe(MLDSA65_PUBLIC_KEY_LENGTH);
 
 			const { data, error } = await client.near.verify(body);
-			expect(verifyNep413Signature as any).not.toHaveBeenCalled();
+			expect(vi.mocked(verifyNep413Signature)).not.toHaveBeenCalled();
 			expect(error).toBeNull();
 			expect(data?.success).toBe(true);
 			expect(data?.token).toBeDefined();
@@ -1304,8 +1309,8 @@ describe("siwnClient getActions", () => {
 
 		it("should accept an ml-dsa-65 signed message on the link-account endpoint", async () => {
 			const { verifyNep413Signature } = await import("near-kit");
-			(verifyNep413Signature as any).mockClear();
-			(verifyNep413Signature as any).mockImplementation(() => {
+			vi.mocked(verifyNep413Signature).mockClear();
+			vi.mocked(verifyNep413Signature).mockImplementation(() => {
 				throw new Error("Only Ed25519 keys are supported for NEP-413");
 			});
 
@@ -1329,7 +1334,7 @@ describe("siwnClient getActions", () => {
 				body: JSON.stringify(body),
 			});
 			expect(res.status).toBe(200);
-			expect(verifyNep413Signature as any).not.toHaveBeenCalled();
+			expect(vi.mocked(verifyNep413Signature)).not.toHaveBeenCalled();
 			const json = await res.json();
 			expect(json.success).toBe(true);
 		});
@@ -1337,7 +1342,7 @@ describe("siwnClient getActions", () => {
 		describe("key policy", () => {
 			it("should accept an ml-dsa-65 function-call access key scoped to the recipient by default", async () => {
 				const { Near } = await import("near-kit");
-				new (Near as any)().getAccessKey.mockImplementation(() =>
+				(await getNearAccessKeyMock()).mockImplementation(() =>
 					Promise.resolve({ nonce: 0, permission: { FunctionCall: { receiver_id: MOCK_RECIPIENT, method_names: [] } } }));
 				const { client } = await setup();
 				const body = await makeMlDsa65VerifyBody();
@@ -1355,20 +1360,19 @@ describe("NEP-413 key policy", () => {
 	const FCAK_OTHER_CONTRACT = { nonce: 0, permission: { FunctionCall: { receiver_id: "other.contract.near", method_names: [] } } };
 
 	async function setAccessKey(accessKey: unknown) {
-		const { Near } = await import("near-kit");
-		new (Near as any)().getAccessKey.mockImplementation(() => Promise.resolve(accessKey));
+		(await getNearAccessKeyMock()).mockImplementation(() => Promise.resolve(accessKey));
 	}
 
 	beforeEach(async () => {
-		const { Near, verifyNep413Signature } = await import("near-kit");
-		new (Near as any)().getAccessKey.mockImplementation(() => Promise.resolve({ nonce: 0, permission: "FullAccess" }));
-		(verifyNep413Signature as any).mockImplementation(() => Promise.resolve(true));
+		const { verifyNep413Signature } = await import("near-kit");
+		(await getNearAccessKeyMock()).mockImplementation(() => Promise.resolve({ nonce: 0, permission: "FullAccess" }));
+		vi.mocked(verifyNep413Signature).mockImplementation(() => Promise.resolve(true));
 	});
 
 	afterEach(async () => {
-		const { Near, verifyNep413Signature } = await import("near-kit");
-		new (Near as any)().getAccessKey.mockImplementation(() => Promise.resolve({ nonce: 0, permission: "FullAccess" }));
-		(verifyNep413Signature as any).mockImplementation(() => Promise.resolve(true));
+		const { verifyNep413Signature } = await import("near-kit");
+		(await getNearAccessKeyMock()).mockImplementation(() => Promise.resolve({ nonce: 0, permission: "FullAccess" }));
+		vi.mocked(verifyNep413Signature).mockImplementation(() => Promise.resolve(true));
 	});
 
 	it("should accept a function-call access key scoped to the recipient by default", async () => {

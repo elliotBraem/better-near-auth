@@ -354,7 +354,7 @@ export const siwnClient = (config: SIWNClientConfig) => {
 		id: "siwn" as const,
 		$InferServerPlugin: {},
 
-		getAtoms: (_$fetch: BetterFetch) => ({
+		getAtoms: (_$fetch?: BetterFetch) => ({
 			nearState,
 			walletConnected,
 			activeNetwork,
