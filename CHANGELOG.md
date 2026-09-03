@@ -1,5 +1,29 @@
 # better-near-auth
 
+## 1.11.0
+
+### Minor Changes
+
+- [#78](https://github.com/elliotBraem/better-near-auth/pull/78) [`fadc28f`](https://github.com/elliotBraem/better-near-auth/commit/fadc28f49459b22505bc6ceb6a70fc18a38f1625) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Add `better-near-auth/react` entry with `useNearState`, `useNearAccountId` (session fallback), `useWalletConnected`, `useActiveNetwork`, and `useNearConnection` hooks, plus typed `NearState`, `NearClientAtoms`, `NearNetwork`, and `getNearAtoms` exports from `better-near-auth/client`
+
+### Patch Changes
+
+- [#77](https://github.com/elliotBraem/better-near-auth/pull/77) [`442119f`](https://github.com/elliotBraem/better-near-auth/commit/442119f948aac5e298010d5491a70cea2ce23c54) Thanks [@elliotBraem](https://github.com/elliotBraem)! - fix: `getAccountId()` returns the primary SIWN-linked account before NearConnect initializes; `setPrimaryAccount()` now refreshes the session's `nearAccount`
+
+  `authClient.near.getAccountId()` previously returned `null` on a fresh page load after a SIWN sign-in until `restoreFromSession` populated the wallet atom — that path dynamically imports `@hot-labs/near-connect` and hits `/near/list-accounts`, which lags behind the better-auth session fetch. UI that read `getAccountId()` for display (dashboard identity, connected-wallet indicator, onramp destination) showed "Connect a NEAR wallet" despite the user being authenticated.
+
+  The server plugin already attaches the primary SIWN-linked account to the session response as `session.user.nearAccount` (via an `after` hook on `GET /auth/session` that selects `isPrimary === true` from the `nearAccount` table). `getAccountId()` now reads that field as a fallback, so it returns the user's identity as soon as the session resolves and before NearConnect is initialized. The live NearConnect connection still takes precedence when present, so `getState()`/`isWalletConnected()` callers can distinguish a live signing connection from a session-only identity exactly as before.
+
+  `setPrimaryAccount()` now also notifies `$sessionSignal` after a successful primary change so the session's `nearAccount` is re-fetched and reflects the new primary. Previously the field could stay stale until the next unrelated session fetch.
+
+  Downstream consumers that hand-rolled `getNearAccountId(linkedAccounts)` workarounds (splitting the `:network` suffix off the core `account` table row) can now rely on `getAccountId()` directly. `session.user.nearAccount` is also available for cases where the public API is too narrow — note that this field is populated by an `after` hook and is therefore not part of the inferred session user type; consumers that want strict typing can narrow it with a small cast (the example app exposes a `readNearAccountId(session)` helper for this).
+
+- [#77](https://github.com/elliotBraem/better-near-auth/pull/77) [`442119f`](https://github.com/elliotBraem/better-near-auth/commit/442119f948aac5e298010d5491a70cea2ce23c54) Thanks [@elliotBraem](https://github.com/elliotBraem)! - Fix ML-DSA-65 NEP-413 signed messages being rejected by the SIWN endpoints (`/api/auth/near/verify` and `/api/auth/near/link-account`). Wallets holding post-quantum `ml-dsa-65:` (FIPS 204) full-access keys can now complete Sign in with NEAR — previously they returned `401 Unauthorized: Invalid signature` because `near-kit`'s `verifyNep413Signature` is hardcoded to Ed25519.
+
+  Adds a sibling `verifyMlDsa65Nep413Signature` helper that handles the `ml-dsa-65:` key type via `@noble/post-quantum`, reusing the same NEP-413 SHA-256 + borsh payload format and the same timestamp-based maxAge check. The post-quantum branch hits the same `near.getAccessKey` defense-in-depth as the ed25519 path, so the key still has to be a real full-access key on the claimed account. Bumps `near-kit` to `^0.19.0` so `getAccessKey` understands the `ml-dsa-65:` and `ml-dsa-65-hash:` prefixes on the RPC side.
+
+  > **Dependency note:** `near-kit` 0.19 pulls in `@napi-rs/keyring` (a native module) and `tar`. Serverless bundlers (e.g. Vercel/Netlify functions, Lambda) may need the native binding marked as an external or included in the bundle — verify your deploy target after upgrading.
+
 ## 1.10.2
 
 ### Patch Changes
