@@ -82,9 +82,15 @@ siwn({
 });
 ```
 
-### Validate function-call access keys
+### Key policy: full-access vs function-call keys
 
-By default the plugin validates that the signing key is either a full-access key or a function-call key scoped to the recipient. Override with `validateLimitedAccessKey`:
+The signing key must exist on the claimed account (checked on-chain via `getAccessKey`) — this defense-in-depth applies to both ed25519 and ml-dsa-65 keys. Which permissions are accepted is governed by the plugin's key policy, applied uniformly to both key types:
+
+- `requireFullAccessKey: false` (default) — full-access keys **and** function-call access keys scoped to the recipient are accepted
+- `requireFullAccessKey: true` — only full-access keys are accepted; anything else returns `401 Unauthorized: Full access key required`
+- `validateLimitedAccessKey` — replaces the default function-call key check entirely. The validator may enable keys the default would reject (e.g. FCAKs scoped to another contract), but cannot skip the on-chain key-exists check
+
+Override with `validateLimitedAccessKey`:
 
 ```typescript
 siwn({
@@ -95,6 +101,10 @@ siwn({
   },
 });
 ```
+
+### Post-quantum keys (ml-dsa-65)
+
+`/near/verify` and `/near/link-account` accept `ml-dsa-65:` (FIPS 204) keys alongside ed25519. The NEP-413 payload format (SHA-256 + borsh, tag `2147484061`) is unchanged; signature verification is delegated to `@noble/post-quantum`'s `ml_dsa65.verify`, and the same key policy applies. Requires `near-kit` >= 0.19 so `getAccessKey` understands the `ml-dsa-65:` prefix on the RPC side.
 
 ### Link and unlink NEAR accounts
 
@@ -192,10 +202,10 @@ To use parent ownership, contract deployment, init calls, transaction hooks, or 
 | Option | Type | Default | Description |
 | ------ | ---- | ------- | ----------- |
 | `recipient` | `string` | — | NEP-413 recipient identifier (required) |
-| `requireFullAccessKey` | `boolean` | `false` | Require full access keys |
+| `requireFullAccessKey` | `boolean` | `false` | Require full access keys; when false, FCAKs scoped to the recipient are accepted |
 | `getNonce` | `() => Promise<Uint8Array>` | `generateNonce()` | Custom nonce generation |
 | `getProfile` | `(accountId) => Promise<Profile \| null>` | FastNear KV → NEAR Social | Custom profile lookup |
-| `validateLimitedAccessKey` | `(args) => Promise<boolean>` | Default FAK validation | Validate limited access keys |
+| `validateLimitedAccessKey` | `(args) => Promise<boolean>` | Default FCAK validation | Replace the function-call key check (applies to both ed25519 and ml-dsa-65) |
 | `apiKey` | `string` | `process.env.FASTNEAR_API_KEY` | API key for RPC |
 | `rpcUrl` | `string` | — | Custom RPC URL |
 | `relayer` | `RelayerConfig` | — | See relay skill |

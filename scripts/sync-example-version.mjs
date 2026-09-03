@@ -35,6 +35,8 @@ const skillFiles = [
 	"skills/siwn/SKILL.md",
 	"skills/relay/SKILL.md",
 	"skills/tanstack/SKILL.md",
+	"skills/auth-plugin/SKILL.md",
+	"skills/subaccount/SKILL.md",
 ];
 
 for (const file of skillFiles) {
